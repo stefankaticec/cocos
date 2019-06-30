@@ -5,6 +5,8 @@ package to.etc.hubserver.protocol;
  * Created on 13-1-19.
  */
 final public class CommandNames {
+	public final static byte[] HEADER = {(byte)0xde, (byte)0xca, (byte)0xf1, (byte)0x11};
+
 	public static final String PING_CMD = "$PING";
 	public static final String PONG_CMD = "$PONG";
 
@@ -12,5 +14,10 @@ final public class CommandNames {
 	static public final String CLNT_CMD = "CLNT";
 	static public final String SRVR_CMD = "SRVR";
 	static public final String AUTH_CMD = "AUTH";
+
+	static public final String BODY_BYTES = "octet-stream";
+	static public final String BODY_JSON = "json";
+
+
 
 }

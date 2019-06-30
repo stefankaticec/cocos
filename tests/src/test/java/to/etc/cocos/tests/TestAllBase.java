@@ -2,6 +2,7 @@ package to.etc.cocos.tests;
 
 import to.etc.cocos.connectors.HubConnector;
 import to.etc.cocos.connectors.client.ClientResponder;
+import to.etc.cocos.connectors.server.ServerResponder;
 import to.etc.cocos.hub.HubServer;
 
 /**
@@ -21,6 +22,8 @@ public class TestAllBase {
 
 	private HubConnector m_client;
 
+	private HubConnector m_server;
+
 	public HubConnector client() {
 		HubConnector client = m_client;
 		if(null == client) {
@@ -28,6 +31,16 @@ public class TestAllBase {
 			client.start();
 		}
 		return client;
+	}
+
+	public HubConnector server() {
+		HubConnector server = m_server;
+		if(null == server) {
+			String id = SERVERNAME + "@" + CLUSTERNAME;
+			m_server = server = new HubConnector("localhost", HUBPORT, "", id, new ServerResponder(id));
+			server.start();
+		}
+		return server;
 	}
 
 	public HubServer hub() throws Exception {

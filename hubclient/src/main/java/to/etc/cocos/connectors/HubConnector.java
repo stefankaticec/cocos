@@ -1,18 +1,16 @@
 package to.etc.cocos.connectors;
 
-import com.google.protobuf.Message;
+import com.fasterxml.jackson.core.JsonParser.Feature;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.reactivex.Observable;
 import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import to.etc.function.ConsumerEx;
-import to.etc.hubserver.protocol.CommandNames;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore;
-import to.etc.util.ByteArrayUtil;
 import to.etc.util.ConsoleUtil;
-import to.etc.util.StringTool;
+import to.etc.util.FileTool;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
@@ -20,7 +18,6 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
@@ -44,6 +41,8 @@ import java.util.List;
 @NonNullByDefault
 final public class HubConnector {
 	private final PublishSubject<ConnectorState> m_connStatePublisher;
+
+	private final ObjectMapper m_mapper;
 
 	private boolean m_logTx = true;
 
@@ -99,32 +98,13 @@ final public class HubConnector {
 
 	private String m_serverVersion = "1.0";
 
-	private final class TxPacket implements Runnable {
-		final private byte[][] m_buffers;
+	final private PacketReader m_packetReader = new PacketReader(this::isRunning);
 
-		final private int m_length;
+	private final PacketWriter m_writer;
 
-		TxPacket(PacketBuilder b) {
-			m_buffers = b.getAndReleaseBuffers();
-			m_length = b.length();
-		}
+	private List<ISendPacket> m_txQueue = new ArrayList<>();
 
-		public byte[][] getBuffers() {
-			return m_buffers;
-		}
-
-		public int getLength() {
-			return m_length;
-		}
-
-		@Override public void run() {
-			transmitBytes(this);
-		}
-	}
-
-	private List<TxPacket> m_txQueue = new ArrayList<>();
-
-	private List<TxPacket> m_txPrioQueue = new ArrayList<>();
+	private List<ISendPacket> m_txPrioQueue = new ArrayList<>();
 
 	public HubConnector(String server, int port, String targetId, String clientId, IHubResponder responder) {
 		m_server = server;
@@ -133,6 +113,28 @@ final public class HubConnector {
 		m_targetId = targetId;
 		m_responder = responder;
 		m_connStatePublisher = PublishSubject.<ConnectorState>create();
+
+		ObjectMapper om = m_mapper = new ObjectMapper();
+		om.configure(Feature.ALLOW_MISSING_VALUES, true);
+		om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		//SimpleModule module = new SimpleModule();
+		//module.addSerializer(java.sql.Date.class, new DateSerializer());
+		//om.registerModule(module);
+
+		m_writer = new PacketWriter(om);
+	}
+
+	public ObjectMapper getMapper() {
+		return m_mapper;
+	}
+
+	public String getJsonText(Object object) {
+		try {
+			return getMapper().writerWithDefaultPrettyPrinter().writeValueAsString(object);
+		} catch(Exception x) {
+			System.out.println(">> render exception " + x);
+			return x.toString();
+		}
 	}
 
 	public void start() {
@@ -140,7 +142,7 @@ final public class HubConnector {
 			if(m_state != ConnectorState.STOPPED)
 				throw new ConnectorException("The connector is in state " + m_state + ", it can only be started in STOPPED state");
 
-			m_state = ConnectorState.STARTING;
+			m_state = ConnectorState.CONNECTING;
 			m_nextReconnect = 0;
 			m_reconnectCount = 0;
 
@@ -155,6 +157,7 @@ final public class HubConnector {
 	 * Cause the client to terminate. Do not wait; to wait call terminateAndWait().
 	 */
 	public void terminate() {
+		log("Received terminate request");
 		synchronized(this) {
 			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING)
 				return;
@@ -208,7 +211,8 @@ final public class HubConnector {
 					break;
 			}
 		} catch(Exception x) {
-			error(x, "Writer terminated with exception: " + x);
+			if(isRunning())
+				error(x, "Writer terminated with exception: " + x);
 		} finally {
 			synchronized(this) {
 				m_writerThread = null;
@@ -220,7 +224,12 @@ final public class HubConnector {
 				oldState = state;
 			}
 			cleanupAfterTerminate();
+			log("Writer has terminated");
 		}
+	}
+
+	private synchronized boolean isRunning() {
+		return m_state == ConnectorState.CONNECTED;
 	}
 
 	private boolean doWriteAction() {
@@ -228,10 +237,6 @@ final public class HubConnector {
 
 		synchronized(this) {
 			ConnectorState state = m_state;
-
-			//-- Has the connection state changed?
-
-
 
 			switch(state) {
 				default:
@@ -244,17 +249,19 @@ final public class HubConnector {
 				case WAIT_HELO:
 				case CONNECTED:
 					//-- We need to transmit packets when available
+					ISendPacket sender;
 					if(m_txPrioQueue.size() > 0) {
-						action = m_txPrioQueue.remove(0);
+						sender = m_txPrioQueue.remove(0);
 					} else if(m_txQueue.size() > 0) {
-						action = m_txQueue.remove(0);
+						sender = m_txQueue.remove(0);
 					} else {
 						sleepWait(10_000L);
 						return true;
 					}
+					action = () -> transmitPacket(sender);
 					break;
 
-				case STARTING:
+				case CONNECTING:
 					action = this::reconnect;
 					break;
 
@@ -277,89 +284,44 @@ final public class HubConnector {
 		return true;
 	}
 
-	private void transmitBytes(TxPacket packet) {
-		OutputStream os;
-		synchronized(this) {
-			os = m_os;
-			if(null == os)
-				return;
-		}
-
-		StringBuilder sb = m_logTx ? new StringBuilder() : null;
+	/**
+	 * Transmit the packet. If sending fails we disconnect state.
+	 */
+	private void transmitPacket(ISendPacket sender) {
 		try {
-			int szleft = packet.getLength();
-			int dumpLeft = m_dumpLimit;
-			if(sb != null)
-				sb.append("Writing ").append(szleft).append(" bytes\n");
-			for(byte[] buffer : packet.getBuffers()) {
-				int maxlen = szleft;
-				if(maxlen > buffer.length)
-					maxlen = buffer.length;
-
-				if(sb != null) {
-					int dumpSz = maxlen;
-					if(dumpSz > dumpLeft)
-						dumpSz = dumpLeft;
-					if(dumpSz > 0) {
-						StringTool.dumpData(sb, buffer, 0, dumpSz, "w> ");
-						dumpLeft -= dumpSz;
-					}
-				}
-				os.write(buffer, 0, maxlen);
-
-				szleft -= maxlen;
-				if(szleft <= 0)
-					return;
+			OutputStream os;
+			synchronized(this) {
+				os = m_os;
+				if(null == os)
+					throw new SocketEofException("Sender socket is null");
 			}
+			m_writer.setOs(os);
+			sender.send(m_writer);
 		} catch(Exception x) {
-			if(null != sb) {
-				System.out.println(sb.toString());
-				sb = null;
-			}
-
-			//-- Any error in the transmitter leads to disconnect and retry
-			x.printStackTrace();
-			forceDisconnect("Transmitter failed: " + x.toString());
-		} finally {
-			if(null != sb) {
-				System.out.println(sb.toString());
-				sb = null;
-			}
+			error("Send for packet " + sender + " failed: " + x);
+			forceDisconnect("Packet send failed");
 		}
 	}
 
-	public void sendPacket(int packetCode, String command, @Nullable Message message) {
-		PacketBuilder b = allocatePacketBuilder(packetCode, command);
-		if(null != message)
-			b.appendMessage(message);
-		sendPacket(b);
-	}
-
-	public void sendPacketPrio(int packetCode, String command, @Nullable Message message) {
-		PacketBuilder b = allocatePacketBuilder(packetCode, command);
-		if(null != message)
-			b.appendMessage(message);
-		sendPacketPrio(b);
-	}
-
-	public void sendPacket(PacketBuilder b) {
-		TxPacket packet = new TxPacket(b);
-		releasePacket(b);
+	public void sendPacket(ISendPacket packetSender) {
 		synchronized(this) {
-			m_txQueue.add(packet);
+			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
+				throw new IllegalStateException("Cannot send packets when connector is " + m_state);
+			}
+			m_txQueue.add(packetSender);
 			notify();
 		}
 	}
 
-	private void sendPacketPrio(PacketBuilder b) {
-		TxPacket packet = new TxPacket(b);
-		releasePacket(b);
+	public void sendPacketPrio(ISendPacket packetSender) {
 		synchronized(this) {
-			m_txPrioQueue.add(packet);
+			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
+				throw new IllegalStateException("Cannot send packets when connector is " + m_state);
+			}
+			m_txPrioQueue.add(packetSender);
 			notify();
 		}
 	}
-
 
 	private void sleepWait(long ms) {
 		try {
@@ -373,7 +335,7 @@ final public class HubConnector {
 	 */
 	private void reconnect() {
 		synchronized(this) {
-			if(m_state != ConnectorState.RECONNECT_WAIT && m_state != ConnectorState.STARTING) {
+			if(m_state != ConnectorState.RECONNECT_WAIT && m_state != ConnectorState.CONNECTING) {
 				return;
 			}
 			m_state = ConnectorState.CONNECTING;
@@ -417,149 +379,77 @@ final public class HubConnector {
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Reader part..												*/
 	/*----------------------------------------------------------------------*/
-	private int m_bufferSize = 8192;
-
-	private int m_allocatedSize = 0;
-
-	private int m_maxBufferSize = 20*1024*1024;
-
-	private int m_bufferWaits = 0;
-
-	/** Bufferpool: byte buffers used for collecting data */
-	final private List<byte[]> m_bufferPool = new ArrayList<>();
-
-	private ConsumerEx<BytePacket> m_packetState = this::respondHelo;
+	//private Runnable m_packetState = this::respondHelo;
 
 	/**
-	 * The reader collects packets from the remote and pushes completed packets to the receive handler. The reader
-	 * has two states:
-	 * <ul>
-	 *	<li>waitLength means it is reading bytes to determine the length of the next packet. The
-	 *		length will always be at the start of a new buffer. Once the length is known it
-	 *		will move to the next state to read the data content of the packet.</li>
-	 *	<li>waitData means it is reading the remaining bytes of a single packet in whatever
-	 *		data buffer is current</li>
-	 * </ul>
-	 * The two states alternate.
+	 * This is the reader thread. It reads packet data from the server, and calls packetReceived for every
+	 * packet found. The reader thread terminates on every communications error and disconnects the socket
+	 * at that time. It is the responsibility of the writer thread to try to reconnect.
 	 */
 	private void readerMain() {
-		String why = "Unknown reason";
+		String disconnectReason = "Normal termination";
 		try {
-			log("Reader started");
-			readerLoop();
+			for(;;) {
+				InputStream is;
+				synchronized(this) {
+					is = m_is;
+					if(null == is)
+						break;
+				}
+				m_packetReader.readPacket(is);
+				executePacket();
+			}
 		} catch(Exception x) {
-			why = x.toString();
-			x.printStackTrace();
+			//log("state " + getState());
+			if(isRunning()) {
+				error("reader terminated because of " + x);
+				disconnectReason = x.toString();
+			}
 		} finally {
-			forceDisconnect("Reader terminating: " + why);
 			synchronized(this) {
 				m_readerThread = null;
 			}
+			forceDisconnect(disconnectReason);
+			log("reader terminated");
 		}
 	}
 
-	private void readerLoop() throws Exception {
-		InputStream is;
-		synchronized(this) {
-			is = m_is;
-			if(! inState(ConnectorState.WAIT_HELO, ConnectorState.CONNECTED) || is == null)
-				return;
-		}
+	private void executePacket() {
 
-		m_packetState = this::respondHelo;
-		byte[] buffer = null;
-		try {
-			byte[] lenBuf = new byte[4];
-			for(; ; ) {
-				readFully(is, lenBuf, 4);                        // Read buffer length
-				int length = ByteArrayUtil.getInt(lenBuf, 0);
-				if(length <= 0 || length > MAX_PACKET_SIZE) {
-					throw new ProtocolViolationException("Packet size unacceptable: " + length);
-				}
-				//-- Read a set of packets.
-				BytePacket packet = allocateReceivePacket(length);
-				while(length > 0) {
-					buffer = bufferAllocate();
-					int mx = m_bufferSize;
-					if(mx > length)
-						mx = length;
-					readFully(is, buffer, mx);
-					length -= mx;
-					packet.addBuffer(buffer);
-					buffer = null;
-				}
-				packet.finish();
-				pushPacket(packet);
-				if(! inState(ConnectorState.CONNECTED, ConnectorState.WAIT_HELO))
-					return;
-			}
-		} finally {
-			if(null != buffer)
-				bufferRelease(buffer);
 
-		}
+
 	}
 
-	private void readFully(InputStream is, byte[] data, int length) throws IOException {
-		if(null == data)
-			throw new IllegalAccessError("NULL DATA BUFFER");
-		int offset = 0;
-		while(length > 0) {
-			int szrd = is.read(data, offset, length);
-			if(szrd < 0)
-				throw new ConnectorDisconnectedException();
-			length -= szrd;
-			offset += szrd;
-		}
-	}
-
-	private void pushPacket(BytePacket packet) throws Exception {
-		try {
-			if(m_logRx)
-				packet.dump();
-			if(packet.getType() == 0x00 && CommandNames.PING_CMD.equals(packet.getCommand())) {
-				sendPacketPrio(0x01, CommandNames.PONG_CMD, null);
-			} else if(packet.getType() == 0x03) {
-				//-- Server fatal error
-				handleServerFatal(packet);
-			} else {
-				m_packetState.accept(packet);
-			}
-		} finally {
-			releasePacket(packet);
-		}
-	}
-
-	private void handleServerFatal(BytePacket packet) throws IOException {
-		Hubcore.ErrorResponse response = Hubcore.ErrorResponse.parseFrom(packet.getRemainingInput());
-		throw new FatalServerException("Server sent a fatal error: " + response.getCode() + ": " + response.getText());
-	}
-
-	/**
-	 * Create a HELO response packet.
-	 */
-	private void respondHelo(BytePacket input) throws Exception {
-		if(input.getType() != 0x00 || ! input.getCommand().equals(CommandNames.HELO_CMD)) {
-			throw new ProtocolViolationException("Expecting HELO packet");
-		}
-		m_responder.onHelloPacket(this, input);
-		m_packetState = this::respondAuth;
-	}
-
-	/**
-	 * Wait for AUTH.
-	 */
-	private void respondAuth(BytePacket input) throws Exception {
-		if(input.getType() != 0x01 || !input.getCommand().equals(CommandNames.AUTH_CMD)) {
-			throw new ProtocolViolationException("Expecting AUTH packet");
-		}
-		m_responder.onAuth(this, input);
-		synchronized(this) {
-			m_state = ConnectorState.CONNECTED;
-			m_reconnectCount = 0;
-		}
-		m_packetState = packet -> m_responder.acceptPacket(this, packet);
-	}
+	//private void handleServerFatal(BytePacket packet) throws IOException {
+	//	Hubcore.ErrorResponse response = Hubcore.ErrorResponse.parseFrom(packet.getRemainingInput());
+	//	throw new FatalServerException("Server sent a fatal error: " + response.getCode() + ": " + response.getText());
+	//}
+	//
+	///**
+	// * Create a HELO response packet.
+	// */
+	//private void respondHelo(BytePacket input) throws Exception {
+	//	if(input.getType() != 0x00 || ! input.getCommand().equals(CommandNames.HELO_CMD)) {
+	//		throw new ProtocolViolationException("Expecting HELO packet");
+	//	}
+	//	m_responder.onHelloPacket(this, input);
+	//	m_packetState = this::respondAuth;
+	//}
+	//
+	///**
+	// * Wait for AUTH.
+	// */
+	//private void respondAuth(BytePacket input) throws Exception {
+	//	if(input.getType() != 0x01 || !input.getCommand().equals(CommandNames.AUTH_CMD)) {
+	//		throw new ProtocolViolationException("Expecting AUTH packet");
+	//	}
+	//	m_responder.onAuth(this, input);
+	//	synchronized(this) {
+	//		m_state = ConnectorState.CONNECTED;
+	//		m_reconnectCount = 0;
+	//	}
+	//	m_packetState = packet -> m_responder.acceptPacket(this, packet);
+	//}
 
 	/**
 	 * Force disconnect and enter the next appropriate state, depending on
@@ -579,123 +469,50 @@ final public class HubConnector {
 			m_is = null;
 			m_os = null;
 
-//			if(socket == null && is == null && os == null) {
-//				//-- Already fully disconnected; assume state is OK
-//				return;
-//			}
+			switch(m_state) {
+				default:
+					throw new IllegalStateException("Unexpected state: " + m_state);
 
-			//-- Are we terminating?
-			if(m_state != ConnectorState.TERMINATING && m_state != ConnectorState.RECONNECT_WAIT) {
-				m_state = ConnectorState.RECONNECT_WAIT;
-				int count = m_reconnectCount++;
-				int delta = count < 3 ? 2000 :
+				case TERMINATING:
+					/*
+					 * If we are terminating having a disconnected socket means we're IDLE.
+					 */
+					if(m_readerThread == null && m_writerThread == null) {
+						m_state = ConnectorState.STOPPED;
+					}
+					//m_state = ConnectorState.IDLE;
+					break;
+
+				case CONNECTED:
+				case CONNECTING:
+					/*
+					 * Connection failed, or reconnect attempt failed -> enter wait.
+					 */
+					m_state = ConnectorState.RECONNECT_WAIT;
+					int count = m_reconnectCount++;
+					int delta = count < 3 ? 2000 :
 						count < 6 ? 5000 :
-								count < 10 ? 30000 :
-										60000;
-				m_nextReconnect = System.currentTimeMillis() + delta;
-				m_state = ConnectorState.RECONNECT_WAIT;
-			}
-			if(m_readerThread == null && m_writerThread == null) {
-				m_state = ConnectorState.STOPPED;
+							count < 10 ? 30000 :
+								60000;
+					m_nextReconnect = System.currentTimeMillis() + delta;
+					break;
+
+				case STOPPED:
+					break;
+
+				case RECONNECT_WAIT:
+					break;
+				//throw new IllegalStateException("We should not need to disconnect when we're waiting to disconnect");
+
 			}
 			notifyAll();
 		}
-		try {
-			if(is != null)
-				is.close();
-		} catch(Exception x) {
-		}
-
-		try {
-			if(os != null)
-				os.close();
-		} catch(Exception x) {
-		}
-		try {
-			if(socket != null)
-				socket.close();
-		} catch(Exception x) {
-		}
+		FileTool.closeAll(is, os, socket);
 	}
 
-	/*----------------------------------------------------------------------*/
-	/*	CODING:	Buffer management											*/
-	/*----------------------------------------------------------------------*/
-
-	/**
-	 * Allocate a read buffer.
-	 */
-	byte[] bufferAllocate() {
-		synchronized(m_bufferPool) {
-			if(m_bufferPool.size() > 0) {
-				return m_bufferPool.remove(m_bufferPool.size() - 1);        // Get available buffer
-			}
-
-			//-- Can we allocate?
-			if(m_allocatedSize < m_maxBufferSize) {
-				m_allocatedSize += m_bufferSize;
-				return new byte[m_bufferSize];
-			}
-
-			//-- We're out of them- we need to wait.
-			m_bufferWaits++;
-			for(; ; ) {
-				try {
-					m_bufferPool.wait(1000);
-				} catch(InterruptedException x) {
-					throw new TerminationException();
-				}
-				if(!inReceivingState())
-					throw new TerminationException();
-				if(m_bufferPool.size() > 0) {
-					return m_bufferPool.remove(m_bufferPool.size() - 1);        // Get available buffer
-				}
-			}
-		}
-	}
-
-	void bufferRelease(byte[] buffer) {
-		if(null == buffer)
-			throw new IllegalStateException("NULL DATA BUFFER");
-		synchronized(m_bufferPool) {
-			m_bufferPool.add(buffer);
-			m_bufferPool.notify();
-		}
-	}
-
-	private synchronized boolean inReceivingState() {
-		return m_state == ConnectorState.CONNECTED || m_state == ConnectorState.WAIT_HELO;
-	}
-
-	private BytePacket allocateReceivePacket(int len) {
-		BytePacket packet = new BytePacket();
-		packet.reset(len);
-		return packet;
-	}
-
-	private void releasePacket(BytePacket packet) {
-		byte[][] buffers = packet.getBuffers();
-		for(int i = 0, length = buffers.length; i < length; i++) {
-			byte[] buffer = buffers[i];
-			if(buffer == null)
-				return;
-			buffers[i] = null;
-			bufferRelease(buffer);
-		}
-	}
-
-	public PacketBuilder allocatePacketBuilder(int packetType, String targetId, String clientId, String command) {
-		return new PacketBuilder(this, packetType, targetId, clientId, command);
-	}
-
-	public PacketBuilder allocatePacketBuilder(int packetType, String command) {
-		return new PacketBuilder(this, packetType, m_targetId, m_clientId, command);
-	}
-
-
-	public void releasePacket(PacketBuilder b) {
-		b.releaseBuffers();
-	}
+	//private synchronized boolean inReceivingState() {
+	//	return m_state == ConnectorState.CONNECTED || m_state == ConnectorState.WAIT_HELO;
+	//}
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	SSL and security related code								*/

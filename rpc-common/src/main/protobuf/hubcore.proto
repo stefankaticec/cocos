@@ -34,3 +34,20 @@ message ErrorResponse {
     string extraMessage = 4;
     string extraBytes = 5;
 }
+
+message Envelope {
+     int32 version = 1;
+     string sourceId = 2;
+     string targetId = 3;
+     string command = 4;
+     string commandId = 5;
+     string dataFormat = 6;
+
+     oneof payload {
+         HelloChallenge challenge  = 10;
+         ServerHeloResponse heloServer = 11;
+         ClientHeloResponse heloClient = 12;
+         AuthResponse auth = 13;
+         ErrorResponse error = 14;
+     }
+}
