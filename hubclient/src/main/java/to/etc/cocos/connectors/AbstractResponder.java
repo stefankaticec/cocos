@@ -61,6 +61,4 @@ abstract public class AbstractResponder implements IHubResponder {
 		}
 		return null;
 	}
-
-
 }

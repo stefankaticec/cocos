@@ -50,7 +50,6 @@ public class TestClient {
 				return;
 			}
 		}
-
 	}
 
 	private void loadOptions() {

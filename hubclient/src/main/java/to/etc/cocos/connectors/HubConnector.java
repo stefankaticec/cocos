@@ -1,6 +1,8 @@
 package to.etc.cocos.connectors;
 
 import com.google.protobuf.Message;
+import io.reactivex.Observable;
+import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
@@ -40,6 +42,8 @@ import java.util.List;
  */
 @NonNullByDefault
 final public class HubConnector {
+	private final PublishSubject<ConnectorState> m_connStatePublisher;
+
 	private boolean m_logTx = true;
 
 	private boolean m_logRx = true;
@@ -58,6 +62,7 @@ final public class HubConnector {
 
 	/** The endpoint ID */
 	final private String m_targetId;
+
 	private final IHubResponder m_responder;
 
 	/**
@@ -126,6 +131,7 @@ final public class HubConnector {
 		m_clientId = clientId;
 		m_targetId = targetId;
 		m_responder = responder;
+		m_connStatePublisher = PublishSubject.<ConnectorState>create();
 	}
 
 	public void start() {
@@ -176,14 +182,29 @@ final public class HubConnector {
 		}
 	}
 
+	private void cleanupAfterTerminate() {
+		m_connStatePublisher.onComplete();
+	}
+
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Writer thread handler.										*/
 	/*----------------------------------------------------------------------*/
 
 	private void writerMain() {
+		ConnectorState oldState = getState();
 		try {
 			log("Writer started");
-			while(doWriteAction()) {
+
+			m_connStatePublisher.onNext(oldState);
+			for(;;) {
+				boolean doExit = doWriteAction();
+				ConnectorState state = getState();
+				if(state != oldState) {
+					m_connStatePublisher.onNext(state);
+					oldState = state;
+				}
+				if(doExit)
+					break;
 			}
 		} catch(Exception x) {
 			LOG.error("Writer terminated with exception: " + x, x);
@@ -192,13 +213,24 @@ final public class HubConnector {
 				m_writerThread = null;
 			}
 			forceDisconnect("Writer terminating");
+			ConnectorState state = getState();
+			if(state != oldState) {
+				m_connStatePublisher.onNext(state);
+				oldState = state;
+			}
+			cleanupAfterTerminate();
 		}
 	}
 
 	private boolean doWriteAction() {
 		Runnable action;
+
 		synchronized(this) {
 			ConnectorState state = m_state;
+
+			//-- Has the connection state changed?
+
+
 
 			switch(state) {
 				default:
@@ -717,6 +749,10 @@ final public class HubConnector {
 				return true;
 		}
 		return false;
+	}
+
+	public Observable<ConnectorState> observeConnectionState() {
+		return m_connStatePublisher;
 	}
 
 	private void log(String s) {
