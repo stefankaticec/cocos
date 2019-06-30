@@ -25,6 +25,13 @@
 			<groupId>to.etc.cocos</groupId>
 			<artifactId>hubclient</artifactId>
 		</dependency>
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
 
 
