@@ -1,6 +1,8 @@
 package to.etc.hubserver;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
@@ -15,16 +17,11 @@ import io.netty.handler.ssl.SslContextBuilder;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.CmdLineParser;
-import org.kohsuke.args4j.Option;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import to.etc.log.EtcLoggerFactory;
+import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
@@ -32,13 +29,8 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
-import java.util.Objects;
 
 /**
- *
- * Used documents:
- * https://medium.com/@maanadev/netty-with-https-tls-9bf699e07f01
- *
  *
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 7-1-19.
@@ -49,62 +41,45 @@ final public class HubServer implements ISystemContext {
 
 	static public final int MAX_PACKET_SIZE = 1024 * 1024;
 
-	static private Logger LOG = LoggerFactory.getLogger(HubServer.class);
+	final private int m_port;
 
-	@Option(name = "-port", usage = "The listener port number")
-	private int m_port = 9876;
-
-	@Option(name = "-pinginterval", usage = "The #of seconds between PING messages, to keep the connection alive when idle")
 	private int m_pingInterval = 120;
 
-	@Option(name = "-listeners", usage = "The #of listener threads")
 	private int m_listenerThreads = 1;
 
+	final private String m_ident;
+
+	final private boolean m_useNio;
+
+	final private SecureRandom m_random;
+
+	final private ConnectionDirectory m_directory = new ConnectionDirectory(this);
+
 	@Nullable
-	@Option(name = "-ident", usage = "Set the unique identifier for this server")
-	private String m_ident;
+	private Channel m_serverChannel;
 
-	@Option(name = "-nio", usage = "Use nio instead of EPoll as the connection layer")
-	private boolean m_useNio;
+	@Nullable
+	private ChannelFuture m_closeFuture;
 
-	private SecureRandom m_random;
-
-	private ConnectionDirectory m_directory = new ConnectionDirectory(this);
-
-	private HubServer() throws Exception {
+	public HubServer(int port, String ident, boolean useNio) throws Exception {
+		m_port = port;
+		m_ident = ident;
+		m_useNio = useNio;
 		m_random = SecureRandom.getInstanceStrong();
 	}
 
-	static public void main(String[] args) throws Exception {
-		new HubServer().run(args);
+	public void setListenerThreads(int listenerThreads) {
+		m_listenerThreads = listenerThreads;
 	}
 
-	private void run(String[] args) throws Exception {
-		CmdLineParser p = new org.kohsuke.args4j.CmdLineParser(this);
-		try {
-			//-- Decode the tasks's arguments
-			p.parseArgument(args);
-		} catch(CmdLineException x) {
-			System.err.println("Invalid arguments: " + x.getMessage());
-			System.err.println("Usage:");
-			p.printUsage(System.err);
-			System.exit(10);
+	public void startServer() throws Exception {
+		synchronized(this) {
+			if(m_serverChannel != null)
+				throw new IllegalStateException("The server is already running");
 		}
 
-		//-- Do we have an ident?
-		if(m_ident == null) {
-			String name = InetAddress.getLocalHost().getHostName();
-			m_ident = name;
-		}
-		String addr = InetAddress.getLocalHost().getHostAddress();
-		System.out.println("Server ID is " + m_ident + " at " + addr);
-
-		startServer();
-	}
-
-	private void startServer() throws Exception {
 		EtcLoggerFactory.getSingleton().initializeFromResource(EtcLoggerFactory.DEFAULT_CONFIG_FILENAME, null);
-		LOG.info("Starting server");
+		ConsoleUtil.consoleLog("Hub", "Starting server");
 		EventLoopGroup bossGroup;
 		EventLoopGroup workerGroup;
 		Class<? extends ServerChannel> channelClass;
@@ -118,22 +93,67 @@ final public class HubServer implements ISystemContext {
 			channelClass = EpollServerSocketChannel.class;
 		}
 
+		boolean failed = true;
 		try {
 			SslContext sslContext = createSslContext();
 
 			ServerBootstrap b = new ServerBootstrap();
-			b.group(bossGroup, workerGroup)
-					.channel(channelClass)
-					.handler(new LoggingHandler(LogLevel.INFO))
-					.childHandler(new HubServerChannelInitializer(this, sslContext))
-					.childOption(ChannelOption.AUTO_READ, true)
-					.bind(m_port).sync().channel().closeFuture().sync();
+			Channel serverChannel = b.group(bossGroup, workerGroup)
+				.channel(channelClass)
+				.handler(new LoggingHandler(LogLevel.INFO))
+				.childHandler(new HubServerChannelInitializer(this, sslContext))
+				.childOption(ChannelOption.AUTO_READ, true)
+				.bind(m_port).channel();
+				//.bind(m_port).sync().channel();
+
+			ChannelFuture closeFuture = serverChannel.closeFuture();
+
+			synchronized(this) {
+				m_serverChannel = serverChannel;
+				m_closeFuture = closeFuture;
+			}
+			closeFuture.addListener(future -> {
+				ConsoleUtil.consoleLog("Hub", "Server closing down: releasing thread pools");
+				bossGroup.shutdownGracefully();
+				workerGroup.shutdownGracefully();
+				synchronized(this) {
+					m_closeFuture = null;
+				}
+			});
+			failed = false;
+			//closeFuture.sync();
 		} catch(Exception e) {
 			e.printStackTrace();
+			throw e;
 		} finally {
-			bossGroup.shutdownGracefully();
-			workerGroup.shutdownGracefully();
+			if(failed) {
+				bossGroup.shutdownGracefully();
+				workerGroup.shutdownGracefully();
+			}
 		}
+	}
+
+	public void terminate() {
+		Channel serverChannel;
+		synchronized(this) {
+			serverChannel = m_serverChannel;
+			if(null == serverChannel) {
+				return;
+			}
+			m_serverChannel = null;
+		}
+		serverChannel.close();
+	}
+
+	public void terminateAndWait() throws Exception {
+		terminate();
+		ChannelFuture closeFuture;
+		synchronized(this) {
+			closeFuture = m_closeFuture;
+			if(null == closeFuture)
+				return;
+		}
+		closeFuture.sync();
 	}
 
 	private X509Certificate getServerCertificate() throws Exception {
@@ -177,7 +197,7 @@ final public class HubServer implements ISystemContext {
 	}
 
 	@NonNull public String getIdent() {
-		return Objects.requireNonNull(m_ident);
+		return m_ident;
 	}
 
 	byte[] getChallenge() {

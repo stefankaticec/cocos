@@ -125,6 +125,13 @@
                 <version>${org.slf4j.version}</version>
             </dependency>
 
+            <!-- https://mvnrepository.com/artifact/org.eclipse.jdt/org.eclipse.jdt.annotation -->
+            <dependency>
+                <groupId>org.eclipse.jdt</groupId>
+                <artifactId>org.eclipse.jdt.annotation</artifactId>
+                <version>1.1.100</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
