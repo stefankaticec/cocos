@@ -11,6 +11,7 @@ import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.util.ByteArrayUtil;
+import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
 
 import javax.net.ssl.SSLContext;
@@ -207,7 +208,7 @@ final public class HubConnector {
 					break;
 			}
 		} catch(Exception x) {
-			LOG.error("Writer terminated with exception: " + x, x);
+			error(x, "Writer terminated with exception: " + x);
 		} finally {
 			synchronized(this) {
 				m_writerThread = null;
@@ -386,19 +387,21 @@ final public class HubConnector {
 			m_socket = s;
 			m_is = s.getInputStream();
 			m_os = s.getOutputStream();
-			log("Connected to " + m_server + ":" + m_port);
+			StringBuilder sb = new StringBuilder();
+			sb.append("Connected to ").append(m_server).append(':').append(m_port).append("\n");
 			SSLSession session = s.getSession();
 			Certificate[] cchain = session.getPeerCertificates();
-			System.out.println("The Certificates used by peer");
+			sb.append("The Certificates used by peer\n");
 			for(int i = 0; i < cchain.length; i++) {
-				System.out.println("- subject DN " + ((X509Certificate) cchain[i]).getSubjectDN());
+				sb.append("- subject DN ").append(((X509Certificate) cchain[i]).getSubjectDN()).append("\n");
 			}
-			System.out.println("Peer host is " + session.getPeerHost());
-			System.out.println("Cipher is " + session.getCipherSuite());
-			System.out.println("Protocol is " + session.getProtocol());
-			System.out.println("ID is " + new BigInteger(session.getId()));
-			System.out.println("Session created in " + session.getCreationTime());
-			System.out.println("Session accessed in "+ session.getLastAccessedTime());
+			sb.append("Peer host is ").append(session.getPeerHost()).append("\n");
+			sb.append("Cipher is ").append(session.getCipherSuite()).append("\n");
+			sb.append("Protocol is ").append(session.getProtocol()).append("\n");
+			sb.append("ID is ").append(new BigInteger(session.getId())).append("\n");
+			sb.append("Session created in ").append(session.getCreationTime()).append("\n");
+			sb.append("Session accessed in ").append(session.getLastAccessedTime()).append("\n");
+			log(sb.toString());
 
 			Thread th = m_readerThread = new Thread(this::readerMain, "conn#reader");
 			th.setDaemon(true);
@@ -756,6 +759,13 @@ final public class HubConnector {
 	}
 
 	private void log(String s) {
-		System.out.println("cc: " + s);
+		ConsoleUtil.consoleLog(m_clientId, s);
+	}
+	private void error(String s) {
+		ConsoleUtil.consoleError(m_clientId, s);
+	}
+	private void error(Throwable t, String s) {
+		ConsoleUtil.consoleError(m_clientId, s);
+		t.printStackTrace();
 	}
 }

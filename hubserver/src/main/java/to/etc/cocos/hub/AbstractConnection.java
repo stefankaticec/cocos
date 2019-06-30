@@ -7,6 +7,7 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.function.RunnableEx;
+import to.etc.util.ConsoleUtil;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -130,7 +131,7 @@ class AbstractConnection {
 	}
 
 	public void log(String s) {
-		System.out.println(m_fullId + ": " + s);
+		ConsoleUtil.consoleLog("hubConn", m_fullId + " " + s);
 	}
 
 	public void forwardPacket(HubPacket packet) {

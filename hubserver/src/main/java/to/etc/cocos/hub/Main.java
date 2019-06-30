@@ -64,7 +64,7 @@ final public class Main {
 			m_ident = ident = name;
 		}
 		String addr = InetAddress.getLocalHost().getHostAddress();
-		System.out.println("Hub ID is " + m_ident + " at " + addr);
+		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr);
 
 		HubServer server = new HubServer(m_port, ident, m_useNio);
 		server.startServer();

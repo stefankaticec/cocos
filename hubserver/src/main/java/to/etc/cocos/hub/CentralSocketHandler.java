@@ -13,6 +13,7 @@ import to.etc.function.RunnableEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.util.ByteArrayUtil;
+import to.etc.util.ConsoleUtil;
 import to.etc.util.Pair;
 import to.etc.util.StringTool;
 
@@ -57,7 +58,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 	@Override protected void channelRead0(ChannelHandlerContext context, byte[] bytes) throws Exception {
 		StringBuilder sb = new StringBuilder();
 		StringTool.dumpData(sb, bytes, 0, bytes.length, "r> ");
-		System.out.println(sb.toString());
+		log(sb.toString());
 
 		try {
 			HubPacket packet = new HubPacket(bytes);
@@ -97,7 +98,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 	}
 
 	@Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-		System.out.println("Connection exception: " + cause);
+		error("Connection exception: " + cause);
 		ctx.close();
 	}
 
@@ -123,10 +124,10 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 		try {
 			String name = packet.getCommand();
 			if(name.equals(CommandNames.CLNT_CMD)) {
-				System.out.println("Got CLNT response");
+				log("Got CLNT response");
 				heloHandleClient(context, packet);
 			} else if(name.equals(CommandNames.SRVR_CMD)) {
-				System.out.println("Got SRVR response");
+				log("Got SRVR response");
 				heloHandleServer(context, packet);
 			} else {
 				throw new ProtocolViolationException("HELO response invalid: expecting CLNT or SRVR, got '" + name + "'");
@@ -171,7 +172,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 		Hubcore.AuthResponse auth = Hubcore.AuthResponse.newBuilder()
 				.build();
 		sendHubMessage(0x01, CommandNames.AUTH_CMD, auth, null);
-		System.out.println("AUTH sent");
+		log("AUTH sent");
 	}
 
 	private void heloHandleClient(ChannelHandlerContext context, HubPacket packet) throws Exception {
@@ -289,8 +290,12 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 	}
 
 	void log(String log) {
-		System.out.println("ch: " + log);
+		ConsoleUtil.consoleLog("hub", "csh " + log);
 	}
+	void error(String log) {
+		ConsoleUtil.consoleError("hub", "csh " + log);
+	}
+
 
 	public void forwardPacket(HubPacket packet) {
 		ByteArrayUtil.setInt(m_lenBuf, 0, packet.getData().length);

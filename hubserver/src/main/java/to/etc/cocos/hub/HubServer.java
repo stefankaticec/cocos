@@ -223,4 +223,8 @@ final public class HubServer implements ISystemContext {
 	public void setPingInterval(int pingInterval) {
 		m_pingInterval = pingInterval;
 	}
+
+	void log(String message) {
+		ConsoleUtil.consoleLog("hub", message);
+	}
 }

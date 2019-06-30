@@ -53,7 +53,7 @@ class HubServerChannelInitializer extends ChannelInitializer<SocketChannel> {
 					IdleStateEvent ie = (IdleStateEvent) evt;
 					if (ie.state() == IdleState.READER_IDLE) {
 						ctx.close();
-						System.out.println("Disconnect requested");
+						m_server.log("Disconnect requested");
 					} else if (ie.state() == IdleState.WRITER_IDLE) {
 //							ByteBuf buffer = ctx.alloc().buffer(6);
 //							ChannelFuture future = ctx.channel().write(PING);
@@ -63,11 +63,11 @@ class HubServerChannelInitializer extends ChannelInitializer<SocketChannel> {
 
 						PacketBuilder b = new PacketBuilder(ctx.alloc(), (byte)0x00, "", m_server.getIdent(), CommandNames.PING_CMD);
 						ctx.writeAndFlush(b.getCompleted());
-						System.out.println("ping sent");
+						m_server.log("ping sent");
 					}
 				}
 				else
-					System.out.println("Event: " + evt.getClass());
+					m_server.log("Event: " + evt.getClass());
 			}
 		});
 		pipeline.addLast(new CentralSocketHandler(m_server, socketChannel));
