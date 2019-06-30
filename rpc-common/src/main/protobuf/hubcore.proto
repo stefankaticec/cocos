@@ -1,0 +1,36 @@
+syntax = "proto3";
+package to.etc.puzzler.daemon.rpc.messages;
+
+// The challenge format sent by the hub to a client or server connecting
+message HelloChallenge {
+    int32 version = 1;
+    string serverVersion = 2;
+    bytes challenge = 3;
+}
+
+// A server sends this response. If its challenge response matches the hub's key
+// then the server is allowed
+message ServerHeloResponse {
+    int32 version = 1;
+    string serverVersion = 2;
+    bytes challengeResponse = 3;
+}
+
+//-- A client sends this response. Its challenge will be forwarded to a server it addresses
+message ClientHeloResponse {
+    int32 version = 1;
+    string clientVersion = 2;
+    bytes challengeResponse = 3;
+}
+
+message AuthResponse {
+    int32 version = 1;
+}
+
+message ErrorResponse {
+    string code = 1;
+    string text = 2;
+    string details = 3;
+    string extraMessage = 4;
+    string extraBytes = 5;
+}
