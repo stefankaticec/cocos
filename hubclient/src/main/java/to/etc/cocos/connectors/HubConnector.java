@@ -29,6 +29,9 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * A connector to a Hub server. This connector keeps a single connection to the Hub server
@@ -105,6 +108,12 @@ final public class HubConnector {
 	private List<ISendPacket> m_txQueue = new ArrayList<>();
 
 	private List<ISendPacket> m_txPrioQueue = new ArrayList<>();
+
+	@Nullable
+	private Executor m_executor;
+
+	@Nullable
+	private ExecutorService m_createdExecutor;
 
 	public HubConnector(String server, int port, String targetId, String clientId, IHubResponder responder) {
 		m_server = server;
@@ -186,8 +195,27 @@ final public class HubConnector {
 		}
 	}
 
+	public void setExecutor(Executor executor) {
+		m_executor = executor;
+	}
+
+	synchronized Executor getExecutor() {
+		Executor executor = m_executor;
+		if(null == executor) {
+			executor = m_executor = m_createdExecutor = Executors.newCachedThreadPool();
+		}
+		return executor;
+	}
+
 	private void cleanupAfterTerminate() {
 		m_connStatePublisher.onComplete();
+		ExecutorService service;
+		synchronized(this) {
+			service = m_createdExecutor;
+			m_createdExecutor = null;
+		}
+		if(null != service)
+			service.shutdownNow();
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -415,9 +443,17 @@ final public class HubConnector {
 	}
 
 	private void executePacket() {
-
-
-
+		CommandContext ctx = new CommandContext(this, m_packetReader.getEnvelope());
+		try {
+			m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
+		} catch(Exception px) {
+			try {
+				ctx.respond(px);
+			} catch(Exception x) {
+				log("Could not return protocol error: " + x);
+			}
+			forceDisconnect(px.toString());
+		}
 	}
 
 	//private void handleServerFatal(BytePacket packet) throws IOException {
@@ -575,7 +611,7 @@ final public class HubConnector {
 		return m_connStatePublisher;
 	}
 
-	private void log(String s) {
+	void log(String s) {
 		ConsoleUtil.consoleLog(m_clientId, s);
 	}
 	private void error(String s) {

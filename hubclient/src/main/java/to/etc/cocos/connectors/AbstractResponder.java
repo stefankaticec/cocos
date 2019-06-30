@@ -1,16 +1,12 @@
 package to.etc.cocos.connectors;
 
-import com.google.protobuf.Message;
-import com.google.protobuf.MessageOrBuilder;
 import to.etc.hubserver.protocol.CommandNames;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.List;
 
 /**
@@ -18,21 +14,48 @@ import java.util.List;
  * Created on 10-2-19.
  */
 abstract public class AbstractResponder implements IHubResponder {
-	@Override public void acceptPacket(HubConnector connector, Hubcore.Envelope envelope, List<byte[]> data) throws Exception {
-		Method m = findHandlerMethod(envelope.getCommand());
-		if(null == m) {
-			throw new ProtocolViolationException("No handler for packet command " + envelope.getCommand());
+	static private final byte[] NULLBODY = new byte[0];
+
+	@Override public void acceptPacket(CommandContext ctx, List<byte[]> data) throws Exception {
+		Object body = decodeBody(ctx.getConnector(), ctx.getEnvelope().getDataFormat(), data);
+		if(null == body) {
+			body = NULLBODY;
 		}
-		Object body = decodeBody(connector, envelope.getDataFormat(), data);
+		Method m = findHandlerMethod(ctx.getEnvelope().getCommand(), body.getClass());
+		if(null == m) {
+			throw new ProtocolViolationException("No handler for packet command " + ctx.getEnvelope().getCommand() + " with body type " + body.getClass().getName());
+		}
 
 		//Class<?> bufferClass = m.getParameterTypes()[2];
 		//if(! MessageOrBuilder.class.isAssignableFrom(bufferClass))
 		//	throw new ProtocolViolationException(m.getName() + " has an unknown packet buffer parameter " + bufferClass.getName());
 		//Class<Message> mbc = (Class<Message>) bufferClass;
 		//Message message = parseBuffer(mbc, );
+		if(m.getAnnotation(Synchronous.class) != null) {
+			invokeCall(ctx, body, m);
+		} else {
+			invokeCallAsync(ctx, body, m);
+		}
+	}
 
+	private void invokeCallAsync(CommandContext ctx, Object body, Method m) {
+		ctx.getConnector().getExecutor().execute(() -> {
+			try {
+				invokeCall(ctx, body, m);
+			} catch(Exception x) {
+				ctx.log("Failed to execute " + m.getName() + ": " + x);
+				try {
+					ctx.respond(x);
+				} catch(Exception xx) {
+					ctx.log("Could not return protocol error: " + xx);
+				}
+			}
+		});
+	}
+
+	private void invokeCall(CommandContext ctx, Object body, Method m) throws Exception {
 		try {
-			m.invoke(this, connector, packet, message);
+			m.invoke(ctx, body);
 		} catch(InvocationTargetException itx) {
 			Throwable tx = itx.getTargetException();
 			if(tx instanceof RuntimeException) {
@@ -75,20 +98,12 @@ abstract public class AbstractResponder implements IHubResponder {
 	//	return (T) instance.getParserForType().parseFrom(packet.getRemainingInput());
 	//}
 
-	private Method findHandlerMethod(String command) {
-		String name = "handle" + command;
-		for(Method method : getClass().getMethods()) {
-			if(method.getName().equals(name)) {
-				if(Modifier.isPublic(method.getModifiers())) {
-					if(method.getParameterCount() == 3) {
-						Class<?>[] pt = method.getParameterTypes();
-						if(pt[0] == HubConnector.class && pt[1] == BytePacket.class) {
-							return method;
-						}
-					}
-				}
-			}
+	private Method findHandlerMethod(String command, Class<?> bodyClass) {
+		try {
+			String name = "handle" + command;
+			return getClass().getMethod(name, CommandContext.class, bodyClass);
+		} catch(Exception x) {
+			return null;
 		}
-		return null;
 	}
 }
