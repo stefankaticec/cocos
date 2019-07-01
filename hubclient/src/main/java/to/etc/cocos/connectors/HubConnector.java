@@ -9,6 +9,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 
@@ -229,13 +230,13 @@ final public class HubConnector {
 
 			m_connStatePublisher.onNext(oldState);
 			for(;;) {
-				boolean doExit = doWriteAction();
+				boolean doContinue = doWriteAction();
 				ConnectorState state = getState();
 				if(state != oldState) {
 					m_connStatePublisher.onNext(state);
 					oldState = state;
 				}
-				if(doExit)
+				if(! doContinue)
 					break;
 			}
 		} catch(Exception x) {
@@ -274,7 +275,6 @@ final public class HubConnector {
 				case TERMINATING:
 					return false;
 
-				case WAIT_HELO:
 				case CONNECTED:
 					//-- We need to transmit packets when available
 					ISendPacket sender;
@@ -397,7 +397,7 @@ final public class HubConnector {
 			th.setDaemon(true);
 			th.start();
 			synchronized(this) {
-				m_state = ConnectorState.WAIT_HELO;
+				m_state = ConnectorState.CONNECTED;
 			}
 		} catch(Exception x) {
 			forceDisconnect("Connection failed: " + x);
@@ -443,6 +443,7 @@ final public class HubConnector {
 	}
 
 	private void executePacket() {
+		log("Received packet: " + m_packetReader.getEnvelope().getCommand());
 		CommandContext ctx = new CommandContext(this, m_packetReader.getEnvelope());
 		try {
 			m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
@@ -545,6 +546,18 @@ final public class HubConnector {
 		}
 		FileTool.closeAll(is, os, socket);
 	}
+
+	/*----------------------------------------------------------------------*/
+	/*	CODING:	Packet handlers												*/
+	/*----------------------------------------------------------------------*/
+
+
+
+	private void expectHeloPacket(Envelope envelope, List<byte[]> bytes) {
+
+	}
+
+
 
 	//private synchronized boolean inReceivingState() {
 	//	return m_state == ConnectorState.CONNECTED || m_state == ConnectorState.WAIT_HELO;

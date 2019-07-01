@@ -11,9 +11,6 @@ public enum ConnectorState {
 	/** Connecting: a connect has been sent and we're awaiting its result */
 	CONNECTING,
 
-	/** Connection worked, now waiting for HELO negotiation */
-	WAIT_HELO,
-
 	/** Connected and live */
 	CONNECTED,
 

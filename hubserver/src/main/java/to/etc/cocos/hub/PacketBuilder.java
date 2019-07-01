@@ -44,7 +44,7 @@ final public class PacketBuilder {
 	}
 
 	public ByteBuf getCompleted() {
-		return m_composite;
+		return m_headerBuf;
 	}
 
 	/**

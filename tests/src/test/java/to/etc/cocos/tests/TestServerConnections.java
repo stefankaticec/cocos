@@ -11,6 +11,10 @@ import java.util.concurrent.TimeUnit;
  * Created on 30-6-19.
  */
 public class TestServerConnections extends TestAllBase {
+
+	/**
+	 * The server should reach AUTH state.
+	 */
 	@Test
 	public void testHubServerConnect() throws Exception {
 		hub();

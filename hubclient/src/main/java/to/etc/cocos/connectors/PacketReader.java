@@ -5,7 +5,10 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.util.ByteArrayUtil;
+import to.etc.util.ConsoleUtil;
+import to.etc.util.StringTool;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,8 +37,16 @@ final class PacketReader {
 
 	private final IIsRunning m_runningFunctor;
 
+	private boolean m_logPackets = true;
+
+	@Nullable
+	private ByteArrayOutputStream m_baos;
+
 	public PacketReader(IIsRunning runningFunctor) {
 		m_runningFunctor = runningFunctor;
+		if(m_logPackets) {
+			m_baos = new ByteArrayOutputStream();
+		}
 	}
 
 	/**
@@ -48,6 +59,9 @@ final class PacketReader {
 		m_envelope = null;
 		m_body = null;
 		m_receiveBufferList.clear();
+		ByteArrayOutputStream baos = m_baos;
+		if(null != baos)
+			baos.reset();
 
 		readFully(is, m_headerBuffer);
 
@@ -84,6 +98,15 @@ final class PacketReader {
 
 			rest -= todo;
 		}
+
+		if(baos != null) {
+			StringBuilder sb = new StringBuilder();
+			sb.append("\n");
+			byte[] bytes = baos.toByteArray();
+			StringTool.dumpData(sb, bytes, 0, bytes.length, "r> ");
+			ConsoleUtil.consoleLog("pktreader", sb.toString());
+		}
+		m_envelope = c;
 	}
 
 	private void readFully(InputStream is, byte[] buffer) throws Exception {
@@ -96,6 +119,11 @@ final class PacketReader {
 			int szrd = is.read(buffer, off, maxlen);
 			if(szrd < 0)
 				throw new SocketEofException("Cannot read fully: read " + off + " of " + buffer.length + " bytes");
+			ByteArrayOutputStream baos = m_baos;
+			if(null != baos) {
+				baos.write(buffer, off, maxlen);
+			}
+
 			off += szrd;
 		}
 	}

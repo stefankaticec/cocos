@@ -348,6 +348,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	//}
 
 	void sendResponse(ResponseBuilder r) {
+		log("Sending response packet: " + r.getEnvelope().getCommand());
 		//-- Convert the data into a response packet.
 		ByteBuf buf = new PacketBuilder(m_channel.alloc())
 			.appendMessage(r.getEnvelope().build())
