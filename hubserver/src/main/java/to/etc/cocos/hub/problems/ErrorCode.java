@@ -1,4 +1,4 @@
-package to.etc.cocos.hub;
+package to.etc.cocos.hub.problems;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>

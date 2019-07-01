@@ -1,4 +1,6 @@
-package to.etc.cocos.hub;
+package to.etc.cocos.hub.parties;
+
+import to.etc.cocos.hub.ISystemContext;
 
 /**
  * Represents a client (daemon).

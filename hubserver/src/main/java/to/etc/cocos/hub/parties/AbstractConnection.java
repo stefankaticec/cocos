@@ -1,4 +1,4 @@
-package to.etc.cocos.hub;
+package to.etc.cocos.hub.parties;
 
 import com.google.protobuf.Message;
 import com.google.protobuf.MessageOrBuilder;
@@ -6,6 +6,11 @@ import io.netty.channel.Channel;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.hub.CentralSocketHandler;
+import to.etc.cocos.hub.problems.ErrorCode;
+import to.etc.cocos.hub.HubPacket;
+import to.etc.cocos.hub.ISystemContext;
+import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.function.RunnableEx;
 import to.etc.util.ConsoleUtil;
 
@@ -19,7 +24,7 @@ import java.util.Objects;
  * Created on 13-1-19.
  */
 @NonNullByDefault
-class AbstractConnection {
+public class AbstractConnection {
 	static private final long DUPLICATE_COUNT = 3;
 	static private final long DUPLICATE_INTERVAL = 1000 * 60 * 2;
 

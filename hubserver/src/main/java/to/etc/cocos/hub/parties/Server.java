@@ -1,6 +1,9 @@
-package to.etc.cocos.hub;
+package to.etc.cocos.hub.parties;
 
 import io.netty.channel.ChannelHandlerContext;
+import to.etc.cocos.hub.HubPacket;
+import to.etc.cocos.hub.ISystemContext;
+import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.hubserver.protocol.CommandNames;
 
 /**

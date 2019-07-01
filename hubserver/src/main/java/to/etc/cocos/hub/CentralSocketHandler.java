@@ -8,6 +8,16 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.SocketChannel;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.hub.parties.AbstractConnection;
+import to.etc.cocos.hub.parties.Client;
+import to.etc.cocos.hub.parties.ConnectionDirectory;
+import to.etc.cocos.hub.parties.ConnectionState;
+import to.etc.cocos.hub.parties.Server;
+import to.etc.cocos.hub.parties.UnreachableOrganisationException;
+import to.etc.cocos.hub.problems.ErrorCode;
+import to.etc.cocos.hub.problems.FatalHubException;
+import to.etc.cocos.hub.problems.HubException;
+import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.function.BiConsumerEx;
 import to.etc.function.RunnableEx;
 import to.etc.hubserver.protocol.CommandNames;
@@ -25,7 +35,7 @@ import java.util.Objects;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 13-1-19.
  */
-final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
+final public class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 	@NonNull
 	private final HubServer m_central;
 
@@ -212,7 +222,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 	/**
 	 * Send a message that originates from the hub itself. These have an empty "sourceID" as it is the hub.
 	 */
-	void sendHubMessage(int packetCode, String command, @Nullable Message message, @Nullable RunnableEx after) {
+	public void sendHubMessage(int packetCode, String command, @Nullable Message message, @Nullable RunnableEx after) {
 		PacketBuilder pb = new PacketBuilder(m_channel.alloc(), (byte)packetCode, m_clientId, "", command);
 		if(null != message)
 			pb.appendMessage(message);
@@ -229,7 +239,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 	/**
 	 * Send an error message originating from the HUB (with an empty sourceID).
 	 */
-	void sendHubError(String failedCommand, @Nullable RunnableEx after, ErrorCode errorCode, Object... parameters) {
+	public void sendHubError(String failedCommand, @Nullable RunnableEx after, ErrorCode errorCode, Object... parameters) {
 		Hubcore.ErrorResponse err = Hubcore.ErrorResponse.newBuilder()
 				.setCode(errorCode.name())
 				.setText(MessageFormat.format(errorCode.getText(), parameters))
@@ -237,7 +247,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 		sendHubMessage(0x02, failedCommand, err, after);
 	}
 
-	void sendHubErrorAndDisconnect(String failedCommand, ErrorCode errorCode, Object... parameters) {
+	public void sendHubErrorAndDisconnect(String failedCommand, ErrorCode errorCode, Object... parameters) {
 		Hubcore.ErrorResponse err = Hubcore.ErrorResponse.newBuilder()
 				.setCode(errorCode.name())
 				.setText(MessageFormat.format(errorCode.getText(), parameters))
@@ -254,7 +264,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 	/**
 	 * Send a message that originates from the hub itself. These have an empty "sourceID" as it is the hub.
 	 */
-	void sendMessage(int packetCode, String sourceID, String command, Message message, @Nullable RunnableEx after) {
+	public void sendMessage(int packetCode, String sourceID, String command, Message message, @Nullable RunnableEx after) {
 		PacketBuilder pb = new PacketBuilder(m_channel.alloc(), (byte)packetCode, m_clientId, sourceID, command);
 		pb.appendMessage(message);
 		ChannelFuture future = m_channel.writeAndFlush(pb.getCompleted());
@@ -270,7 +280,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 	/**
 	 * Send an error message originating from the HUB (with an empty sourceID).
 	 */
-	void sendError(String sourceID, String failedCommand, @Nullable RunnableEx after, ErrorCode errorCode, Object... parameters) {
+	public void sendError(String sourceID, String failedCommand, @Nullable RunnableEx after, ErrorCode errorCode, Object... parameters) {
 		Hubcore.ErrorResponse err = Hubcore.ErrorResponse.newBuilder()
 				.setCode(errorCode.name())
 				.setText(MessageFormat.format(errorCode.getText(), parameters))
@@ -278,7 +288,7 @@ final class CentralSocketHandler extends SimpleChannelInboundHandler<byte[]> {
 		sendMessage(0x02, sourceID, failedCommand, err, after);
 	}
 
-	void sendErrorAndDisconnect(String sourceID, String failedCommand, ErrorCode errorCode, Object... parameters) {
+	public void sendErrorAndDisconnect(String sourceID, String failedCommand, ErrorCode errorCode, Object... parameters) {
 		Hubcore.ErrorResponse err = Hubcore.ErrorResponse.newBuilder()
 				.setCode(errorCode.name())
 				.setText(MessageFormat.format(errorCode.getText(), parameters))

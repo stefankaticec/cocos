@@ -26,11 +26,6 @@ abstract public class AbstractResponder implements IHubResponder {
 			throw new ProtocolViolationException("No handler for packet command " + ctx.getEnvelope().getCommand() + " with body type " + body.getClass().getName());
 		}
 
-		//Class<?> bufferClass = m.getParameterTypes()[2];
-		//if(! MessageOrBuilder.class.isAssignableFrom(bufferClass))
-		//	throw new ProtocolViolationException(m.getName() + " has an unknown packet buffer parameter " + bufferClass.getName());
-		//Class<Message> mbc = (Class<Message>) bufferClass;
-		//Message message = parseBuffer(mbc, );
 		if(m.getAnnotation(Synchronous.class) != null) {
 			invokeCall(ctx, body, m);
 		} else {
@@ -91,12 +86,6 @@ abstract public class AbstractResponder implements IHubResponder {
 				return connector.getMapper().readerFor(bodyClass).readValue(new ByteBufferInputStream(data.toArray(new byte[data.size()][])));
 		}
 	}
-
-	//
-	//private <T extends Message> T parseBuffer(Class<T> clz, List<byte[]> packet) throws Exception {
-	//	T instance = (T) clz.getMethod("getDefaultInstance").invoke(null);
-	//	return (T) instance.getParserForType().parseFrom(packet.getRemainingInput());
-	//}
 
 	private Method findHandlerMethod(String command, Class<?> bodyClass) {
 		try {

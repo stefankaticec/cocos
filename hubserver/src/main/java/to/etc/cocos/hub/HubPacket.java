@@ -1,5 +1,7 @@
 package to.etc.cocos.hub;
 
+import to.etc.cocos.hub.problems.ProtocolViolationException;
+
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;

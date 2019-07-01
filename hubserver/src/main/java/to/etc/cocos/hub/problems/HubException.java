@@ -1,4 +1,4 @@
-package to.etc.cocos.hub;
+package to.etc.cocos.hub.problems;
 
 import java.text.MessageFormat;
 
