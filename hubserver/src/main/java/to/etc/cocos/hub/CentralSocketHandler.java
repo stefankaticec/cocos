@@ -11,12 +11,18 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.AbstractConnection;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
+import to.etc.cocos.hub.parties.Server;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientHeloResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.HelloChallenge;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.ServerHeloResponse;
 import to.etc.util.ConsoleUtil;
+
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -131,16 +137,19 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * and when finished convert it into the Envelope class.
 	 */
 	private void readEnvelope(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf) throws Exception {
+		int available = byteBuf.readableBytes();
+		if(available == 0)
+			return;
 		int todo = m_length - m_envelopeOffset;
-		if(todo > byteBuf.readableBytes()) {
-			todo = byteBuf.readableBytes();
+		if(todo > available) {
+			todo = available;
 		}
 
 		byteBuf.readBytes(m_envelopeBuffer, m_envelopeOffset, todo);
 		m_envelopeOffset += todo;
 
 		//-- All data read?
-		if(m_envelopeOffset <= m_length)
+		if(m_envelopeOffset < m_length)
 			return;
 
 		//-- Create the Envelope
@@ -153,7 +162,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_readState = this::readPayloadLength;
 	}
 
-	private void readPayloadLength(ChannelHandlerContext channelHandlerContext, ByteBuf source) {
+	private void readPayloadLength(ChannelHandlerContext channelHandlerContext, ByteBuf source) throws Exception {
 		m_intBuf.writeBytes(source);
 		if(m_intBuf.readableBytes() >= 4) {
 			int length = m_intBuf.readInt();
@@ -192,13 +201,52 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 *
 	 */
-	private void handlePacket() {
+	private void handlePacket() throws Exception {
 		m_packetState.handlePacket(m_envelope);
 	}
 
-	private void expectHeloResponse(Hubcore.Envelope envelope) {
+	private void expectHeloResponse(Hubcore.Envelope envelope) throws Exception {
+		if(envelope.hasHeloClient()) {
+			handleClientHello(envelope, envelope.getHeloClient());
+		} else if(envelope.hasHeloServer()) {
+			handleServerHello(envelope, envelope.getHeloServer());
+		} else
+			throw new ProtocolViolationException("No client nor server part in HELO response");
+	}
 
+	/**
+	 * The server helo response contains the challenge response for authorisation.
+	 */
+	private void handleServerHello(Envelope envelope, ServerHeloResponse heloServer) throws Exception {
+		String sourceId = envelope.getSourceId();
+		String[] split = sourceId.split("@");
+		if(split.length != 2)
+			throw new ProtocolViolationException("The server ID is invalid");
+		String serverName = split[0];
+		String clusterName = split[1];
 
+		byte[] signature = heloServer.getChallengeResponse().toByteArray();
+		if(! m_central.checkServerSignature(clusterName, serverName, Objects.requireNonNull(m_challenge), signature))
+			throw new ProtocolViolationException("Authorization failure");
+
+		//-- Authorized -> respond with AUTH packet.
+		Server server = getDirectory().getServer(clusterName, serverName, Arrays.asList("*"));				// Server id includes cluster id always
+		server.newConnection(m_channel, this);
+		log("new connection for server " + server.getFullId() + " in state " + server.getState());
+
+		//-- send back AUTH packet
+		m_connection = server;
+		m_packetState = server::packetReceived;
+
+		ResponseBuilder rb = new ResponseBuilder(this)
+			.fromEnvelope(envelope)
+			;
+		rb.getEnvelope().setCommand(CommandNames.AUTH_CMD);				// Authorized
+		rb.send();
+	}
+
+	private void handleClientHello(Envelope envelope, ClientHeloResponse heloClient) {
+		throw new ProtocolViolationException("Client helo not implemented yet");
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -490,6 +538,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	interface IPacketHandler {
-		void handlePacket(Hubcore.Envelope envelope);
+		void handlePacket(Hubcore.Envelope envelope) throws Exception;
 	}
 }

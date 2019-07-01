@@ -20,7 +20,7 @@ public class TestServerConnections extends TestAllBase {
 		hub();
 		Future<ConnectorState> fut = server().observeConnectionState()
 			.doOnNext(a -> System.out.println(">> got state " + a))
-			.filter(a -> a == ConnectorState.CONNECTED)
+			.filter(a -> a == ConnectorState.AUTHENTICATED)
 			.timeout(5, TimeUnit.SECONDS)
 			.toFuture();
 		;

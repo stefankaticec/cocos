@@ -258,7 +258,7 @@ final public class HubConnector {
 	}
 
 	private synchronized boolean isRunning() {
-		return m_state == ConnectorState.CONNECTED;
+		return m_state == ConnectorState.CONNECTED || m_state == ConnectorState.AUTHENTICATED;
 	}
 
 	private boolean doWriteAction() {
@@ -275,6 +275,7 @@ final public class HubConnector {
 				case TERMINATING:
 					return false;
 
+				case AUTHENTICATED:
 				case CONNECTED:
 					//-- We need to transmit packets when available
 					ISendPacket sender;
@@ -520,6 +521,7 @@ final public class HubConnector {
 					//m_state = ConnectorState.IDLE;
 					break;
 
+				case AUTHENTICATED:
 				case CONNECTED:
 				case CONNECTING:
 					/*

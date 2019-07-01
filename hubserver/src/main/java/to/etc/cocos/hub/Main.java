@@ -66,7 +66,7 @@ final public class Main {
 		String addr = InetAddress.getLocalHost().getHostAddress();
 		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr);
 
-		HubServer server = new HubServer(m_port, ident, m_useNio);
+		HubServer server = new HubServer(m_port, ident, m_useNio, clusterName -> "testCluster");
 		server.startServer();
 
 		//-- Listen to signals to stop the thing

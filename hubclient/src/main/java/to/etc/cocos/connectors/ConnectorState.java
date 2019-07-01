@@ -14,6 +14,8 @@ public enum ConnectorState {
 	/** Connected and live */
 	CONNECTED,
 
+	AUTHENTICATED,
+
 	/** Connecting has failed, and we're waiting until it is time to try again */
 	RECONNECT_WAIT,
 

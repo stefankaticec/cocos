@@ -18,17 +18,21 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
+import to.etc.function.FunctionEx;
 import to.etc.log.EtcLoggerFactory;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
+import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Arrays;
 import java.util.Base64;
 
 /**
@@ -52,6 +56,8 @@ final public class HubServer implements ISystemContext {
 
 	final private boolean m_useNio;
 
+	private final FunctionEx<String, String> m_clusterPasswordSource;
+
 	final private SecureRandom m_random;
 
 	final private ConnectionDirectory m_directory = new ConnectionDirectory(this);
@@ -62,10 +68,11 @@ final public class HubServer implements ISystemContext {
 	@Nullable
 	private ChannelFuture m_closeFuture;
 
-	public HubServer(int port, String ident, boolean useNio) throws Exception {
+	public HubServer(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource) throws Exception {
 		m_port = port;
 		m_ident = ident;
 		m_useNio = useNio;
+		m_clusterPasswordSource = clusterPasswordSource;
 		m_random = SecureRandom.getInstanceStrong();
 	}
 
@@ -213,8 +220,16 @@ final public class HubServer implements ISystemContext {
 	/**
 	 * Check the server supplied signature
 	 */
-	public boolean checkServerSignature(byte[] signature, byte[] challenge) {
-		return signature.length == 0;
+	public boolean checkServerSignature(String clusterName, String serverName, byte[] challenge, byte[] signature) throws Exception {
+		String password = m_clusterPasswordSource.apply(clusterName);
+		if(null == password)
+			return false;
+		String str = password + ":" + serverName + "@" + clusterName;
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		md.update(str.getBytes(StandardCharsets.UTF_8));
+		md.update(challenge);
+		byte[] digest = md.digest();
+		return Arrays.equals(digest, signature);
 	}
 
 	public int getPingInterval() {

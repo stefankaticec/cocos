@@ -52,8 +52,12 @@ final public class CommandContext {
 
 	}
 
-	public Envelope getEnvelope() {
+	public Envelope getSourceEnvelope() {
 		return m_envelope;
+	}
+
+	public Builder getResponseEnvelope() {
+		return m_responseEnvelope;
 	}
 
 	public HubConnector getConnector() {

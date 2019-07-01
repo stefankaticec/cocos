@@ -1,6 +1,7 @@
 package to.etc.cocos.hub.parties;
 
 import to.etc.cocos.hub.ISystemContext;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -9,6 +10,10 @@ import to.etc.cocos.hub.ISystemContext;
 public class Server extends AbstractConnection {
 	public Server(ISystemContext systemContext, String id) {
 		super(systemContext, id);
+	}
+
+	public void packetReceived(Envelope envelope) {
+		log("Packet received: " + envelope.getCommand());
 	}
 
 	//public void newPacket(ChannelHandlerContext ctx, HubPacket packet) throws Exception {

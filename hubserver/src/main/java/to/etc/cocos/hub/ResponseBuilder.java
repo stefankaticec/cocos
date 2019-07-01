@@ -19,7 +19,7 @@ final public class ResponseBuilder {
 	/**
 	 * Initialize the response envelope from the source envelope.
 	 */
-	public void fromEnvelope(Envelope envelope) {
+	public ResponseBuilder fromEnvelope(Envelope envelope) {
 		m_envelope
 			.setVersion(envelope.getVersion())
 			.setCommand(envelope.getCommand())
@@ -27,6 +27,7 @@ final public class ResponseBuilder {
 			.setSourceId(envelope.getTargetId())			// Swap src and dest
 			.setTargetId(envelope.getSourceId())
 			;
+		return this;
 	}
 
 	public Builder getEnvelope() {

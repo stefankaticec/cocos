@@ -23,6 +23,9 @@ public class TestServer {
 
 	private HubConnector m_connector;
 
+	@Option(name = "-pw", usage = "The cluster password for the cluster we belong to", required = true)
+	private String m_clusterPassword;
+
 	static public void main(String[] args) throws Exception {
 		new TestServer().run(args);
 	}
@@ -39,7 +42,7 @@ public class TestServer {
 			System.exit(10);
 		}
 
-		m_connector = new HubConnector(m_server, m_port, "", m_serverId, new ServerResponder(m_serverId));
+		m_connector = new HubConnector(m_server, m_port, "", m_serverId, new ServerResponder(m_serverId, m_clusterPassword));
 		m_connector.start();
 
 		for(;;) {

@@ -17,13 +17,13 @@ abstract public class AbstractResponder implements IHubResponder {
 	static private final byte[] NULLBODY = new byte[0];
 
 	@Override public void acceptPacket(CommandContext ctx, List<byte[]> data) throws Exception {
-		Object body = decodeBody(ctx.getConnector(), ctx.getEnvelope().getDataFormat(), data);
+		Object body = decodeBody(ctx.getConnector(), ctx.getSourceEnvelope().getDataFormat(), data);
 		if(null == body) {
 			body = NULLBODY;
 		}
-		Method m = findHandlerMethod(ctx.getEnvelope().getCommand(), body.getClass());
+		Method m = findHandlerMethod(ctx.getSourceEnvelope().getCommand(), body.getClass());
 		if(null == m) {
-			throw new ProtocolViolationException("No handler for packet command " + ctx.getEnvelope().getCommand() + " with body type " + body.getClass().getName());
+			throw new ProtocolViolationException("No handler for packet command " + ctx.getSourceEnvelope().getCommand() + " with body type " + body.getClass().getName());
 		}
 
 		if(m.getAnnotation(Synchronous.class) != null) {
@@ -50,7 +50,7 @@ abstract public class AbstractResponder implements IHubResponder {
 
 	private void invokeCall(CommandContext ctx, Object body, Method m) throws Exception {
 		try {
-			m.invoke(ctx, body);
+			m.invoke(this, ctx, body);
 		} catch(InvocationTargetException itx) {
 			Throwable tx = itx.getTargetException();
 			if(tx instanceof RuntimeException) {
@@ -69,6 +69,9 @@ abstract public class AbstractResponder implements IHubResponder {
 		switch(bodyType) {
 			case CommandNames.BODY_BYTES:
 				return data;
+
+			case "":
+				return NULLBODY;
 		}
 
 		int pos = bodyType.indexOf(':');

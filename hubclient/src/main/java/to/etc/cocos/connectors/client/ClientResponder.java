@@ -13,6 +13,9 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 	public ClientResponder() {
 	}
 
+
+
+
 	//@Override public void onHelloPacket(HubConnector connector, Hubcore.Envelope envelope, List<byte[]> payload) throws Exception {
 	//	Hubcore.HelloChallenge c = envelope.getChallenge();
 	//	if(envelope.getVersion() != 1)
