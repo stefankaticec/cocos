@@ -12,14 +12,19 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.AbstractConnection;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.Server;
+import to.etc.cocos.hub.problems.FatalHubException;
+import to.etc.cocos.hub.problems.HubException;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientHeloResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.HelloChallenge;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ServerHeloResponse;
 import to.etc.util.ConsoleUtil;
+import to.etc.util.StringTool;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -75,6 +80,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			while(data.readableBytes() > 0) {
 				m_readState.handleRead(context, data);
 			}
+		} catch(HubException x) {
+			sendHubException(x);
 		} catch(ProtocolViolationException px) {
 			throw px;
 		} catch(Exception x) {
@@ -227,7 +234,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 		byte[] signature = heloServer.getChallengeResponse().toByteArray();
 		if(! m_central.checkServerSignature(clusterName, serverName, Objects.requireNonNull(m_challenge), signature))
-			throw new ProtocolViolationException("Authorization failure");
+			throw new FatalHubException(ErrorCode.authenticationFailure);
 
 		//-- Authorized -> respond with AUTH packet.
 		Server server = getDirectory().getServer(clusterName, serverName, Arrays.asList("*"));				// Server id includes cluster id always
@@ -406,6 +413,35 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		ChannelFuture future = m_channel.writeAndFlush(buf);
 		future.addListener((ChannelFutureListener) f -> {
 			if(! f.isSuccess())
+				m_channel.disconnect();
+		});
+	}
+
+	private void sendHubException(HubException x) {
+		log("sending hub exception " + x);
+
+		ResponseBuilder rb = new ResponseBuilder(this)
+			.fromEnvelope(m_envelope)
+			;
+		rb.getEnvelope()
+			.setDataFormat("")
+			.setError(ErrorResponse.newBuilder()
+				.setCode(x.getCode().name())
+				.setText(x.getMessage())
+				.setDetails(StringTool.strStacktrace(x))
+				.build()
+			);
+
+		//-- Convert the data into a response packet.
+		ByteBuf buf = new PacketBuilder(m_channel.alloc())
+			.appendMessage(rb.getEnvelope().build())
+			.emptyBody()
+			.getCompleted()
+			;
+		boolean isFatal = x instanceof FatalHubException;
+		ChannelFuture future = m_channel.writeAndFlush(buf);
+		future.addListener((ChannelFutureListener) f -> {
+			if(! f.isSuccess() || isFatal)
 				m_channel.disconnect();
 		});
 	}

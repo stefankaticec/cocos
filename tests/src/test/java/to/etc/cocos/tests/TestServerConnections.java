@@ -39,7 +39,7 @@ public class TestServerConnections extends TestAllBase {
 			.timeout(5, TimeUnit.SECONDS)
 			.blockingFirst();
 		Assert.assertEquals("Connector must have gotten to RECONNECT_WAIT status", ConnectorState.RECONNECT_WAIT, connectorState);
-		ErrorResponse lastError = client().getLastError();
+		ErrorResponse lastError = server().getLastError();
 		Assert.assertNotNull("There must be a HUB error that is returned", lastError);
 		Assert.assertNotNull("The hub error must have code " + ErrorCode.authenticationFailure.name(), lastError.getCode());
 	}

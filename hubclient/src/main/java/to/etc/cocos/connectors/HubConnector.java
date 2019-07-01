@@ -453,7 +453,9 @@ final public class HubConnector {
 			ErrorResponse error = env.getError();
 
 			log("Received HUB ERROR packet: " + env.getCommand() + " " + error.getCode() + " " + error.getText());
-			m_lastError = error;
+			synchronized(this) {
+				m_lastError = error;
+			}
 
 			//-- Disconnect.
 			forceDisconnect("HUB error: " + error.getCode());
@@ -643,7 +645,7 @@ final public class HubConnector {
 	}
 
 	@Nullable
-	public ErrorResponse getLastError() {
+	public synchronized ErrorResponse getLastError() {
 		return m_lastError;
 	}
 
