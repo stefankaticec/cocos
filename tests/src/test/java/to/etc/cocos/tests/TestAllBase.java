@@ -1,10 +1,13 @@
 package to.etc.cocos.tests;
 
 import org.junit.After;
+import to.etc.cocos.connectors.ConnectorState;
 import to.etc.cocos.connectors.HubConnector;
 import to.etc.cocos.connectors.client.ClientResponder;
 import to.etc.cocos.connectors.server.ServerResponder;
 import to.etc.cocos.hub.HubServer;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -46,6 +49,15 @@ public class TestAllBase {
 			server.start();
 		}
 		return server;
+	}
+
+	public HubConnector serverConnected() {
+		server().observeConnectionState()
+			.doOnNext(a -> System.out.println(">> got state " + a))
+			.filter(a -> a == ConnectorState.AUTHENTICATED)
+			.timeout(5, TimeUnit.SECONDS)
+			.blockingFirst();
+		return server();
 	}
 
 	public HubServer hub() throws Exception {
