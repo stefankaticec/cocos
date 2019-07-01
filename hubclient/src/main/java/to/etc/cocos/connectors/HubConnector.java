@@ -10,6 +10,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 
@@ -115,6 +116,9 @@ final public class HubConnector {
 
 	@Nullable
 	private ExecutorService m_createdExecutor;
+
+	@Nullable
+	private ErrorResponse m_lastError;
 
 	public HubConnector(String server, int port, String targetId, String clientId, IHubResponder responder) {
 		m_server = server;
@@ -444,8 +448,20 @@ final public class HubConnector {
 	}
 
 	private void executePacket() {
-		log("Received packet: " + m_packetReader.getEnvelope().getCommand());
-		CommandContext ctx = new CommandContext(this, m_packetReader.getEnvelope());
+		Envelope env = m_packetReader.getEnvelope();
+		if(env.hasError()) {
+			ErrorResponse error = env.getError();
+
+			log("Received HUB ERROR packet: " + env.getCommand() + " " + error.getCode() + " " + error.getText());
+			m_lastError = error;
+
+			//-- Disconnect.
+			forceDisconnect("HUB error: " + error.getCode());
+			return;
+		}
+
+		log("Received packet: " + env.getCommand());
+		CommandContext ctx = new CommandContext(this, env);
 		try {
 			m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
 		} catch(Exception px) {
@@ -624,6 +640,11 @@ final public class HubConnector {
 
 	public Observable<ConnectorState> observeConnectionState() {
 		return m_connStatePublisher;
+	}
+
+	@Nullable
+	public ErrorResponse getLastError() {
+		return m_lastError;
 	}
 
 	void log(String s) {

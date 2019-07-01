@@ -1,5 +1,6 @@
 package to.etc.cocos.tests;
 
+import org.junit.After;
 import to.etc.cocos.connectors.HubConnector;
 import to.etc.cocos.connectors.client.ClientResponder;
 import to.etc.cocos.connectors.server.ServerResponder;
@@ -26,6 +27,8 @@ public class TestAllBase {
 
 	private HubConnector m_server;
 
+	private String m_serverPassword;
+
 	public HubConnector client() {
 		HubConnector client = m_client;
 		if(null == client) {
@@ -39,7 +42,7 @@ public class TestAllBase {
 		HubConnector server = m_server;
 		if(null == server) {
 			String id = SERVERNAME + "@" + CLUSTERNAME;
-			m_server = server = new HubConnector("localhost", HUBPORT, "", id, new ServerResponder(id, CLUSTERPASSWORD));
+			m_server = server = new HubConnector("localhost", HUBPORT, "", id, new ServerResponder(id, m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD));
 			server.start();
 		}
 		return server;
@@ -54,11 +57,23 @@ public class TestAllBase {
 		return hub;
 	}
 
+	@After
 	public void tearDown() throws Exception {
 		HubServer hub = m_hub;
 		if(null != hub) {
 			m_hub = null;
 			hub.terminateAndWait();
 		}
+
+		HubConnector server = m_server;
+		if(null != server) {
+			m_server = null;
+			server.terminateAndWait();
+		}
+		m_serverPassword = null;
+	}
+
+	protected void setServerPassword(String assword) {
+		m_serverPassword = assword;
 	}
 }

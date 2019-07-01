@@ -1,5 +1,7 @@
 package to.etc.cocos.hub.problems;
 
+import to.etc.hubserver.protocol.ErrorCode;
+
 import java.text.MessageFormat;
 
 /**

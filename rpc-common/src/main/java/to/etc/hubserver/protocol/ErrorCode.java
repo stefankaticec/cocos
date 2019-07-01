@@ -1,4 +1,4 @@
-package to.etc.cocos.hub.problems;
+package to.etc.hubserver.protocol;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -8,6 +8,7 @@ public enum ErrorCode {
 	noDataExpected("No data expected in this state"),
 	invalidSignature("Invalid server signature"),
 	clusterNotFound("Cluster {0} not found"),
+	authenticationFailure("Authentication failure"),
 	targetNotFound("Target organisation {0} not found");
 
 	private String m_text;

@@ -195,7 +195,6 @@ final public class HubServer implements ISystemContext {
 	}
 
 	private SslContext createSslContext() throws Exception {
-//		SelfSignedCertificate ssc = new SelfSignedCertificate();
 		X509Certificate ssc = getServerCertificate();
 		PrivateKey pk = getServerKey();
 

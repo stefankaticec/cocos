@@ -1,6 +1,6 @@
 package to.etc.cocos.hub.parties;
 
-import to.etc.cocos.hub.problems.ErrorCode;
+import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.cocos.hub.problems.FatalHubException;
 
 /**
