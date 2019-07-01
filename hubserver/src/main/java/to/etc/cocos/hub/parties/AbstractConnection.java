@@ -1,22 +1,14 @@
 package to.etc.cocos.hub.parties;
 
-import com.google.protobuf.Message;
-import com.google.protobuf.MessageOrBuilder;
 import io.netty.channel.Channel;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.problems.ErrorCode;
-import to.etc.cocos.hub.HubPacket;
 import to.etc.cocos.hub.ISystemContext;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
-import to.etc.function.RunnableEx;
 import to.etc.util.ConsoleUtil;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Objects;
 
 /**
@@ -139,9 +131,9 @@ public class AbstractConnection {
 		ConsoleUtil.consoleLog("hubConn", m_fullId + " " + s);
 	}
 
-	public void forwardPacket(HubPacket packet) {
-		getHandler().forwardPacket(packet);
-	}
+	//public void forwardPacket(HubPacket packet) {
+	//	getHandler().forwardPacket(packet);
+	//}
 
 	@NonNull public CentralSocketHandler getHandler() {
 		CentralSocketHandler handler = m_handler;
@@ -150,94 +142,94 @@ public class AbstractConnection {
 		return handler;
 	}
 
-	public void sendHubMessage(int packetCode, String command, @Nullable Message message, @Nullable RunnableEx after) {
-		getHandler().sendHubMessage(packetCode, command, message, after);
-	}
-
-	public void sendHubError(String failedCommand, ErrorCode errorCode, @Nullable RunnableEx after) {
-		getHandler().sendHubError(failedCommand, after, errorCode);
-	}
-
-	public void sendHubErrorAndDisconnect(String failedCommand, ErrorCode errorCode) {
-		getHandler().sendHubErrorAndDisconnect(failedCommand, errorCode);
-	}
-
-	public void sendMessage(int packetCode, String sourceID, String command, Message message, @Nullable RunnableEx after) {
-		getHandler().sendMessage(packetCode, sourceID, command, message, after);
-	}
-
-	public void sendError(String sourceID, String failedCommand, @Nullable RunnableEx after, ErrorCode errorCode, Object... parameters) {
-		getHandler().sendError(sourceID, failedCommand, after, errorCode, parameters);
-	}
-
-	public void sendErrorAndDisconnect(String sourceID, String failedCommand, ErrorCode errorCode, Object... parameters) {
-		getHandler().sendErrorAndDisconnect(sourceID, failedCommand, errorCode, parameters);
-	}
+	//public void sendHubMessage(int packetCode, String command, @Nullable Message message, @Nullable RunnableEx after) {
+	//	getHandler().sendHubMessage(packetCode, command, message, after);
+	//}
+	//
+	//public void sendHubError(String failedCommand, ErrorCode errorCode, @Nullable RunnableEx after) {
+	//	getHandler().sendHubError(failedCommand, after, errorCode);
+	//}
+	//
+	//public void sendHubErrorAndDisconnect(String failedCommand, ErrorCode errorCode) {
+	//	getHandler().sendHubErrorAndDisconnect(failedCommand, errorCode);
+	//}
+	//
+	//public void sendMessage(int packetCode, String sourceID, String command, Message message, @Nullable RunnableEx after) {
+	//	getHandler().sendMessage(packetCode, sourceID, command, message, after);
+	//}
+	//
+	//public void sendError(String sourceID, String failedCommand, @Nullable RunnableEx after, ErrorCode errorCode, Object... parameters) {
+	//	getHandler().sendError(sourceID, failedCommand, after, errorCode, parameters);
+	//}
+	//
+	//public void sendErrorAndDisconnect(String sourceID, String failedCommand, ErrorCode errorCode, Object... parameters) {
+	//	getHandler().sendErrorAndDisconnect(sourceID, failedCommand, errorCode, parameters);
+	//}
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Generic packet handling.									*/
 	/*----------------------------------------------------------------------*/
-	protected <T extends Message> T parseBuffer(Class<T> clz, HubPacket packet) throws Exception {
-		T instance = (T) clz.getMethod("getDefaultInstance").invoke(null);
-		return (T) instance.getParserForType().parseFrom(packet.getRemainingStream());
-	}
+	//protected <T extends Message> T parseBuffer(Class<T> clz, HubPacket packet) throws Exception {
+	//	T instance = (T) clz.getMethod("getDefaultInstance").invoke(null);
+	//	return (T) instance.getParserForType().parseFrom(packet.getRemainingStream());
+	//}
 
 	/**
 	 * A handler method is a method with a name "handleCOMMAND", with one
 	 * parameter of type HubPacket and optionally a second packet which is
 	 * a protobuf Message of a specific type.
 	 */
-	@Nullable
-	protected Method findHandlerMethod(String command) {
-		String name = "handle" + command;
-		for(Method method : getClass().getMethods()) {
-			if(method.getName().equals(name)) {
-				if(Modifier.isPublic(method.getModifiers())) {
-					if(method.getParameterCount() >= 1 && method.getParameterCount() <= 2) {
-						Class<?>[] pt = method.getParameterTypes();
-						if(pt[0] == HubPacket.class) {
-							return method;
-						}
-					}
-				}
-			}
-		}
-		return null;
-	}
-
-	protected void callPacketMethod(HubPacket packet) throws Exception {
-		Method m = findHandlerMethod(packet.getCommand());
-		if(null == m) {
-			throw new ProtocolViolationException("No handler for packet command " + packet.getCommand());
-		}
-
-		Object[] args = new Object[m.getParameterCount()];
-		args[0] = packet;
-
-		if(m.getParameterCount() > 1) {
-			Class<?> bufferClass = m.getParameterTypes()[2];
-			if(! MessageOrBuilder.class.isAssignableFrom(bufferClass))
-				throw new ProtocolViolationException(m.getName() + " has an unknown packet buffer parameter " + bufferClass.getName());
-			Class<Message> mbc = (Class<Message>) bufferClass;
-			Message message = parseBuffer(mbc, packet);
-			args[1] = message;
-		}
-
-		try {
-			m.invoke(this, args);
-		} catch(InvocationTargetException itx) {
-			Throwable tx = itx.getTargetException();
-			if(tx instanceof RuntimeException) {
-				throw (RuntimeException) tx;
-			} else if(tx instanceof Error) {
-				throw (Error) tx;
-			} else if(tx instanceof Exception) {
-				throw (Exception) tx;
-			} else {
-				throw itx;
-			}
-		}
-	}
+	//@Nullable
+	//protected Method findHandlerMethod(String command) {
+	//	String name = "handle" + command;
+	//	for(Method method : getClass().getMethods()) {
+	//		if(method.getName().equals(name)) {
+	//			if(Modifier.isPublic(method.getModifiers())) {
+	//				if(method.getParameterCount() >= 1 && method.getParameterCount() <= 2) {
+	//					Class<?>[] pt = method.getParameterTypes();
+	//					if(pt[0] == HubPacket.class) {
+	//						return method;
+	//					}
+	//				}
+	//			}
+	//		}
+	//	}
+	//	return null;
+	//}
+	//
+	//protected void callPacketMethod(HubPacket packet) throws Exception {
+	//	Method m = findHandlerMethod(packet.getCommand());
+	//	if(null == m) {
+	//		throw new ProtocolViolationException("No handler for packet command " + packet.getCommand());
+	//	}
+	//
+	//	Object[] args = new Object[m.getParameterCount()];
+	//	args[0] = packet;
+	//
+	//	if(m.getParameterCount() > 1) {
+	//		Class<?> bufferClass = m.getParameterTypes()[2];
+	//		if(! MessageOrBuilder.class.isAssignableFrom(bufferClass))
+	//			throw new ProtocolViolationException(m.getName() + " has an unknown packet buffer parameter " + bufferClass.getName());
+	//		Class<Message> mbc = (Class<Message>) bufferClass;
+	//		Message message = parseBuffer(mbc, packet);
+	//		args[1] = message;
+	//	}
+	//
+	//	try {
+	//		m.invoke(this, args);
+	//	} catch(InvocationTargetException itx) {
+	//		Throwable tx = itx.getTargetException();
+	//		if(tx instanceof RuntimeException) {
+	//			throw (RuntimeException) tx;
+	//		} else if(tx instanceof Error) {
+	//			throw (Error) tx;
+	//		} else if(tx instanceof Exception) {
+	//			throw (Exception) tx;
+	//		} else {
+	//			throw itx;
+	//		}
+	//	}
+	//}
 
 	public ISystemContext getSystemContext() {
 		return m_systemContext;

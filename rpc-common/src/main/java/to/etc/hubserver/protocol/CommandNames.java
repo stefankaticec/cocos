@@ -7,6 +7,9 @@ package to.etc.hubserver.protocol;
 final public class CommandNames {
 	public final static byte[] HEADER = {(byte)0xde, (byte)0xca, (byte)0xf1, (byte)0x11};
 
+	public final static int MAX_ENVELOPE_LENGTH = 1024*1024;
+	public final static int MAX_DATA_LENGTH = 10*1024*1024;
+
 	public static final String PING_CMD = "$PING";
 	public static final String PONG_CMD = "$PONG";
 

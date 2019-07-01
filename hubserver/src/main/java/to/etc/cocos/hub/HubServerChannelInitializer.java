@@ -5,15 +5,11 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.SimpleUserEventChannelHandler;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.handler.codec.bytes.ByteArrayDecoder;
-import io.netty.handler.codec.bytes.ByteArrayEncoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
-import to.etc.hubserver.protocol.CommandNames;
 
 /**
  * Initializer for a new channel.
@@ -39,13 +35,15 @@ class HubServerChannelInitializer extends ChannelInitializer<SocketChannel> {
 		pipeline.addLast("idleStateHandler", new IdleStateHandler(m_server.getPingInterval() * 2, m_server.getPingInterval(), 0));
 		pipeline.addLast(sslHandler);
 
-		//-- decoder
-		pipeline.addLast("lengthDecoder", new LengthFieldBasedFrameDecoder(HubServer.MAX_PACKET_SIZE, 0, 4, 0, 4));
-		pipeline.addLast("byteDecoder", new ByteArrayDecoder());
+//		//-- decoder
+//		pipeline.addLast("lengthDecoder", new LengthFieldBasedFrameDecoder(HubServer.MAX_PACKET_SIZE, 0, 4, 0, 4));
+//		pipeline.addLast("byteDecoder", new ByteArrayDecoder());
+//
+//		//-- encoder
+////			pipeline.addLast("lengthEncoder", new LengthFieldPrepender(4));
+//			pipeline.addLast("bytesEncoder", new ByteArrayEncoder());
 
-		//-- encoder
-//			pipeline.addLast("lengthEncoder", new LengthFieldPrepender(4));
-			pipeline.addLast("bytesEncoder", new ByteArrayEncoder());
+		CentralSocketHandler mainHandler = new CentralSocketHandler(m_server, socketChannel);
 
 		pipeline.addLast("timeoutHandler", new SimpleUserEventChannelHandler<Object>() {
 			@Override protected void eventReceived(ChannelHandlerContext ctx, Object evt) throws Exception {
@@ -61,16 +59,19 @@ class HubServerChannelInitializer extends ChannelInitializer<SocketChannel> {
 //							ctx.writeAndFlush(buffer);
 //							future.await();
 
-						PacketBuilder b = new PacketBuilder(ctx.alloc(), (byte)0x00, "", m_server.getIdent(), CommandNames.PING_CMD);
-						ctx.writeAndFlush(b.getCompleted());
-						m_server.log("ping sent");
+						mainHandler.sendPing();
+						//ResponseBuilder rb = new ResponseBuilder()
+						//
+						//PacketBuilder b = new PacketBuilder(ctx.alloc(), (byte)0x00, "", m_server.getIdent(), CommandNames.PING_CMD);
+						//ctx.writeAndFlush(b.getCompleted());
+						//m_server.log("ping sent");
 					}
 				}
 				else
 					m_server.log("Event: " + evt.getClass());
 			}
 		});
-		pipeline.addLast(new CentralSocketHandler(m_server, socketChannel));
+		pipeline.addLast(mainHandler);
 	}
 
 }
