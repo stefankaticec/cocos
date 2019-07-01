@@ -9,7 +9,6 @@ import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -31,7 +30,7 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 	 * Respond with a Server HELO response, and encode the challenge with the password.
 	 */
 	@Synchronous
-	public void handleHELO(CommandContext cc, ArrayList<byte[]> body) throws Exception {
+	public void handleHELO(CommandContext cc) throws Exception {
 		System.out.println("Got HELO request");
 
 
@@ -56,7 +55,14 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 		cc.respond();
 	}
 
-
+	/**
+	 * If the authorization was successful we receive this; move to AUTHORIZED status.
+	 */
+	@Synchronous
+	public void handleAUTH(CommandContext cc) throws Exception {
+		cc.getConnector().authorized();
+		cc.log("Authenticated successfully");
+	}
 
 	//@Override public void onHelloPacket(HubConnector connector, Hubcore.Envelope envelope, List<byte[]> payload) throws Exception {
 	//	Hubcore.HelloChallenge c = envelope.getChallenge();

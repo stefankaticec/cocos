@@ -268,7 +268,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			.setCommand(CommandNames.HELO_CMD)
 			.setSourceId("")							// from HUB
 			.setTargetId("unknown-client")				// We have no client ID yet
-			.setDataFormat(CommandNames.BODY_BYTES)		// Zero body bytes, actually
+			.setDataFormat("")							// Zero body bytes, actually
 			.setCommandId("*")
 			.setVersion(1)
 			.setChallenge(
@@ -416,7 +416,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			.setCommand(CommandNames.PING_CMD)
 			.setSourceId("")							// from HUB
 			.setTargetId(m_clientId)					// Whatever is known
-			.setDataFormat(CommandNames.BODY_BYTES)		// Zero body bytes, actually
+			.setDataFormat("")							// Zero body bytes, actually
 			.setCommandId("*")
 			.setVersion(1)
 		;

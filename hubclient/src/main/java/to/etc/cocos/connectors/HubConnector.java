@@ -629,11 +629,22 @@ final public class HubConnector {
 	void log(String s) {
 		ConsoleUtil.consoleLog(m_clientId, s);
 	}
+
 	private void error(String s) {
 		ConsoleUtil.consoleError(m_clientId, s);
 	}
+
 	private void error(Throwable t, String s) {
 		ConsoleUtil.consoleError(m_clientId, s);
 		t.printStackTrace();
+	}
+
+	public void authorized() {
+		synchronized(this) {
+			if(m_state == ConnectorState.CONNECTED) {
+				m_state = ConnectorState.AUTHENTICATED;
+				notifyAll();								// Release the wr
+			}
+		}
 	}
 }

@@ -1,9 +1,9 @@
 package to.etc.cocos.tests;
 
+import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.ConnectorState;
 
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -18,16 +18,13 @@ public class TestServerConnections extends TestAllBase {
 	@Test
 	public void testHubServerConnect() throws Exception {
 		hub();
-		Future<ConnectorState> fut = server().observeConnectionState()
+		ConnectorState connectorState = server().observeConnectionState()
 			.doOnNext(a -> System.out.println(">> got state " + a))
 			.filter(a -> a == ConnectorState.AUTHENTICATED)
 			.timeout(5, TimeUnit.SECONDS)
-			.toFuture();
-		;
+			.blockingFirst();
 
-		Thread.sleep(15_000);
-		//ConnectorState connectorState = fut.get();
-		//Assert.assertEquals("Connector must have gotten to connected status", ConnectorState.CONNECTED, connectorState);
+		Assert.assertEquals("Connector must have gotten to connected status", ConnectorState.AUTHENTICATED, connectorState);
 	}
 
 
