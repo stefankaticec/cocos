@@ -44,13 +44,14 @@ final public class ConnectionDirectory {
 	/**
 	 * Get some server that is able to represent the specified organisation.
 	 */
-	public Server getOrganisationServer(String clusterId, String organisation) {
+	@Nullable
+	public Server findOrganisationServer(String clusterId, String organisation) {
 		Cluster cluster;
 		synchronized(this) {
 			cluster = m_clusterMap.computeIfAbsent(clusterId, a -> new Cluster(m_context, clusterId));
 		}
 
-		return cluster.getServiceServer(organisation);
+		return cluster.findServiceServer(organisation);
 	}
 
 	public Pair<String, Client> createTempClient(String realID) {

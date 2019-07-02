@@ -64,6 +64,10 @@ public class AbstractConnection {
 		newConnection(channel, handler);
 	}
 
+	public synchronized boolean isUsable() {
+		return m_state == ConnectionState.CONNECTED;
+	}
+
 	/**
 	 * Accepts a new connection to this, and possibly discards a previous one.
 	 */

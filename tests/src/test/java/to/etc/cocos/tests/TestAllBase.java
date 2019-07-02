@@ -21,6 +21,7 @@ public class TestAllBase {
 	public static final String SERVERNAME = "rmtserver";
 
 	public static final String CLIENTID = "testDaemon";
+	public static final String CLIENTPASSWORD = "tokodoko";
 
 	public static final String CLUSTERPASSWORD = "inujit";
 
@@ -35,7 +36,7 @@ public class TestAllBase {
 	public HubConnector client() {
 		HubConnector client = m_client;
 		if(null == client) {
-			m_client = client = new HubConnector("localhost", HUBPORT, CLUSTERNAME, CLIENTID, new ClientResponder());
+			m_client = client = new HubConnector("localhost", HUBPORT, CLUSTERNAME, CLIENTID, new ClientResponder(CLIENTPASSWORD, CLUSTERNAME));
 			client.start();
 		}
 		return client;
@@ -45,7 +46,7 @@ public class TestAllBase {
 		HubConnector server = m_server;
 		if(null == server) {
 			String id = SERVERNAME + "@" + CLUSTERNAME;
-			m_server = server = new HubConnector("localhost", HUBPORT, "", id, new ServerResponder(id, m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD));
+			m_server = server = new HubConnector("localhost", HUBPORT, "", id, new ServerResponder(m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD));
 			server.start();
 		}
 		return server;

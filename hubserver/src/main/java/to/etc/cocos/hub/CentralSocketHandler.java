@@ -253,8 +253,65 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	private void handleClientHello(Envelope envelope, ClientHeloResponse heloClient) {
-		throw new ProtocolViolationException("Client helo not implemented yet");
+		String targetId = envelope.getTargetId();
+		String[] split = targetId.split("#");
+		Server server;
+		switch(split.length) {
+			default:
+				throw new IllegalStateException("Invalid client target: " + targetId);
+
+			case 1:
+				server = getDirectory().getCluster(split[0]).getRandomServer();
+				if(null == server)
+					throw new FatalHubException(ErrorCode.clusterNotFound);
+				break;
+			case 2:
+				server = getDirectory().findOrganisationServer(split[1], split[0]);
+				if(null == server)
+					throw new FatalHubException(ErrorCode.targetNotFound, split[0]);
+				break;
+		}
+
+		//-- Forward the packet to the remote server
+
+
+
+
 	}
+
+	//private void heloHandleClient(ChannelHandlerContext context, HubPacket packet) throws Exception {
+	//	String clientId = packet.getSourceId();
+	//	String s = packet.getTargetId();
+	//	int ix = s.indexOf("@");
+	//	if(ix == -1)
+	//		throw new ProtocolViolationException("Target ID " + s + " does not contain @");
+	//	String organisationId = s.substring(0, ix);
+	//	String clusterId = s.substring(ix + 1);
+	//
+	//	Hubcore.ClientHeloResponse r = Hubcore.ClientHeloResponse.parseFrom(packet.getRemainingStream());
+	//	if(1 != r.getVersion())
+	//		throw new ProtocolViolationException("Invalid packet version " + r.getVersion());
+	//	byte[] signature = r.getChallengeResponse().toByteArray();
+	//
+	//	//-- We need to send a request for a "pending" client. Find a server that handles the destination
+	//	Server server = getDirectory().getOrganisationServer(clusterId, organisationId);
+	//	if(server.getState() != ConnectionState.CONNECTED)
+	//		throw new UnreachableOrganisationException(server.getFullId() + " in state " + server.getState());
+	//
+	//	/*
+	//	 * We have at least a tentative connection, but before we can really register the client we need to
+	//	 * authenticate; only when that works can we become the "real" client. This is necessary to prevent
+	//	 * denial of service attacks: if we would replace the client connection already any attacker could
+	//	 * cause connections to drop like flies.
+	//	 */
+	//	Pair<String, Client> pair = getDirectory().createTempClient(packet.getSourceId());
+	//	Client client = pair.get2();
+	//	client.newConnection(context.channel(), this);			// Associate with new client
+	//	log("Unauthenticated client " + packet.getSourceId() + " mapped to temp id=" + client.getFullId());
+	//
+	//	//-- Send a client authentication request to the server we've just found.
+	//	server.sendMessage(packet.getType(), pair.get1(), packet.getCommand(), r, null);
+	//}
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Other listeners for channel events.							*/
@@ -368,39 +425,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	//	log("AUTH sent");
 	//}
 
-	//private void heloHandleClient(ChannelHandlerContext context, HubPacket packet) throws Exception {
-	//	String clientId = packet.getSourceId();
-	//	String s = packet.getTargetId();
-	//	int ix = s.indexOf("@");
-	//	if(ix == -1)
-	//		throw new ProtocolViolationException("Target ID " + s + " does not contain @");
-	//	String organisationId = s.substring(0, ix);
-	//	String clusterId = s.substring(ix + 1);
-	//
-	//	Hubcore.ClientHeloResponse r = Hubcore.ClientHeloResponse.parseFrom(packet.getRemainingStream());
-	//	if(1 != r.getVersion())
-	//		throw new ProtocolViolationException("Invalid packet version " + r.getVersion());
-	//	byte[] signature = r.getChallengeResponse().toByteArray();
-	//
-	//	//-- We need to send a request for a "pending" client. Find a server that handles the destination
-	//	Server server = getDirectory().getOrganisationServer(clusterId, organisationId);
-	//	if(server.getState() != ConnectionState.CONNECTED)
-	//		throw new UnreachableOrganisationException(server.getFullId() + " in state " + server.getState());
-	//
-	//	/*
-	//	 * We have at least a tentative connection, but before we can really register the client we need to
-	//	 * authenticate; only when that works can we become the "real" client. This is necessary to prevent
-	//	 * denial of service attacks: if we would replace the client connection already any attacker could
-	//	 * cause connections to drop like flies.
-	//	 */
-	//	Pair<String, Client> pair = getDirectory().createTempClient(packet.getSourceId());
-	//	Client client = pair.get2();
-	//	client.newConnection(context.channel(), this);			// Associate with new client
-	//	log("Unauthenticated client " + packet.getSourceId() + " mapped to temp id=" + client.getFullId());
-	//
-	//	//-- Send a client authentication request to the server we've just found.
-	//	server.sendMessage(packet.getType(), pair.get1(), packet.getCommand(), r, null);
-	//}
 
 	void sendResponse(ResponseBuilder r) {
 		log("Sending response packet: " + r.getEnvelope().getCommand());

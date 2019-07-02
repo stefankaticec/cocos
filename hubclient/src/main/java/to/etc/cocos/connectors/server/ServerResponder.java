@@ -17,12 +17,11 @@ import java.security.MessageDigest;
 public class ServerResponder extends AbstractResponder implements IHubResponder {
 	private final String m_serverVersion = "1.0";
 
-	private final String m_serverId;
+	//private final String m_serverId;
 
 	private final String m_clusterPassword;
 
-	public ServerResponder(String id, String clusterPassword) {
-		m_serverId = id;
+	public ServerResponder(String clusterPassword) {
 		m_clusterPassword = clusterPassword;
 	}
 
@@ -37,14 +36,14 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 		ByteString ba = cc.getSourceEnvelope().getChallenge().getChallenge();
 		byte[] challenge = ba.toByteArray();
 
-		String ref = m_clusterPassword + ":" + m_serverId;
+		String ref = m_clusterPassword + ":" + cc.getConnector().getMyId();
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(ref.getBytes(StandardCharsets.UTF_8));
 		md.update(challenge);
 		byte[] digest = md.digest();
 
 		cc.getResponseEnvelope()
-			.setSourceId(m_serverId)
+			.setSourceId(cc.getConnector().getMyId())
 			.setVersion(1)
 			.setTargetId("")
 			.setHeloServer(Hubcore.ServerHeloResponse.newBuilder()

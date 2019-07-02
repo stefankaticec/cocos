@@ -42,13 +42,18 @@ Source ids and target ids can hold the following types of address:
 * A ServerID
 * A ClientID
 * A ClusterID
+* A resource ID
 * The empty string
 
 ### Server ids
 
 A server id has the format _servername@clustername_. The cluster name represents a group of servers that all
 serve the same domain. Clients usually address their requests to a cluster, not to a specific server. They 
-only address a specific server if they answer a command from a server.  
+only address a specific server if they answer a command from a server.
+
+### Resource ID
+
+A client connects to some "organisation" in cluster using _orgID#cluster_.
 
 ### Cluster ids
 
@@ -75,6 +80,7 @@ values:
 |-----|-----------|
 |octet-stream|The data stream is a stream of bytes. Whatever is to be done with them is defined by the command. This format is typically used to transfer files|
 |JSON:(class)|The data contains a JSON packet. The class name for the packet, needed to decode it, is the (class) in the string.|
+|(empty)|No body is present|
 
 
 # Authenticating and identifying connecting parties

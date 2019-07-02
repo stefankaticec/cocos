@@ -9,7 +9,8 @@ public enum ErrorCode {
 	invalidSignature("Invalid server signature"),
 	clusterNotFound("Cluster {0} not found"),
 	authenticationFailure("Authentication failure"),
-	targetNotFound("Target organisation {0} not found");
+	targetNotFound("Target organisation {0} not found")
+	;
 
 	private String m_text;
 

@@ -42,7 +42,7 @@ public class TestServer {
 			System.exit(10);
 		}
 
-		m_connector = new HubConnector(m_server, m_port, "", m_serverId, new ServerResponder(m_serverId, m_clusterPassword));
+		m_connector = new HubConnector(m_server, m_port, "", m_serverId, new ServerResponder(m_clusterPassword));
 		m_connector.start();
 
 		for(;;) {

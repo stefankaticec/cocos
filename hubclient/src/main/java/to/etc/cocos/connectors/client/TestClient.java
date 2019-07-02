@@ -41,15 +41,15 @@ public class TestClient {
 			System.exit(10);
 		}
 
-		m_client = new HubConnector(m_server, m_port, m_targetId, m_daemonId, new ClientResponder());
-		m_client.start();
-
-		for(;;) {
-			int c = System.in.read();
-			if(c == 'Q') {
-				return;
-			}
-		}
+		//m_client = new HubConnector(m_server, m_port, m_targetId, m_daemonId, new ClientResponder("nanana"));
+		//m_client.start();
+		//
+		//for(;;) {
+		//	int c = System.in.read();
+		//	if(c == 'Q') {
+		//		return;
+		//	}
+		//}
 	}
 
 	private void loadOptions() {

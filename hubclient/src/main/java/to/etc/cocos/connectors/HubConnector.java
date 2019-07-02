@@ -63,7 +63,7 @@ final public class HubConnector {
 
 	final private int m_port;
 
-	final private String m_clientId;
+	final private String m_myId;
 
 	/** The endpoint ID */
 	final private String m_targetId;
@@ -120,10 +120,10 @@ final public class HubConnector {
 	@Nullable
 	private ErrorResponse m_lastError;
 
-	public HubConnector(String server, int port, String targetId, String clientId, IHubResponder responder) {
+	public HubConnector(String server, int port, String targetId, String myId, IHubResponder responder) {
 		m_server = server;
 		m_port = port;
-		m_clientId = clientId;
+		m_myId = myId;
 		m_targetId = targetId;
 		m_responder = responder;
 		m_connStatePublisher = PublishSubject.<ConnectorState>create();
@@ -650,16 +650,20 @@ final public class HubConnector {
 	}
 
 	void log(String s) {
-		ConsoleUtil.consoleLog(m_clientId, s);
+		ConsoleUtil.consoleLog(m_myId, s);
 	}
 
 	private void error(String s) {
-		ConsoleUtil.consoleError(m_clientId, s);
+		ConsoleUtil.consoleError(m_myId, s);
 	}
 
 	private void error(Throwable t, String s) {
-		ConsoleUtil.consoleError(m_clientId, s);
+		ConsoleUtil.consoleError(m_myId, s);
 		t.printStackTrace();
+	}
+
+	public String getMyId() {
+		return m_myId;
 	}
 
 	public void authorized() {

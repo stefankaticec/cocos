@@ -1,6 +1,7 @@
 package to.etc.cocos.hub.parties;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.ISystemContext;
 
 import java.util.ArrayList;
@@ -37,6 +38,15 @@ final public class Cluster {
 		m_clusterId = clusterId;
 	}
 
+	@Nullable
+	public synchronized Server getRandomServer() {
+		for(Server server : m_serverMap.values()) {
+			if(server.isUsable())
+				return server;
+		}
+		return null;
+	}
+
 	/**
 	 * Get the server by its server name, not by services it provides.
 	 */
@@ -58,16 +68,17 @@ final public class Cluster {
 		}
 	}
 
-	public Server getServiceServer(String organisation) {
+	@Nullable
+	public Server findServiceServer(String organisation) {
 		synchronized(this) {
 			List<Server> servers = m_targetServiceMap.get(organisation);
 			if(null == servers) {
 				servers = m_targetServiceMap.get("*");
 				if(null == servers) {
-					throw new UnreachableOrganisationException(organisation);
+					return null;
 				}
 			}
-			return servers.stream().filter(a -> a.getState() == ConnectionState.CONNECTED).findFirst().orElseThrow(() -> new UnreachableOrganisationException(organisation));
+			return servers.stream().filter(a -> a.getState() == ConnectionState.CONNECTED).findFirst().orElse(null);
 		}
 	}
 
