@@ -37,12 +37,15 @@ public class TestAllBase {
 
 	private String m_serverPassword;
 
+	private String m_clientPassword;
+
 	private String m_allClientPassword = CLIENTPASSWORD;
 
 	public HubConnector client() {
 		HubConnector client = m_client;
 		if(null == client) {
-			m_client = client = new HubConnector("localhost", HUBPORT, CLUSTERNAME, CLIENTID, new ClientResponder(CLIENTPASSWORD, CLUSTERNAME), "Client");
+			ClientResponder responder = new ClientResponder(m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword, CLUSTERNAME);
+			m_client = client = new HubConnector("localhost", HUBPORT, CLUSTERNAME, CLIENTID, responder, "Client");
 			client.start();
 		}
 		return client;
@@ -109,9 +112,14 @@ public class TestAllBase {
 			server.terminateAndWait();
 		}
 		m_serverPassword = null;
+		m_clientPassword = null;
 	}
 
 	protected void setServerPassword(String assword) {
 		m_serverPassword = assword;
+	}
+
+	protected void setClientPassword(String clientPassword) {
+		m_clientPassword = clientPassword;
 	}
 }
