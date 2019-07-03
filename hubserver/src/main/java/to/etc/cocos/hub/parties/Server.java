@@ -1,7 +1,10 @@
 package to.etc.cocos.hub.parties;
 
 import to.etc.cocos.hub.ISystemContext;
+import to.etc.cocos.hub.problems.FatalHubException;
+import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
+import to.etc.util.ConsoleUtil;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -13,6 +16,13 @@ public class Server extends AbstractConnection {
 	}
 
 	public void packetReceived(Envelope envelope) {
+		if(! isUsable())
+			throw new FatalHubException(ErrorCode.serverDisconnected);
+
+
+
+
+
 		log("Packet received: " + envelope.getCommand());
 	}
 
@@ -43,4 +53,8 @@ public class Server extends AbstractConnection {
 	//
 	//}
 
+	@Override
+	public void log(String s) {
+		ConsoleUtil.consoleLog("Hub:Server", getFullId(), s);
+	}
 }

@@ -17,6 +17,7 @@ final public class CommandNames {
 	static public final String CLNT_CMD = "CLNT";
 	static public final String SRVR_CMD = "SRVR";
 	static public final String AUTH_CMD = "AUTH";
+	static public final String CLAUTH_CMD = "CLAUTH";
 
 	static public final String BODY_BYTES = "octet-stream";
 	static public final String BODY_JSON = "json";

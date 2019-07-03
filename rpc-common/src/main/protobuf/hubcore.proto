@@ -14,6 +14,13 @@ message ServerHeloResponse {
     bytes challengeResponse = 2;
 }
 
+message ClientAuthRequest {
+    string clientVersion = 1;
+    bytes challenge = 2;
+    bytes challengeResponse = 3;
+    string clientId = 4;
+}
+
 //-- A client sends this response. Its challenge will be forwarded to a server it addresses
 message ClientHeloResponse {
     string clientVersion = 1;
@@ -43,7 +50,9 @@ message Envelope {
          HelloChallenge challenge  = 10;
          ServerHeloResponse heloServer = 11;
          ClientHeloResponse heloClient = 12;
-         AuthResponse auth = 13;
-         ErrorResponse error = 14;
+         ClientAuthRequest clientAuth = 13;
+
+         AuthResponse auth = 14;
+         ErrorResponse error = 15;
      }
 }

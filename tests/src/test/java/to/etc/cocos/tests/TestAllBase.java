@@ -4,9 +4,13 @@ import org.junit.After;
 import to.etc.cocos.connectors.ConnectorState;
 import to.etc.cocos.connectors.HubConnector;
 import to.etc.cocos.connectors.client.ClientResponder;
+import to.etc.cocos.connectors.server.IClientAuthenticator;
 import to.etc.cocos.connectors.server.ServerResponder;
 import to.etc.cocos.hub.HubServer;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -33,6 +37,8 @@ public class TestAllBase {
 
 	private String m_serverPassword;
 
+	private String m_allClientPassword = CLIENTPASSWORD;
+
 	public HubConnector client() {
 		HubConnector client = m_client;
 		if(null == client) {
@@ -46,10 +52,29 @@ public class TestAllBase {
 		HubConnector server = m_server;
 		if(null == server) {
 			String id = SERVERNAME + "@" + CLUSTERNAME;
-			m_server = server = new HubConnector("localhost", HUBPORT, "", id, new ServerResponder(m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD), "Server");
+
+
+			IClientAuthenticator au = new IClientAuthenticator() {
+				@Override public boolean clientAuthenticated(String clientId, byte[] challenge, byte[] challengeResponse, String clientVersion) throws Exception {
+					return authenticateClient(clientId, challenge, challengeResponse);
+				}
+			};
+
+
+			ServerResponder responder = new ServerResponder(m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD, au);
+			m_server = server = new HubConnector("localhost", HUBPORT, "", id, responder, "Server");
 			server.start();
 		}
 		return server;
+	}
+
+	private boolean authenticateClient(String clientId, byte[] challenge, byte[] response) throws Exception {
+		String ref = m_allClientPassword + ":" + clientId;
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		md.update(ref.getBytes(StandardCharsets.UTF_8));
+		md.update(challenge);
+		byte[] digest = md.digest();
+		return Arrays.equals(digest, response);
 	}
 
 	public HubConnector serverConnected() {

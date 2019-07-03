@@ -105,7 +105,7 @@ final public class HubConnector {
 
 	private String m_serverVersion = "1.0";
 
-	final private PacketReader m_packetReader = new PacketReader(this::isRunning);
+	final private PacketReader m_packetReader = new PacketReader(this::isRunning, this::log);
 
 	private final PacketWriter m_writer;
 

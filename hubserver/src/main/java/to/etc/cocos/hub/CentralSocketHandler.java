@@ -93,6 +93,34 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 	}
 
+	/**
+	 * Called when the channel has just been opened. This sends an HELO packet to the client.
+	 */
+	@Override public void channelActive(ChannelHandlerContext ctx) throws Exception {
+		ctx.channel().closeFuture().addListener(future -> {
+			remoteDisconnected(ctx);
+		});
+
+		//-- Send HELO with challenge
+		byte[] challenge = m_challenge = m_central.getChallenge();
+		ResponseBuilder response = new ResponseBuilder(this);
+		response.getEnvelope()
+			.setCommand(CommandNames.HELO_CMD)
+			.setSourceId("")							// from HUB
+			.setTargetId("unknown-client")				// We have no client ID yet
+			.setDataFormat("")							// Zero body bytes, actually
+			.setCommandId("*")
+			.setVersion(1)
+			.setChallenge(
+				HelloChallenge.newBuilder()
+					.setChallenge(ByteString.copyFrom(challenge))
+					.setServerVersion(HubServer.VERSION)
+			)
+		;
+		setPacketState(this::expectHeloResponse);
+		response.send();
+	}
+
 	@Override public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
 		super.handlerAdded(ctx);
 		m_intBuf = ctx.alloc().buffer(4);
@@ -297,90 +325,30 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		getDirectory().registerTmpClient(m_tmpClientId, this);
 
 		Envelope tgtEnvelope = Envelope.newBuilder()
-			.setCommand(CommandNames.HELO_CMD)
+			.setCommand(CommandNames.CLAUTH_CMD)
 			.setSourceId(m_tmpClientId)						// From tmp client ID
 			.setTargetId(server.getFullId())				// To the selected server
 			.setDataFormat("")								// Zero body bytes, actually
-			.setCommandId(m_clientId)						// Abuse that to pass on the real client ID
+			.setCommandId("")
 			.setVersion(1)
-			.setHeloClient(m_envelope.getHeloClient())		// Copy the client message
+			.setClientAuth(Hubcore.ClientAuthRequest.newBuilder()
+				.setChallenge(ByteString.copyFrom(m_challenge))
+				.setChallengeResponse(envelope.getHeloClient().getChallengeResponse())
+				.setClientId(m_clientId)
+				.setClientVersion(envelope.getHeloClient().getClientVersion())
+			)
 			.build();
-		setPacketState(this::expectServerAuth);
+		setPacketState(this::expectClientServerAuth);
 		server.getHandler().sendEnvelopeAndEmptyBody(tgtEnvelope);
-
-
 	}
 
-	private void expectServerAuth(Envelope envelope) {
+	private void expectClientServerAuth(Envelope envelope) {
 		log("serverAuth: got " + envelope.getCommand());
 	}
-
-	//private void heloHandleClient(ChannelHandlerContext context, HubPacket packet) throws Exception {
-	//	String clientId = packet.getSourceId();
-	//	String s = packet.getTargetId();
-	//	int ix = s.indexOf("@");
-	//	if(ix == -1)
-	//		throw new ProtocolViolationException("Target ID " + s + " does not contain @");
-	//	String organisationId = s.substring(0, ix);
-	//	String clusterId = s.substring(ix + 1);
-	//
-	//	Hubcore.ClientHeloResponse r = Hubcore.ClientHeloResponse.parseFrom(packet.getRemainingStream());
-	//	if(1 != r.getVersion())
-	//		throw new ProtocolViolationException("Invalid packet version " + r.getVersion());
-	//	byte[] signature = r.getChallengeResponse().toByteArray();
-	//
-	//	//-- We need to send a request for a "pending" client. Find a server that handles the destination
-	//	Server server = getDirectory().getOrganisationServer(clusterId, organisationId);
-	//	if(server.getState() != ConnectionState.CONNECTED)
-	//		throw new UnreachableOrganisationException(server.getFullId() + " in state " + server.getState());
-	//
-	//	/*
-	//	 * We have at least a tentative connection, but before we can really register the client we need to
-	//	 * authenticate; only when that works can we become the "real" client. This is necessary to prevent
-	//	 * denial of service attacks: if we would replace the client connection already any attacker could
-	//	 * cause connections to drop like flies.
-	//	 */
-	//	Pair<String, Client> pair = getDirectory().createTempClient(packet.getSourceId());
-	//	Client client = pair.get2();
-	//	client.newConnection(context.channel(), this);			// Associate with new client
-	//	log("Unauthenticated client " + packet.getSourceId() + " mapped to temp id=" + client.getFullId());
-	//
-	//	//-- Send a client authentication request to the server we've just found.
-	//	server.sendMessage(packet.getType(), pair.get1(), packet.getCommand(), r, null);
-	//}
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Other listeners for channel events.							*/
 	/*----------------------------------------------------------------------*/
-
-	/**
-	 * Called when the channel has just been opened. This sends an HELO packet to the client.
-	 */
-	@Override public void channelActive(ChannelHandlerContext ctx) throws Exception {
-		ctx.channel().closeFuture().addListener(future -> {
-			remoteDisconnected(ctx);
-		});
-
-		//-- Send HELO with challenge
-		byte[] challenge = m_challenge = m_central.getChallenge();
-		ResponseBuilder response = new ResponseBuilder(this);
-		response.getEnvelope()
-			.setCommand(CommandNames.HELO_CMD)
-			.setSourceId("")							// from HUB
-			.setTargetId("unknown-client")				// We have no client ID yet
-			.setDataFormat("")							// Zero body bytes, actually
-			.setCommandId("*")
-			.setVersion(1)
-			.setChallenge(
-				HelloChallenge.newBuilder()
-					.setChallenge(ByteString.copyFrom(challenge))
-					.setServerVersion(HubServer.VERSION)
-			)
-			;
-		setPacketState(this::expectHeloResponse);
-		response.send();
-	}
-
 	private void remoteDisconnected(ChannelHandlerContext ctx) {
 		AbstractConnection connection = m_connection;
 		if(null != connection) {

@@ -5,13 +5,13 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.util.ByteArrayUtil;
-import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * This class reads packets, and after the read contains (fresh) data of the
@@ -37,13 +37,17 @@ final class PacketReader {
 
 	private final IIsRunning m_runningFunctor;
 
+	@Nullable
+	private final Consumer<String> m_logger;
+
 	private boolean m_logPackets = true;
 
 	@Nullable
 	private ByteArrayOutputStream m_baos;
 
-	public PacketReader(IIsRunning runningFunctor) {
+	public PacketReader(IIsRunning runningFunctor, @Nullable Consumer<String> logger) {
 		m_runningFunctor = runningFunctor;
+		m_logger = logger;
 		if(m_logPackets) {
 			m_baos = new ByteArrayOutputStream();
 		}
@@ -99,12 +103,14 @@ final class PacketReader {
 			rest -= todo;
 		}
 
-		if(baos != null) {
+		Consumer<String> logger = m_logger;
+		if(baos != null && logger != null) {
 			StringBuilder sb = new StringBuilder();
 			sb.append("\n");
 			byte[] bytes = baos.toByteArray();
 			StringTool.dumpData(sb, bytes, 0, bytes.length, "r> ");
-			ConsoleUtil.consoleLog("pktreader", sb.toString());
+
+			logger.accept(sb.toString());
 		}
 		m_envelope = c;
 	}

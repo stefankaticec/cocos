@@ -7,7 +7,6 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.ISystemContext;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
-import to.etc.util.ConsoleUtil;
 
 import java.util.Objects;
 
@@ -16,7 +15,7 @@ import java.util.Objects;
  * Created on 13-1-19.
  */
 @NonNullByDefault
-public class AbstractConnection {
+abstract public class AbstractConnection {
 	static private final long DUPLICATE_COUNT = 3;
 	static private final long DUPLICATE_INTERVAL = 1000 * 60 * 2;
 
@@ -131,9 +130,7 @@ public class AbstractConnection {
 		log("channel closed");
 	}
 
-	public void log(String s) {
-		ConsoleUtil.consoleLog("hubConn", m_fullId + " " + s);
-	}
+	abstract public void log(String s);
 
 	//public void forwardPacket(HubPacket packet) {
 	//	getHandler().forwardPacket(packet);

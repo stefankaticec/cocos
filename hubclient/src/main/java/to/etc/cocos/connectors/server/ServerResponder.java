@@ -3,9 +3,12 @@ package to.etc.cocos.connectors.server;
 import com.google.protobuf.ByteString;
 import to.etc.cocos.connectors.AbstractResponder;
 import to.etc.cocos.connectors.CommandContext;
+import to.etc.cocos.connectors.FatalServerException;
 import to.etc.cocos.connectors.IHubResponder;
 import to.etc.cocos.connectors.Synchronous;
+import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientAuthRequest;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -21,16 +24,19 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 
 	private final String m_clusterPassword;
 
-	public ServerResponder(String clusterPassword) {
+	private final IClientAuthenticator m_authenticator;
+
+	public ServerResponder(String clusterPassword, IClientAuthenticator authenticator) {
 		m_clusterPassword = clusterPassword;
+		m_authenticator = authenticator;
 	}
 	/**
-	 * Respond with a Server HELO response, and encode the challenge with the password.
+	 * Server authentication request from the HUB. Respond with a Server
+	 * HELO response, and encode the challenge with the password.
 	 */
 	@Synchronous
 	public void handleHELO(CommandContext cc) throws Exception {
 		System.out.println("Got HELO request");
-
 
 		ByteString ba = cc.getSourceEnvelope().getChallenge().getChallenge();
 		byte[] challenge = ba.toByteArray();
@@ -50,6 +56,20 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 				.setServerVersion(m_serverVersion)
 				.build()
 			);
+		cc.respond();
+	}
+
+	@Synchronous
+	public void handleCLAUTH(CommandContext cc) throws Exception {
+		ClientAuthRequest clau = cc.getSourceEnvelope().getClientAuth();
+		cc.log("Client authentication request from " + clau.getClientId());
+		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion()))
+			throw new FatalServerException("Client authentication failed");
+
+		//-- Respond with an AUTH packet.
+		cc.getResponseEnvelope()
+			.setCommand(CommandNames.AUTH_CMD)
+			;
 		cc.respond();
 	}
 
