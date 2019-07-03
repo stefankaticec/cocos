@@ -3,6 +3,7 @@ package to.etc.cocos.connectors;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.HubException;
 import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 
@@ -44,7 +45,7 @@ abstract public class AbstractResponder implements IHubResponder {
 			} catch(Exception x) {
 				ctx.log("Failed to execute " + m.getName() + ": " + x);
 				try {
-					ctx.respond(x);
+					handleException(ctx, x);
 				} catch(Exception xx) {
 					ctx.log("Could not return protocol error: " + xx);
 				}
@@ -59,16 +60,25 @@ abstract public class AbstractResponder implements IHubResponder {
 			else
 				m.invoke(this, ctx, body);
 		} catch(InvocationTargetException itx) {
-			Throwable tx = itx.getTargetException();
-			if(tx instanceof RuntimeException) {
-				throw (RuntimeException) tx;
-			} else if(tx instanceof Error) {
-				throw (Error) tx;
-			} else if(tx instanceof Exception) {
-				throw (Exception) tx;
-			} else {
-				throw itx;
-			}
+			handleException(ctx, itx);
+		}
+	}
+
+	private void handleException(CommandContext cc, Throwable t) throws Exception {
+		while(t instanceof InvocationTargetException) {
+			t = ((InvocationTargetException)t).getTargetException();
+		}
+
+		if(t instanceof HubException) {
+			cc.respondHubException((HubException) t);
+		}  if(t instanceof RuntimeException) {
+			throw (RuntimeException) t;
+		} else if(t instanceof Error) {
+			throw (Error) t;
+		} else if(t instanceof Exception) {
+			throw (Exception) t;
+		} else {
+			throw new RuntimeException(t);
 		}
 	}
 

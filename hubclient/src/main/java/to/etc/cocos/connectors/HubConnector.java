@@ -470,11 +470,7 @@ final public class HubConnector {
 		try {
 			m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
 		} catch(Exception px) {
-			try {
-				ctx.respond(px);
-			} catch(Exception x) {
-				log("Could not return protocol error: " + x);
-			}
+			log("Fatal command handler exception: " + px);
 			forceDisconnect(px.toString());
 		}
 	}

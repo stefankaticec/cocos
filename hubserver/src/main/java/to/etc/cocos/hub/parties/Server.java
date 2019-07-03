@@ -2,8 +2,8 @@ package to.etc.cocos.hub.parties;
 
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.ISystemContext;
-import to.etc.cocos.hub.problems.FatalHubException;
-import to.etc.cocos.hub.problems.HubException;
+import to.etc.hubserver.protocol.FatalHubException;
+import to.etc.hubserver.protocol.HubException;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ConsoleUtil;

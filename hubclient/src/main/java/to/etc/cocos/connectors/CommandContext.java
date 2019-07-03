@@ -3,9 +3,13 @@ package to.etc.cocos.connectors;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.hubserver.protocol.HubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope.Builder;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
+import to.etc.util.StringTool;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -48,10 +52,6 @@ final public class CommandContext {
 		m_connector.sendPacket(os -> os.send(envelope, null));
 	}
 
-	public void respond(@NonNull Throwable error) {
-
-	}
-
 	public Envelope getSourceEnvelope() {
 		return m_envelope;
 	}
@@ -66,5 +66,25 @@ final public class CommandContext {
 
 	public void log(String s) {
 		m_connector.log(s);
+	}
+
+	public void respondErrorPacket(ErrorCode code, String details) {
+		getResponseEnvelope().setError(ErrorResponse.newBuilder()
+			.setCode(code.name())
+			.setText(code.getText())
+			.setDetails(details)
+			.build()
+		);
+		respond();
+	}
+
+	public void respondHubException(HubException t) {
+		getResponseEnvelope().setError(ErrorResponse.newBuilder()
+			.setCode(t.getCode().name())
+			.setText(t.getMessage())
+			.setDetails(StringTool.strStacktrace(t))
+			.build()
+		);
+		respond();
 	}
 }

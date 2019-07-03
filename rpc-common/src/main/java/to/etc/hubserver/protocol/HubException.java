@@ -1,6 +1,4 @@
-package to.etc.cocos.hub.problems;
-
-import to.etc.hubserver.protocol.ErrorCode;
+package to.etc.hubserver.protocol;
 
 import java.text.MessageFormat;
 

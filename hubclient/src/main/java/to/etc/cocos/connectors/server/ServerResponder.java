@@ -3,10 +3,10 @@ package to.etc.cocos.connectors.server;
 import com.google.protobuf.ByteString;
 import to.etc.cocos.connectors.AbstractResponder;
 import to.etc.cocos.connectors.CommandContext;
-import to.etc.cocos.connectors.FatalServerException;
 import to.etc.cocos.connectors.IHubResponder;
 import to.etc.cocos.connectors.Synchronous;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientAuthRequest;
 
@@ -63,8 +63,10 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 	public void handleCLAUTH(CommandContext cc) throws Exception {
 		ClientAuthRequest clau = cc.getSourceEnvelope().getClientAuth();
 		cc.log("Client authentication request from " + clau.getClientId());
-		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion()))
-			throw new FatalServerException("Client authentication failed");
+		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion())) {
+			cc.respondErrorPacket(ErrorCode.authenticationFailure, "");
+			return;
+		}
 
 		//-- Respond with an AUTH packet.
 		cc.getResponseEnvelope()

@@ -1,7 +1,7 @@
 package to.etc.cocos.hub.parties;
 
 import to.etc.hubserver.protocol.ErrorCode;
-import to.etc.cocos.hub.problems.FatalHubException;
+import to.etc.hubserver.protocol.FatalHubException;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
