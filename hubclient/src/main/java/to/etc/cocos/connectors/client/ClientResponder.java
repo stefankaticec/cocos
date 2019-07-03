@@ -22,8 +22,8 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 	private final String m_targetCluster;
 
 	public ClientResponder(String clientPassword, String targetClusterAndOrg) {
-		if(targetClusterAndOrg.indexOf('#') == -1)
-			throw new IllegalStateException("The target for a client must be in the format 'organisation#cluster'");
+		if(targetClusterAndOrg.indexOf('@') != -1)
+			throw new IllegalStateException("The target for a client must be in the format 'organisation#cluster' or just a cluster name");
 		m_clientPassword = clientPassword;
 		m_targetCluster = targetClusterAndOrg;
 	}
@@ -46,7 +46,7 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 		cc.getResponseEnvelope()
 			.setSourceId(cc.getConnector().getMyId())
 			.setVersion(1)
-			.setTargetId("@" + m_targetCluster)
+			.setTargetId(m_targetCluster)
 			.setHeloClient(Hubcore.ClientHeloResponse.newBuilder()
 				.setChallengeResponse(ByteString.copyFrom(digest))
 				.setClientVersion(m_clientVersion)

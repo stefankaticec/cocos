@@ -45,19 +45,23 @@ import java.util.concurrent.Executors;
  */
 @NonNullByDefault
 final public class HubConnector {
+	static private final int MAX_PACKET_SIZE = 1024 * 1024;
+
+	static private final Logger LOG = LoggerFactory.getLogger(HubConnector.class);
+
 	private final PublishSubject<ConnectorState> m_connStatePublisher;
 
 	private final ObjectMapper m_mapper;
+
+	private final String m_logName;
+
+	private final IHubResponder m_responder;
 
 	private boolean m_logTx = true;
 
 	private boolean m_logRx = true;
 
 	private int m_dumpLimit = 1024;
-
-	static private final int MAX_PACKET_SIZE = 1024 * 1024;
-
-	static private final Logger LOG = LoggerFactory.getLogger(HubConnector.class);
 
 	final private String m_server;
 
@@ -68,12 +72,10 @@ final public class HubConnector {
 	/** The endpoint ID */
 	final private String m_targetId;
 
-	private final IHubResponder m_responder;
-
 	/**
 	 * Time, in seconds, between reconnect attempts
 	 */
-	final private int m_reconnectInterval = 60;
+	private int m_reconnectInterval = 60;
 
 	private ConnectorState m_state = ConnectorState.STOPPED;
 
@@ -120,13 +122,14 @@ final public class HubConnector {
 	@Nullable
 	private ErrorResponse m_lastError;
 
-	public HubConnector(String server, int port, String targetId, String myId, IHubResponder responder) {
+	public HubConnector(String server, int port, String targetId, String myId, IHubResponder responder, String logName) {
 		m_server = server;
 		m_port = port;
 		m_myId = myId;
 		m_targetId = targetId;
 		m_responder = responder;
 		m_connStatePublisher = PublishSubject.<ConnectorState>create();
+		m_logName = logName;
 
 		ObjectMapper om = m_mapper = new ObjectMapper();
 		om.configure(Feature.ALLOW_MISSING_VALUES, true);
@@ -230,7 +233,7 @@ final public class HubConnector {
 	private void writerMain() {
 		ConnectorState oldState = getState();
 		try {
-			log("Writer started");
+			log("Writer started for id=" + m_myId + " targeting " + m_targetId + " on hub server " + m_server + ":" + m_port);
 
 			m_connStatePublisher.onNext(oldState);
 			for(;;) {
@@ -650,7 +653,7 @@ final public class HubConnector {
 	}
 
 	void log(String s) {
-		ConsoleUtil.consoleLog(m_myId, s);
+		ConsoleUtil.consoleLog(m_logName, s);
 	}
 
 	private void error(String s) {

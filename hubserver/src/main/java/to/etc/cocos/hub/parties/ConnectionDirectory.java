@@ -2,6 +2,7 @@ package to.etc.cocos.hub.parties;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.ISystemContext;
 import to.etc.util.Pair;
 
@@ -25,6 +26,8 @@ final public class ConnectionDirectory {
 	private Map<String, Client> m_clientMap = new HashMap<>();
 
 	private int m_nextClientId;
+
+	private Map<String, CentralSocketHandler> m_tmpClientMap = new HashMap<>();
 
 	public ConnectionDirectory(ISystemContext context) {
 		m_context = context;
@@ -63,16 +66,16 @@ final public class ConnectionDirectory {
 			return new Pair<>(randomId, client);
 		}
 	}
-
-	/**
-	 * Find - and remove - the client by temp ID.
-	 */
-	@Nullable
-	public Client findTempClient(String tempClientID) {
-		synchronized(this) {
-			return m_clientMap.remove(tempClientID);
-		}
-	}
+	//
+	///**
+	// * Find - and remove - the client by temp ID.
+	// */
+	//@Nullable
+	//public Client findTempClient(String tempClientID) {
+	//	synchronized(this) {
+	//		return m_clientMap.remove(tempClientID);
+	//	}
+	//}
 
 	public Client registerAuthorizedClient(Client tempClient) {
 		synchronized(this) {
@@ -86,5 +89,13 @@ final public class ConnectionDirectory {
 			client.newConnection(tempClient);
 			return client;
 		}
+	}
+
+	public synchronized void registerTmpClient(String tmpClientId, CentralSocketHandler centralSocketHandler) {
+		m_tmpClientMap.put(tmpClientId, centralSocketHandler);
+	}
+
+	public synchronized void unregisterTmpClient(CentralSocketHandler sh) {
+		m_tmpClientMap.remove(sh.getTmpClientId());
 	}
 }

@@ -46,6 +46,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@NonNull
 	private String m_clientId = "";
 
+	@NonNull
+	private String m_tmpClientId = StringTool.generateGUID();
+
 	@Nullable
 	private byte[] m_challenge;
 
@@ -98,6 +101,14 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@Override public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
 		super.handlerRemoved(ctx);
 		m_intBuf.release();
+	}
+
+	public String getTmpClientId() {
+		return m_tmpClientId;
+	}
+
+	public synchronized AbstractConnection getConnection() {
+		return m_connection;
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -209,7 +220,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 *
 	 */
 	private void handlePacket() throws Exception {
-		m_packetState.handlePacket(m_envelope);
+		IPacketHandler packetState;
+		synchronized(this) {
+			packetState = m_packetState;
+		}
+		packetState.handlePacket(m_envelope);
+	}
+
+	private synchronized void setPacketState(IPacketHandler handler) {
+		m_packetState = handler;
 	}
 
 	private void expectHeloResponse(Hubcore.Envelope envelope) throws Exception {
@@ -243,7 +262,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 		//-- send back AUTH packet
 		m_connection = server;
-		m_packetState = server::packetReceived;
+		setPacketState(server::packetReceived);
 
 		ResponseBuilder rb = new ResponseBuilder(this)
 			.fromEnvelope(envelope)
@@ -263,7 +282,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			case 1:
 				server = getDirectory().getCluster(split[0]).getRandomServer();
 				if(null == server)
-					throw new FatalHubException(ErrorCode.clusterNotFound);
+					throw new FatalHubException(ErrorCode.clusterNotFound, split[0]);
 				break;
 			case 2:
 				server = getDirectory().findOrganisationServer(split[1], split[0]);
@@ -273,10 +292,27 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 
 		//-- Forward the packet to the remote server
+		m_tmpClientId = StringTool.generateGUID();
+		m_clientId = m_envelope.getSourceId();
+		getDirectory().registerTmpClient(m_tmpClientId, this);
+
+		Envelope tgtEnvelope = Envelope.newBuilder()
+			.setCommand(CommandNames.HELO_CMD)
+			.setSourceId(m_tmpClientId)						// From tmp client ID
+			.setTargetId(server.getFullId())				// To the selected server
+			.setDataFormat("")								// Zero body bytes, actually
+			.setCommandId(m_clientId)						// Abuse that to pass on the real client ID
+			.setVersion(1)
+			.setHeloClient(m_envelope.getHeloClient())		// Copy the client message
+			.build();
+		setPacketState(this::expectServerAuth);
+		server.getHandler().sendEnvelopeAndEmptyBody(tgtEnvelope);
 
 
+	}
 
-
+	private void expectServerAuth(Envelope envelope) {
+		log("serverAuth: got " + envelope.getCommand());
 	}
 
 	//private void heloHandleClient(ChannelHandlerContext context, HubPacket packet) throws Exception {
@@ -341,7 +377,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 					.setServerVersion(HubServer.VERSION)
 			)
 			;
-		m_packetState = this::expectHeloResponse;
+		setPacketState(this::expectHeloResponse);
 		response.send();
 	}
 
@@ -428,9 +464,12 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	void sendResponse(ResponseBuilder r) {
 		log("Sending response packet: " + r.getEnvelope().getCommand());
-		//-- Convert the data into a response packet.
+		sendEnvelopeAndEmptyBody(r.getEnvelope().build());
+	}
+
+	private void sendEnvelopeAndEmptyBody(Hubcore.Envelope envelope) {
 		ByteBuf buf = new PacketBuilder(m_channel.alloc())
-			.appendMessage(r.getEnvelope().build())
+			.appendMessage(envelope)
 			.emptyBody()
 			.getCompleted()
 			;

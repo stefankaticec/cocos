@@ -24,7 +24,6 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 	public ServerResponder(String clusterPassword) {
 		m_clusterPassword = clusterPassword;
 	}
-
 	/**
 	 * Respond with a Server HELO response, and encode the challenge with the password.
 	 */

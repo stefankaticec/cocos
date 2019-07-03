@@ -36,7 +36,7 @@ public class TestAllBase {
 	public HubConnector client() {
 		HubConnector client = m_client;
 		if(null == client) {
-			m_client = client = new HubConnector("localhost", HUBPORT, CLUSTERNAME, CLIENTID, new ClientResponder(CLIENTPASSWORD, CLUSTERNAME));
+			m_client = client = new HubConnector("localhost", HUBPORT, CLUSTERNAME, CLIENTID, new ClientResponder(CLIENTPASSWORD, CLUSTERNAME), "Client");
 			client.start();
 		}
 		return client;
@@ -46,7 +46,7 @@ public class TestAllBase {
 		HubConnector server = m_server;
 		if(null == server) {
 			String id = SERVERNAME + "@" + CLUSTERNAME;
-			m_server = server = new HubConnector("localhost", HUBPORT, "", id, new ServerResponder(m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD));
+			m_server = server = new HubConnector("localhost", HUBPORT, "", id, new ServerResponder(m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD), "Server");
 			server.start();
 		}
 		return server;
