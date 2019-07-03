@@ -10,7 +10,9 @@ public enum ErrorCode {
 	clusterNotFound("Cluster {0} not found"),
 	authenticationFailure("Authentication failure"),
 	targetNotFound("Target organisation {0} not found"),
-	serverDisconnected("This server is no longer active");
+	serverDisconnected("This server is no longer active"),
+	clientNotFound("Client {0} not found in the client table")
+	;
 
 	private String m_text;
 

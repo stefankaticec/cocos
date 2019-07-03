@@ -1,6 +1,7 @@
 package to.etc.cocos.hub.parties;
 
 import to.etc.cocos.hub.ISystemContext;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ConsoleUtil;
 
 /**
@@ -17,5 +18,9 @@ final public class Client extends AbstractConnection {
 	@Override
 	public void log(String s) {
 		ConsoleUtil.consoleLog("Hub:Server", getFullId(), s);
+	}
+
+	public void packetFromServer(Server server, Envelope envelope) {
+		log("RX from server " + server.getFullId() + ": " + envelope.getCommand());
 	}
 }

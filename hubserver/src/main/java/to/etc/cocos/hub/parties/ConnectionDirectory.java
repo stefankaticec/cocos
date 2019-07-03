@@ -66,7 +66,17 @@ final public class ConnectionDirectory {
 			return new Pair<>(randomId, client);
 		}
 	}
-	//
+
+	@Nullable
+	public synchronized CentralSocketHandler findTempClient(String clientId) {
+		return m_tmpClientMap.get(clientId);
+	}
+
+	@Nullable
+	public synchronized Client findClient(String clientId) {
+		return m_clientMap.get(clientId);
+	}
+
 	///**
 	// * Find - and remove - the client by temp ID.
 	// */

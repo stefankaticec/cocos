@@ -35,7 +35,7 @@ final public class CommandContext {
 
 	public void respondJson(@NonNull Object jsonPacket) {
 		if(jsonPacket == null)
-			m_responseEnvelope.setDataFormat(CommandNames.BODY_BYTES);
+			m_responseEnvelope.setDataFormat("");
 		else
 			m_responseEnvelope.setDataFormat(CommandNames.BODY_JSON + ":" + jsonPacket.getClass().getName());
 		final Envelope envelope = m_responseEnvelope.build();
@@ -43,7 +43,7 @@ final public class CommandContext {
 	}
 
 	public void respond() {
-		m_responseEnvelope.setDataFormat(CommandNames.BODY_BYTES);
+		m_responseEnvelope.setDataFormat("");
 		final Envelope envelope = m_responseEnvelope.build();
 		m_connector.sendPacket(os -> os.send(envelope, null));
 	}

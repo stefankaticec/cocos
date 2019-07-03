@@ -343,8 +343,26 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	private void expectClientServerAuth(Envelope envelope) {
-		log("serverAuth: got " + envelope.getCommand());
+		throw new ProtocolViolationException("Not expecting a packet while waiting for client authentication by the server");
 	}
+
+	public void tmpGotResponseFrom(Server server, Envelope envelope) {
+		//-- Expecting an AUTH or ERROR response.
+		if(envelope.hasError()) {
+			ErrorResponse error = envelope.getError();
+			sendEnvelopeAndEmptyBody(envelope, true);		// Return the error verbatim
+
+			//-- REMOVE CLIENT
+		} else if(envelope.getCommand().equals(CommandNames.AUTH_CMD)) {
+			//-- We're authenticated! Yay!
+			log("CLIENT authenticated!!");
+			sendEnvelopeAndEmptyBody(envelope);							// Forward AUTH to client
+
+		} else {
+			throw new ProtocolViolationException("Expected server:auth, got " + envelope.getCommand());
+		}
+	}
+
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Other listeners for channel events.							*/
@@ -436,6 +454,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	private void sendEnvelopeAndEmptyBody(Hubcore.Envelope envelope) {
+		sendEnvelopeAndEmptyBody(envelope, false);
+	}
+
+	private void sendEnvelopeAndEmptyBody(Envelope envelope, boolean andDisconnect) {
 		ByteBuf buf = new PacketBuilder(m_channel.alloc())
 			.appendMessage(envelope)
 			.emptyBody()
@@ -443,10 +465,12 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			;
 		ChannelFuture future = m_channel.writeAndFlush(buf);
 		future.addListener((ChannelFutureListener) f -> {
-			if(! f.isSuccess())
+			if(! f.isSuccess() || andDisconnect)
 				m_channel.disconnect();
 		});
+
 	}
+
 
 	private void sendHubException(HubException x) {
 		log("sending hub exception " + x);
