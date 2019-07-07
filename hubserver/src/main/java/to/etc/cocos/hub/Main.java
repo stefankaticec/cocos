@@ -21,7 +21,7 @@ import java.net.InetAddress;
  */
 @NonNullByDefault
 final public class Main {
-	static private Logger LOG = LoggerFactory.getLogger(HubServer.class);
+	static private Logger LOG = LoggerFactory.getLogger(Hub.class);
 
 	@Option(name = "-port", usage = "The listener port number")
 	private int m_port = 9876;
@@ -66,7 +66,7 @@ final public class Main {
 		String addr = InetAddress.getLocalHost().getHostAddress();
 		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr);
 
-		HubServer server = new HubServer(m_port, ident, m_useNio, clusterName -> "testCluster");
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "testCluster");
 		server.startServer();
 
 		//-- Listen to signals to stop the thing
@@ -84,7 +84,7 @@ final public class Main {
 		ConsoleUtil.consoleLog("Hub", "Main process stopping");
 	}
 
-	private void terminate(HubServer server) {
+	private void terminate(Hub server) {
 		ConsoleUtil.consoleLog("Hub", "Hangup signal received, terminate hub");
 		try {
 			server.terminateAndWait();

@@ -14,13 +14,13 @@ import io.netty.handler.timeout.IdleStateHandler;
 /**
  * Initializer for a new channel.
  */
-class HubServerChannelInitializer extends ChannelInitializer<SocketChannel> {
+class HubChannelInitializer extends ChannelInitializer<SocketChannel> {
 	private static final String PING = "ping\r\n";
 
-	private HubServer m_server;
+	private Hub m_server;
 	private final SslContext m_sslContext;
 
-	public HubServerChannelInitializer(HubServer server, SslContext sslContext) {
+	public HubChannelInitializer(Hub server, SslContext sslContext) {
 		m_server = server;
 		m_sslContext = sslContext;
 	}

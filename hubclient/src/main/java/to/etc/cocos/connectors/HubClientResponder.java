@@ -1,11 +1,8 @@
-package to.etc.cocos.connectors.client;
+package to.etc.cocos.connectors;
 
 import com.google.protobuf.ByteString;
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import to.etc.cocos.connectors.AbstractResponder;
-import to.etc.cocos.connectors.CommandContext;
-import to.etc.cocos.connectors.IHubResponder;
-import to.etc.cocos.connectors.Synchronous;
+import to.etc.cocos.connectors.client.IClientPacketHandler;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 
 import java.nio.charset.StandardCharsets;
@@ -16,7 +13,7 @@ import java.security.MessageDigest;
  * Created on 23-1-19.
  */
 @NonNullByDefault
-public class ClientResponder extends AbstractResponder implements IHubResponder {
+public class HubClientResponder extends AbstractResponder implements IHubResponder {
 	private final String m_clientVersion = "HubClient 1.0";
 
 	private final String m_clientPassword;
@@ -25,7 +22,7 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 
 	private final IClientPacketHandler m_clientHandler;
 
-	public ClientResponder(IClientPacketHandler clientHandler, String clientPassword, String targetClusterAndOrg) {
+	public HubClientResponder(IClientPacketHandler clientHandler, String clientPassword, String targetClusterAndOrg) {
 		m_clientHandler = clientHandler;
 		if(targetClusterAndOrg.indexOf('@') != -1)
 			throw new IllegalStateException("The target for a client must be in the format 'organisation#cluster' or just a cluster name");

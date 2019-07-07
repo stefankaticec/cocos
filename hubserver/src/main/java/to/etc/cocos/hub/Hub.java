@@ -43,7 +43,7 @@ import java.util.concurrent.Executors;
  * Created on 7-1-19.
  */
 @NonNullByDefault
-final public class HubServer {
+final public class Hub {
 	public static final String VERSION = "1.0";
 
 	static public final int MAX_PACKET_SIZE = 1024 * 1024;
@@ -72,7 +72,7 @@ final public class HubServer {
 
 	private ExecutorService m_eventSendingExecutor = Executors.newSingleThreadExecutor();
 
-	public HubServer(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource) throws Exception {
+	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource) throws Exception {
 		m_port = port;
 		m_ident = ident;
 		m_useNio = useNio;
@@ -113,7 +113,7 @@ final public class HubServer {
 			Channel serverChannel = b.group(bossGroup, workerGroup)
 				.channel(channelClass)
 				.handler(new LoggingHandler(LogLevel.INFO))
-				.childHandler(new HubServerChannelInitializer(this, sslContext))
+				.childHandler(new HubChannelInitializer(this, sslContext))
 				.childOption(ChannelOption.AUTO_READ, true)
 				//.bind(m_port).channel();
 				.bind(m_port).sync().channel();

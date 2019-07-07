@@ -38,7 +38,7 @@ import java.util.Objects;
  */
 final public class CentralSocketHandler extends SimpleChannelInboundHandler<ByteBuf> {
 	@NonNull
-	private final HubServer m_central;
+	private final Hub m_central;
 
 	@NonNull
 	private final SocketChannel m_channel;
@@ -91,7 +91,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@Nullable
 	private Object m_packetStateData;
 
-	public CentralSocketHandler(HubServer central, SocketChannel socketChannel) {
+	public CentralSocketHandler(Hub central, SocketChannel socketChannel) {
 		m_central = central;
 		m_channel = socketChannel;
 	}
@@ -134,7 +134,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			.setChallenge(
 				HelloChallenge.newBuilder()
 					.setChallenge(ByteString.copyFrom(challenge))
-					.setServerVersion(HubServer.VERSION)
+					.setServerVersion(Hub.VERSION)
 			)
 		;
 		setPacketState(this::expectHeloResponse);

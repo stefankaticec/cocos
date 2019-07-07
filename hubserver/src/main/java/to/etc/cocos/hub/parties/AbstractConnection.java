@@ -4,7 +4,7 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.HubServer;
+import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 
 /**
@@ -21,7 +21,7 @@ abstract public class AbstractConnection {
 	@Nullable
 	private CentralSocketHandler m_handler;
 
-	private final HubServer m_systemContext;
+	private final Hub m_systemContext;
 
 	final private String m_fullId;
 
@@ -35,7 +35,7 @@ abstract public class AbstractConnection {
 
 	private ConnectionState m_state = ConnectionState.DISCONNECTED;
 
-	public AbstractConnection(Cluster cluster, HubServer systemContext, String id) {
+	public AbstractConnection(Cluster cluster, Hub systemContext, String id) {
 		m_cluster = cluster;
 		m_systemContext = systemContext;
 		m_fullId = id;
@@ -227,7 +227,7 @@ abstract public class AbstractConnection {
 	//	}
 	//}
 
-	public HubServer getSystemContext() {
+	public Hub getSystemContext() {
 		return m_systemContext;
 	}
 

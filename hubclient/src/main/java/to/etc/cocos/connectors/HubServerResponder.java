@@ -1,10 +1,9 @@
-package to.etc.cocos.connectors.server;
+package to.etc.cocos.connectors;
 
 import com.google.protobuf.ByteString;
-import to.etc.cocos.connectors.AbstractResponder;
-import to.etc.cocos.connectors.CommandContext;
-import to.etc.cocos.connectors.IHubResponder;
-import to.etc.cocos.connectors.Synchronous;
+import to.etc.cocos.connectors.server.IClientAuthenticator;
+import to.etc.cocos.connectors.server.IClientListener;
+import to.etc.cocos.connectors.server.IRemoteClient;
 import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
@@ -21,7 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 13-1-19.
  */
-public class ServerResponder extends AbstractResponder implements IHubResponder {
+public class HubServerResponder extends AbstractResponder implements IHubResponder {
 	private final String m_serverVersion = "1.0";
 
 	//private final String m_serverId;
@@ -34,7 +33,7 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 
 	private Map<String, IRemoteClient> m_remoteClientMap = new HashMap<>();
 
-	public ServerResponder(String clusterPassword, IClientAuthenticator<?> authenticator) {
+	public HubServerResponder(String clusterPassword, IClientAuthenticator<?> authenticator) {
 		m_clusterPassword = clusterPassword;
 		m_authenticator = authenticator;
 	}

@@ -2,12 +2,13 @@ package to.etc.cocos.tests;
 
 import org.junit.After;
 import to.etc.cocos.connectors.ConnectorState;
-import to.etc.cocos.connectors.HubConnector;
+import to.etc.cocos.connectors.HubClient;
+import to.etc.cocos.connectors.HubServer;
 import to.etc.cocos.connectors.JsonPacket;
 import to.etc.cocos.connectors.client.IClientPacketHandler;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
 import to.etc.cocos.connectors.server.RemoteClientBase;
-import to.etc.cocos.hub.HubServer;
+import to.etc.cocos.hub.Hub;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -26,15 +27,16 @@ public class TestAllBase {
 	public static final String SERVERNAME = "rmtserver";
 
 	public static final String CLIENTID = "testDaemon";
+
 	public static final String CLIENTPASSWORD = "tokodoko";
 
 	public static final String CLUSTERPASSWORD = "inujit";
 
-	private HubServer m_hub;
+	private Hub m_hub;
 
-	private HubConnector m_client;
+	private HubClient m_client;
 
-	private HubConnector m_server;
+	private HubServer m_server;
 
 	private String m_serverPassword;
 
@@ -42,8 +44,8 @@ public class TestAllBase {
 
 	private String m_allClientPassword = CLIENTPASSWORD;
 
-	public HubConnector client() {
-		HubConnector client = m_client;
+	public HubClient client() {
+		HubClient client = m_client;
 		if(null == client) {
 			IClientPacketHandler ph = new IClientPacketHandler() {
 				@Override public JsonPacket getInventory() {
@@ -51,14 +53,14 @@ public class TestAllBase {
 				}
 			};
 
-			client = m_client = HubConnector.client(ph, "localhost", HUBPORT, CLUSTERNAME, CLIENTID, m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword);
+			client = m_client = HubClient.create(ph, "localhost", HUBPORT, CLUSTERNAME, CLIENTID, m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword);
 			client.start();
 		}
 		return client;
 	}
 
-	public HubConnector server() {
-		HubConnector server = m_server;
+	public HubServer server() {
+		HubServer server = m_server;
 		if(null == server) {
 			String id = SERVERNAME + "@" + CLUSTERNAME;
 
@@ -73,7 +75,7 @@ public class TestAllBase {
 			};
 
 			String pw = m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD;
-			m_server = server = HubConnector.server(au, "localhost", HUBPORT, pw, id);
+			m_server = server = HubServer.create(au, "localhost", HUBPORT, pw, id);
 			server.start();
 		}
 		return server;
@@ -88,7 +90,7 @@ public class TestAllBase {
 		return Arrays.equals(digest, response);
 	}
 
-	public HubConnector serverConnected() {
+	public HubServer serverConnected() {
 		server().observeConnectionState()
 			.doOnNext(a -> System.out.println(">> got state " + a))
 			.filter(a -> a == ConnectorState.AUTHENTICATED)
@@ -97,10 +99,10 @@ public class TestAllBase {
 		return server();
 	}
 
-	public HubServer hub() throws Exception {
-		HubServer hub = m_hub;
+	public Hub hub() throws Exception {
+		Hub hub = m_hub;
 		if(null == hub) {
-			m_hub = hub = new HubServer(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD);
+			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD);
 			hub.startServer();
 		}
 		return hub;
@@ -108,13 +110,13 @@ public class TestAllBase {
 
 	@After
 	public void tearDown() throws Exception {
-		HubServer hub = m_hub;
+		Hub hub = m_hub;
 		if(null != hub) {
 			m_hub = null;
 			hub.terminateAndWait();
 		}
 
-		HubConnector server = m_server;
+		HubServer server = m_server;
 		if(null != server) {
 			m_server = null;
 			server.terminateAndWait();

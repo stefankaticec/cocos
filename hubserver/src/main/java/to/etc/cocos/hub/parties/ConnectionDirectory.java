@@ -3,7 +3,7 @@ package to.etc.cocos.hub.parties;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.HubServer;
+import to.etc.cocos.hub.Hub;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,11 +20,11 @@ import java.util.Map;
 final public class ConnectionDirectory {
 	private final Map<String, Cluster> m_clusterMap = new HashMap<>();
 
-	private final HubServer m_context;
+	private final Hub m_context;
 
 	private Map<String, CentralSocketHandler> m_tmpClientMap = new HashMap<>();
 
-	public ConnectionDirectory(HubServer context) {
+	public ConnectionDirectory(Hub context) {
 		m_context = context;
 	}
 

@@ -1,7 +1,7 @@
 package to.etc.cocos.hub.parties;
 
 import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.HubServer;
+import to.etc.cocos.hub.Hub;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
@@ -14,7 +14,7 @@ import to.etc.util.ConsoleUtil;
  * Created on 13-1-19.
  */
 public class Server extends AbstractConnection {
-	public Server(Cluster cluster, HubServer systemContext, String id) {
+	public Server(Cluster cluster, Hub systemContext, String id) {
 		super(cluster, systemContext, id);
 	}
 

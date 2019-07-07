@@ -9,10 +9,6 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import to.etc.cocos.connectors.client.ClientResponder;
-import to.etc.cocos.connectors.client.IClientPacketHandler;
-import to.etc.cocos.connectors.server.IClientAuthenticator;
-import to.etc.cocos.connectors.server.ServerResponder;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
 import to.etc.util.ConsoleUtil;
@@ -48,7 +44,7 @@ import java.util.concurrent.Executors;
  * Created on 10-1-19.
  */
 @NonNullByDefault
-final public class HubConnector {
+final class HubConnector {
 	static private final int MAX_PACKET_SIZE = 1024 * 1024;
 
 	static private final Logger LOG = LoggerFactory.getLogger(HubConnector.class);
@@ -129,7 +125,7 @@ final public class HubConnector {
 	@Nullable
 	private ErrorResponse m_lastError;
 
-	private HubConnector(String server, int port, String targetId, String myId, IHubResponder responder, String logName) {
+	HubConnector(String server, int port, String targetId, String myId, IHubResponder responder, String logName) {
 		m_server = server;
 		m_port = port;
 		m_myId = myId;
@@ -146,21 +142,6 @@ final public class HubConnector {
 		//om.registerModule(module);
 
 		m_writer = new PacketWriter(om);
-	}
-
-	static public HubConnector client(IClientPacketHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId, String myPassword) {
-		ClientResponder responder = new ClientResponder(handler, myPassword, targetClusterAndOrg);
-		HubConnector client = new HubConnector(hubServer, hubServerPort, targetClusterAndOrg, myId, responder, "Client");
-		return client;
-	}
-
-	static public HubConnector server(IClientAuthenticator<?> au, String hubServer, int hubServerPort, String hubPassword, String id) {
-		if(id.indexOf('@') == -1)
-			throw new IllegalArgumentException("The server ID must be in the format servername@clustername");
-
-		ServerResponder responder = new ServerResponder(hubPassword, au);
-		HubConnector server = new HubConnector(hubServer, hubServerPort, "", id, responder, "Server");
-		return server;
 	}
 
 	public ObjectMapper getMapper() {
@@ -449,8 +430,6 @@ final public class HubConnector {
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Reader part..												*/
 	/*----------------------------------------------------------------------*/
-	//private Runnable m_packetState = this::respondHelo;
-
 	/**
 	 * This is the reader thread. It reads packet data from the server, and calls packetReceived for every
 	 * packet found. The reader thread terminates on every communications error and disconnects the socket

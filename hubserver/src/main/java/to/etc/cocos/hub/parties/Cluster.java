@@ -3,7 +3,7 @@ package to.etc.cocos.hub.parties;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.HubServer;
+import to.etc.cocos.hub.Hub;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @NonNullByDefault
 final public class Cluster {
-	private final HubServer m_systemContext;
+	private final Hub m_systemContext;
 
 	private final String m_clusterId;
 
@@ -39,7 +39,7 @@ final public class Cluster {
 
 	final private LinkedList<Runnable> m_orderedActionList = new LinkedList<>();
 
-	public Cluster(HubServer systemContext, String clusterId) {
+	public Cluster(Hub systemContext, String clusterId) {
 		m_systemContext = systemContext;
 		m_clusterId = clusterId;
 	}
