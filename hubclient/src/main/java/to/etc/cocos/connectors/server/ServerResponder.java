@@ -28,16 +28,21 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 
 	private final String m_clusterPassword;
 
-	private final IClientAuthenticator m_authenticator;
+	private final IClientAuthenticator<?> m_authenticator;
 
 	private CopyOnWriteArrayList<IClientListener> m_clientListeners = new CopyOnWriteArrayList<>();
 
 	private Map<String, IRemoteClient> m_remoteClientMap = new HashMap<>();
 
-	public ServerResponder(String clusterPassword, IClientAuthenticator authenticator) {
+	public ServerResponder(String clusterPassword, IClientAuthenticator<?> authenticator) {
 		m_clusterPassword = clusterPassword;
 		m_authenticator = authenticator;
 	}
+
+	/*----------------------------------------------------------------------*/
+	/*	CODING:	Authentication.												*/
+	/*----------------------------------------------------------------------*/
+
 	/**
 	 * Server authentication request from the HUB. Respond with a Server
 	 * HELO response, and encode the challenge with the password.
@@ -67,6 +72,18 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 		cc.respond();
 	}
 
+	/**
+	 * If the server's authorization was successful we receive this; move to AUTHORIZED status.
+	 */
+	@Synchronous
+	public void handleAUTH(CommandContext cc) throws Exception {
+		cc.getConnector().authorized();
+		cc.log("Authenticated successfully");
+	}
+
+	/**
+	 * Client authentication request.
+	 */
 	@Synchronous
 	public void handleCLAUTH(CommandContext cc) throws Exception {
 		ClientAuthRequest clau = cc.getSourceEnvelope().getClientAuth();
@@ -84,12 +101,33 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 	}
 
 	/**
-	 * If the authorization was successful we receive this; move to AUTHORIZED status.
+	 * Client connected event. Add the client, then start sending events.
 	 */
 	@Synchronous
-	public void handleAUTH(CommandContext cc) throws Exception {
-		cc.getConnector().authorized();
-		cc.log("Authenticated successfully");
+	public void handleCLCONN(CommandContext cc) throws Exception {
+		String id = cc.getSourceEnvelope().getSourceId();
+		synchronized(this) {
+			IRemoteClient rc = m_remoteClientMap.computeIfAbsent(id, a -> m_authenticator.newClient(id));
+			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientConnected(rc)));
+		}
+		cc.log("Client (re)connected: " + id);
+	}
+
+	/**
+	 * Client disconnected event. Remove the client, then start sending events.
+	 */
+	@Synchronous
+	public void handleCLDISC(CommandContext cc) throws Exception {
+		String id = cc.getSourceEnvelope().getSourceId();
+		synchronized(this) {
+			IRemoteClient rc = m_remoteClientMap.remove(id);
+			if(null == rc) {
+				cc.error("Unexpected disconncted event for unknown client " + id);
+				return;
+			}
+			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientDisconnected(rc)));
+		}
+		cc.log("Client disconnected: " + id);
 	}
 
 	public void addClientListener(IClientListener c) {

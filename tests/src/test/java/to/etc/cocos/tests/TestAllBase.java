@@ -6,6 +6,7 @@ import to.etc.cocos.connectors.HubConnector;
 import to.etc.cocos.connectors.JsonPacket;
 import to.etc.cocos.connectors.client.IClientPacketHandler;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
+import to.etc.cocos.connectors.server.RemoteClientBase;
 import to.etc.cocos.hub.HubServer;
 
 import java.nio.charset.StandardCharsets;
@@ -61,9 +62,13 @@ public class TestAllBase {
 		if(null == server) {
 			String id = SERVERNAME + "@" + CLUSTERNAME;
 
-			IClientAuthenticator au = new IClientAuthenticator() {
+			IClientAuthenticator<RemoteClientBase> au = new IClientAuthenticator<>() {
 				@Override public boolean clientAuthenticated(String clientId, byte[] challenge, byte[] challengeResponse, String clientVersion) throws Exception {
 					return authenticateClient(clientId, challenge, challengeResponse);
+				}
+
+				@Override public RemoteClientBase newClient(String id) {
+					return new RemoteClientBase(id);
 				}
 			};
 

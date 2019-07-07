@@ -68,6 +68,10 @@ final public class CommandContext {
 		m_connector.log(s);
 	}
 
+	public void error(String s) {
+		m_connector.error(s);
+	}
+
 	public void respondErrorPacket(ErrorCode code, String details) {
 		getResponseEnvelope().setError(ErrorResponse.newBuilder()
 			.setCode(code.name())

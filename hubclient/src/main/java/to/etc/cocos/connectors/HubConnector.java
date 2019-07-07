@@ -124,6 +124,9 @@ final public class HubConnector {
 	private ExecutorService m_createdExecutor;
 
 	@Nullable
+	private ExecutorService m_eventExecutor;
+
+	@Nullable
 	private ErrorResponse m_lastError;
 
 	private HubConnector(String server, int port, String targetId, String myId, IHubResponder responder, String logName) {
@@ -151,7 +154,7 @@ final public class HubConnector {
 		return client;
 	}
 
-	static public HubConnector server(IClientAuthenticator au, String hubServer, int hubServerPort, String hubPassword, String id) {
+	static public HubConnector server(IClientAuthenticator<?> au, String hubServer, int hubServerPort, String hubPassword, String id) {
 		if(id.indexOf('@') == -1)
 			throw new IllegalArgumentException("The server ID must be in the format servername@clustername");
 
@@ -234,15 +237,27 @@ final public class HubConnector {
 		return executor;
 	}
 
+	public synchronized Executor getEventExecutor() {
+		ExecutorService eventExecutor = m_eventExecutor;
+		if(null == eventExecutor) {
+			m_eventExecutor = eventExecutor = Executors.newSingleThreadExecutor();
+		}
+		return eventExecutor;
+	}
+
 	private void cleanupAfterTerminate() {
 		m_connStatePublisher.onComplete();
 		ExecutorService service;
+		ExecutorService eventExecutor;
 		synchronized(this) {
 			service = m_createdExecutor;
+			eventExecutor = m_eventExecutor;
 			m_createdExecutor = null;
 		}
 		if(null != service)
 			service.shutdownNow();
+		if(null != eventExecutor)
+			eventExecutor.shutdown();
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -671,7 +686,7 @@ final public class HubConnector {
 		ConsoleUtil.consoleLog(m_logName, s);
 	}
 
-	private void error(String s) {
+	public void error(String s) {
 		ConsoleUtil.consoleError(m_myId, s);
 	}
 

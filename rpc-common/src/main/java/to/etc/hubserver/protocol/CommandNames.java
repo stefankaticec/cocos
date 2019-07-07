@@ -23,5 +23,6 @@ final public class CommandNames {
 	static public final String BODY_JSON = "json";
 
 
-
+	public static final String CLIENT_CONNECTED = "CLCONN";
+	public static final String CLIENT_DISCONNECTED = "CLDISC";
 }

@@ -34,6 +34,21 @@ final public class ResponseBuilder {
 		return m_envelope;
 	}
 
+	public ResponseBuilder sourceId(String id) {
+		getEnvelope().setSourceId(id);
+		return this;
+	}
+
+	public ResponseBuilder targetId(String id) {
+		getEnvelope().setTargetId(id);
+		return this;
+	}
+
+	public ResponseBuilder commandId(String id) {
+		getEnvelope().setCommandId(id);
+		return this;
+	}
+
 	public void send() {
 		m_handler.sendResponse(this);
 	}

@@ -1,7 +1,5 @@
 package to.etc.cocos.connectors.server;
 
-import to.etc.hubserver.protocol.HubException;
-
 /**
  * Listen for clients arriving and leaving.
  *
@@ -11,5 +9,5 @@ import to.etc.hubserver.protocol.HubException;
 public interface IClientListener {
 	void clientConnected(IRemoteClient client) throws Exception;
 
-	void clientDisconnected(HubException why) throws Exception;
+	void clientDisconnected(IRemoteClient client) throws Exception;
 }

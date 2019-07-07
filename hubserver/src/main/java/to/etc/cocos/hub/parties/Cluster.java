@@ -144,7 +144,7 @@ final public class Cluster {
 	private void sendClientRegisteredEvent(String clientId) {
 		for(Server server : getAllServers()) {
 			try {
-				server.sendEventClientUnregistered(clientId);
+				server.sendEventClientRegistered(clientId);
 			} catch(Exception x) {
 				x.printStackTrace();
 			}

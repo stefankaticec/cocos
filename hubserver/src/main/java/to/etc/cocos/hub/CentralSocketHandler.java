@@ -556,8 +556,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			cluster.runEvents();
 	}
 
-
-
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Other listeners for channel events.							*/
 	/*----------------------------------------------------------------------*/
@@ -566,6 +564,26 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		ctx.close();
 	}
 
+	/*----------------------------------------------------------------------*/
+	/*	CODING:	Sending data to this channel's remote.						*/
+	/*----------------------------------------------------------------------*/
+
+	public ResponseBuilder packetBuilder(String command) {
+		ResponseBuilder responseBuilder = new ResponseBuilder(this);
+		responseBuilder.getEnvelope()
+			.setDataFormat("")
+			.setVersion(1)
+			.setCommand(command)
+			.setTargetId(getMyID())
+			.setSourceId("")
+			;
+
+		return responseBuilder;
+	}
+
+	/**
+	 *
+	 */
 	void sendResponse(ResponseBuilder r) {
 		log("Sending response packet: " + r.getEnvelope().getCommand());
 		sendEnvelopeAndEmptyBody(r.getEnvelope().build());
@@ -632,12 +650,24 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		log("sent ping");
 	}
 
+	private String getLogInd() {
+		String myId = m_myId;
+		AbstractConnection connection = m_connection;
+		if(myId == null)
+			return "newClient";
+		if(m_connection instanceof Server) {
+			return "S:" + myId;
+		} else {
+			return "C:" + m_myId;
+		}
+	}
+
 	void log(String log) {
-		ConsoleUtil.consoleLog("hub", "csh " + log);
+		ConsoleUtil.consoleLog("Hub", getLogInd(), log);
 	}
 
 	void error(String log) {
-		ConsoleUtil.consoleError("hub", "csh " + log);
+		ConsoleUtil.consoleError("Hub", getLogInd(), log);
 	}
 
 	/*----------------------------------------------------------------------*/
