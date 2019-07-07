@@ -3,8 +3,7 @@ package to.etc.cocos.hub.parties;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.ISystemContext;
-import to.etc.util.Pair;
+import to.etc.cocos.hub.HubServer;
 
 import java.util.HashMap;
 import java.util.List;
@@ -21,20 +20,16 @@ import java.util.Map;
 final public class ConnectionDirectory {
 	private final Map<String, Cluster> m_clusterMap = new HashMap<>();
 
-	private final ISystemContext m_context;
-
-	private Map<String, Client> m_clientMap = new HashMap<>();
-
-	private int m_nextClientId;
+	private final HubServer m_context;
 
 	private Map<String, CentralSocketHandler> m_tmpClientMap = new HashMap<>();
 
-	public ConnectionDirectory(ISystemContext context) {
+	public ConnectionDirectory(HubServer context) {
 		m_context = context;
 	}
 
 	public Server getServer(String clusterId, String serverId, List<String> targetList) {
-		return getCluster(clusterId).getServer(serverId, targetList);
+		return getCluster(clusterId).registerServer(serverId, targetList);
 	}
 
 	public Cluster getCluster(String clusterId) {
@@ -57,24 +52,9 @@ final public class ConnectionDirectory {
 		return cluster.findServiceServer(organisation);
 	}
 
-	public Pair<String, Client> createTempClient(String realID) {
-		synchronized(this) {
-			int id = m_nextClientId++;
-			String randomId = "__" + id;
-			Client client = new Client(m_context, realID);
-			m_clientMap.put(randomId, client);
-			return new Pair<>(randomId, client);
-		}
-	}
-
 	@Nullable
 	public synchronized CentralSocketHandler findTempClient(String clientId) {
 		return m_tmpClientMap.get(clientId);
-	}
-
-	@Nullable
-	public synchronized Client findClient(String clientId) {
-		return m_clientMap.get(clientId);
 	}
 
 	///**
@@ -86,20 +66,6 @@ final public class ConnectionDirectory {
 	//		return m_clientMap.remove(tempClientID);
 	//	}
 	//}
-
-	public Client registerAuthorizedClient(Client tempClient) {
-		synchronized(this) {
-			Client client = m_clientMap.get(tempClient.getFullId());		// Already exists?
-			if(null == client) {
-				//-- No -> just use the temp client instance and we're done
-				m_clientMap.put(tempClient.getFullId(), tempClient);
-				return tempClient;
-			}
-
-			client.newConnection(tempClient);
-			return client;
-		}
-	}
 
 	public synchronized void registerTmpClient(String tmpClientId, CentralSocketHandler centralSocketHandler) {
 		m_tmpClientMap.put(tmpClientId, centralSocketHandler);

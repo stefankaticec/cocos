@@ -34,6 +34,8 @@ import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  *
@@ -41,7 +43,7 @@ import java.util.Base64;
  * Created on 7-1-19.
  */
 @NonNullByDefault
-final public class HubServer implements ISystemContext {
+final public class HubServer {
 	public static final String VERSION = "1.0";
 
 	static public final int MAX_PACKET_SIZE = 1024 * 1024;
@@ -67,6 +69,8 @@ final public class HubServer implements ISystemContext {
 
 	@Nullable
 	private ChannelFuture m_closeFuture;
+
+	private ExecutorService m_eventSendingExecutor = Executors.newSingleThreadExecutor();
 
 	public HubServer(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource) throws Exception {
 		m_port = port;
@@ -211,7 +215,6 @@ final public class HubServer implements ISystemContext {
 		return m_random.generateSeed(10);
 	}
 
-	@Override
 	public ConnectionDirectory getDirectory() {
 		return m_directory;
 	}
@@ -229,6 +232,10 @@ final public class HubServer implements ISystemContext {
 		md.update(challenge);
 		byte[] digest = md.digest();
 		return Arrays.equals(digest, signature);
+	}
+
+	public void addEvent(Runnable run) {
+		m_eventSendingExecutor.submit(run);
 	}
 
 	public int getPingInterval() {

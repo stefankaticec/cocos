@@ -1,14 +1,11 @@
 package to.etc.cocos.hub.parties;
 
-import io.netty.channel.Channel;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.ISystemContext;
+import to.etc.cocos.hub.HubServer;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
-
-import java.util.Objects;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -19,13 +16,12 @@ abstract public class AbstractConnection {
 	static private final long DUPLICATE_COUNT = 3;
 	static private final long DUPLICATE_INTERVAL = 1000 * 60 * 2;
 
-	@Nullable
-	private Channel m_channel;
+	private final Cluster m_cluster;
 
 	@Nullable
 	private CentralSocketHandler m_handler;
 
-	private final ISystemContext m_systemContext;
+	private final HubServer m_systemContext;
 
 	final private String m_fullId;
 
@@ -39,7 +35,8 @@ abstract public class AbstractConnection {
 
 	private ConnectionState m_state = ConnectionState.DISCONNECTED;
 
-	public AbstractConnection(ISystemContext systemContext, String id) {
+	public AbstractConnection(Cluster cluster, HubServer systemContext, String id) {
+		m_cluster = cluster;
 		m_systemContext = systemContext;
 		m_fullId = id;
 	}
@@ -48,20 +45,14 @@ abstract public class AbstractConnection {
 		return m_fullId;
 	}
 
+	public Cluster getCluster() {
+		return m_cluster;
+	}
+
 	public synchronized ConnectionState getState() {
 		return m_state;
 	}
 
-	/**
-	 * Accept a new connection from another instance (pass ownership).
-	 */
-	void newConnection(AbstractConnection from) {
-		Channel channel = Objects.requireNonNull(from.m_channel);
-		CentralSocketHandler handler = Objects.requireNonNull(from.m_handler);
-		from.m_channel = null;
-		from.m_handler = null;
-		newConnection(channel, handler);
-	}
 
 	public synchronized boolean isUsable() {
 		return m_state == ConnectionState.CONNECTED;
@@ -70,16 +61,16 @@ abstract public class AbstractConnection {
 	/**
 	 * Accepts a new connection to this, and possibly discards a previous one.
 	 */
-	public void newConnection(Channel channel, CentralSocketHandler handler) {
+	public void newConnection(CentralSocketHandler handler) {
 		synchronized(this) {
-			Channel oldChannel = m_channel;
+			CentralSocketHandler oldChannel = m_handler;
 			if(null == oldChannel) {
 				//-- No disconnects - reset duplicate state
 				m_dupConnCount = 0;
 				m_state = ConnectionState.CONNECTED;
 			} else {
-				//-- Most certainly disconnect the channel
-				disconnect();
+				//-- Most certainly disconnect the old, existing connection
+				disconnectOnly();
 
 				//-- Duplicate detection...
 				long ts = System.currentTimeMillis();
@@ -106,28 +97,30 @@ abstract public class AbstractConnection {
 				}
 			}
 
-			m_channel = channel;
 			m_handler = handler;
 		}
 	}
 
-	public void disconnect() {
-		Channel channel;
+	/**
+	 * Called to disconnect an attached handler without changing any other state; the server or client is not deregistered.
+	 */
+	public void disconnectOnly() {
+		CentralSocketHandler handler;
 		synchronized(this) {
-			channel = m_channel;
-			m_channel = null;
+			handler = m_handler;
+			m_handler = null;
 			m_state = ConnectionState.DISCONNECTED;
 		}
-
-		if(null != channel)
-			channel.disconnect();
+		if(null != handler) {
+			handler.disconnectOnly();
+		}
 	}
 
 	public synchronized void channelClosed() {
 		m_state = ConnectionState.DISCONNECTED;
-		m_channel = null;
 		m_handler = null;
-		log("channel closed");
+		m_cluster.unregister(this);
+		//log("channel closed");
 	}
 
 	abstract public void log(String s);
@@ -234,7 +227,7 @@ abstract public class AbstractConnection {
 	//	}
 	//}
 
-	public ISystemContext getSystemContext() {
+	public HubServer getSystemContext() {
 		return m_systemContext;
 	}
 

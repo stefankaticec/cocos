@@ -1,7 +1,7 @@
 package to.etc.cocos.hub.parties;
 
 import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.ISystemContext;
+import to.etc.cocos.hub.HubServer;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.hubserver.protocol.ErrorCode;
@@ -13,8 +13,8 @@ import to.etc.util.ConsoleUtil;
  * Created on 13-1-19.
  */
 public class Server extends AbstractConnection {
-	public Server(ISystemContext systemContext, String id) {
-		super(systemContext, id);
+	public Server(Cluster cluster, HubServer systemContext, String id) {
+		super(cluster, systemContext, id);
 	}
 
 	public void packetReceived(Envelope envelope) {
@@ -26,7 +26,7 @@ public class Server extends AbstractConnection {
 		if(targetId.length() == 0) {
 			handleHubCommand(envelope);
 		} else {
-			Client client = getDirectory().findClient(targetId);
+			Client client = getCluster().findClient(targetId);
 			if(null != client) {
 				client.packetFromServer(this, envelope);
 			} else {
@@ -50,4 +50,10 @@ public class Server extends AbstractConnection {
 
 	}
 
+	/**
+	 * Send a "client unregistered" packet to the remote.
+	 */
+	public void sendEventClientUnregistered(String fullId) {
+		log("send client disconnected: " + fullId);
+	}
 }

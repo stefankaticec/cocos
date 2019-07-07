@@ -1,6 +1,6 @@
 package to.etc.cocos.hub.parties;
 
-import to.etc.cocos.hub.ISystemContext;
+import to.etc.cocos.hub.HubServer;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ConsoleUtil;
 
@@ -11,8 +11,8 @@ import to.etc.util.ConsoleUtil;
  * Created on 13-1-19.
  */
 final public class Client extends AbstractConnection {
-	public Client(ISystemContext context, String id) {
-		super(context, id);
+	public Client(Cluster cluster, HubServer context, String id) {
+		super(cluster, context, id);
 	}
 
 	@Override

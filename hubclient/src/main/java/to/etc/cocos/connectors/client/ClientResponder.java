@@ -58,7 +58,8 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 				.setClientVersion(m_clientVersion)
 				.build()
 			);
-		cc.respondJson(m_clientHandler.getInventory());
+		cc.respond();
+		//cc.respondJson(m_clientHandler.getInventory());
 	}
 
 	/**
