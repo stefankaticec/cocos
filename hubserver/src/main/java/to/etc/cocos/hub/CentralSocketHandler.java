@@ -11,6 +11,7 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.AbstractConnection;
 import to.etc.cocos.hub.parties.BeforeClientData;
+import to.etc.cocos.hub.parties.Client;
 import to.etc.cocos.hub.parties.Cluster;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.Server;
@@ -159,6 +160,13 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		return m_connection;
 	}
 
+	Client getClientConnection() {
+		return (Client) getConnection();
+	}
+
+	Server getServerConnection() {
+		return (Server) getConnection();
+	}
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Packet reader states.										*/
 	/*----------------------------------------------------------------------*/
@@ -507,9 +515,25 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			log("CLIENT authenticated!!");
 			sendEnvelopeAndEmptyBody(envelope);							// Forward AUTH to client
 			registerClient(getPacketStateData(BeforeClientData.class));
+			setPacketState(this::handleClientInventory);
 		} else {
 			throw new ProtocolViolationException("Expected server:auth, got " + envelope.getCommand());
 		}
+	}
+
+	private void handleClientInventory(Envelope envelope) {
+		if(! envelope.getCommand().equals(CommandNames.INVENTORY_CMD)) {
+			throw new ProtocolViolationException("Expecting inventory, got " + envelope.getCommand());
+		}
+		if(! isPayloadLoaded())
+			return;
+		ByteBufferOutputStream payload = getPayload();
+		if(payload.getSize() == 0)
+			throw new ProtocolViolationException("The inventory packet data is missing");
+
+		getClientConnection().updateInventory(payload);
+
+
 	}
 
 	private void registerClient(BeforeClientData data) {

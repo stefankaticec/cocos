@@ -25,4 +25,7 @@ final public class CommandNames {
 
 	public static final String CLIENT_CONNECTED = "CLCONN";
 	public static final String CLIENT_DISCONNECTED = "CLDISC";
+
+	public static final String INVENTORY_CMD = "CLINVE";
+
 }

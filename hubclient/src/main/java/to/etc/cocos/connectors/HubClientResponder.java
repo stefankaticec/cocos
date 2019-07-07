@@ -3,6 +3,7 @@ package to.etc.cocos.connectors;
 import com.google.protobuf.ByteString;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import to.etc.cocos.connectors.client.IClientPacketHandler;
+import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 
 import java.nio.charset.StandardCharsets;
@@ -66,6 +67,13 @@ public class HubClientResponder extends AbstractResponder implements IHubRespond
 	public void handleAUTH(CommandContext cc) throws Exception {
 		cc.getConnector().authorized();
 		cc.log("Authenticated successfully");
+
+		//-- Immediately send the inventory packet
+		JsonPacket inventory = m_clientHandler.getInventory();
+		cc.getResponseEnvelope()
+			.setCommand(CommandNames.INVENTORY_CMD)
+			;
+		cc.respondJson(inventory);
 	}
 
 	private byte[] encodeChallenge(byte[] challenge) {

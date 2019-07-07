@@ -46,6 +46,23 @@ public class TestClientConnections extends TestAllBase {
 		Assert.assertEquals("Connector must have gotten client connected event", CLIENTID, client.getClientKey());
 	}
 
+	@Test
+	public void testHubInventory() throws Exception {
+		hub();
+		serverConnected();
+		client();
+		IServerEvent event = server().observeServerEvents()
+			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
+			.filter(a -> a.getType() == ServerEventType.clientInventoryReceived)
+			.timeout(5, TimeUnit.SECONDS)
+			.blockingFirst();
+
+
+		IRemoteClient client = event.getClient();
+		Assert.assertNotNull(client);
+		Assert.assertEquals("Connector must have gotten client inventory event", CLIENTID, client.getClientKey());
+	}
+
 	/**
 	 * Connect to the hub with an incorrect password, and check that we indeed
 	 * get an error message saying so.

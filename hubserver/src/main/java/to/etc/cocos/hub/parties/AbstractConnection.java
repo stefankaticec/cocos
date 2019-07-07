@@ -6,6 +6,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
+import to.etc.util.ByteBufferOutputStream;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -234,4 +235,5 @@ abstract public class AbstractConnection {
 	public ConnectionDirectory getDirectory() {
 		return getSystemContext().getDirectory();
 	}
+
 }

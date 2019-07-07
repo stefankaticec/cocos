@@ -7,6 +7,7 @@ import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
+import to.etc.util.ByteBufferOutputStream;
 import to.etc.util.ConsoleUtil;
 
 /**
@@ -64,5 +65,14 @@ public class Server extends AbstractConnection {
 		getHandler().packetBuilder(CommandNames.CLIENT_CONNECTED)
 			.sourceId(clientId)
 			.send();
+	}
+
+	public void sendEventClientInventory(String clientId, ByteBufferOutputStream payload) {
+		getHandler().packetBuilder(CommandNames.CLIENT_CONNECTED)
+			.sourceId(clientId)
+			.send();
+
+
+
 	}
 }

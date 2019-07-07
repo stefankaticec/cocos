@@ -4,6 +4,8 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
+import to.etc.function.ConsumerEx;
+import to.etc.util.ByteBufferOutputStream;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -128,27 +130,38 @@ final public class Cluster {
 		}
 	}
 
+	public void scheduleBroadcastEvent(ConsumerEx<Server> what) {
+		for(Server server : getAllServers()) {
+			try {
+				what.accept(server);
+			} catch(Exception x) {
+				x.printStackTrace();
+			}
+		}
+	}
+
 	/**
 	 * Send all servers in the cluster the "client has left" event.
 	 */
 	private void sendClientUnregisteredEvents(String clientId) {
-		for(Server server : getAllServers()) {
-			try {
-				server.sendEventClientUnregistered(clientId);
-			} catch(Exception x) {
-				x.printStackTrace();
-			}
-		}
+		scheduleBroadcastEvent(server -> server.sendEventClientUnregistered(clientId));
 	}
 
 	private void sendClientRegisteredEvent(String clientId) {
-		for(Server server : getAllServers()) {
-			try {
-				server.sendEventClientRegistered(clientId);
-			} catch(Exception x) {
-				x.printStackTrace();
-			}
-		}
+		scheduleBroadcastEvent(server -> server.sendEventClientRegistered(clientId));
 	}
 
+	public void scheduleInventoryEvent(Client client, ByteBufferOutputStream payload) {
+		m_systemContext.addEvent(() -> sendClientInventoryEvent(client.getFullId(), payload));
+	}
+
+	private void sendClientInventoryEvent(String fullId, ByteBufferOutputStream payload) {
+		for(Server server : getAllServers()) {
+
+
+
+		}
+
+
+	}
 }
