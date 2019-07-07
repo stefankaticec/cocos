@@ -3,9 +3,9 @@ package to.etc.cocos.tests;
 import org.junit.After;
 import to.etc.cocos.connectors.ConnectorState;
 import to.etc.cocos.connectors.HubConnector;
-import to.etc.cocos.connectors.client.ClientResponder;
+import to.etc.cocos.connectors.JsonPacket;
+import to.etc.cocos.connectors.client.IClientPacketHandler;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
-import to.etc.cocos.connectors.server.ServerResponder;
 import to.etc.cocos.hub.HubServer;
 
 import java.nio.charset.StandardCharsets;
@@ -44,8 +44,13 @@ public class TestAllBase {
 	public HubConnector client() {
 		HubConnector client = m_client;
 		if(null == client) {
-			ClientResponder responder = new ClientResponder(m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword, CLUSTERNAME);
-			m_client = client = new HubConnector("localhost", HUBPORT, CLUSTERNAME, CLIENTID, responder, "Client");
+			IClientPacketHandler ph = new IClientPacketHandler() {
+				@Override public JsonPacket getInventory() {
+					return new InventoryTestPacket();
+				}
+			};
+
+			client = m_client = HubConnector.client(ph, "localhost", HUBPORT, CLUSTERNAME, CLIENTID, m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword);
 			client.start();
 		}
 		return client;
@@ -56,16 +61,14 @@ public class TestAllBase {
 		if(null == server) {
 			String id = SERVERNAME + "@" + CLUSTERNAME;
 
-
 			IClientAuthenticator au = new IClientAuthenticator() {
 				@Override public boolean clientAuthenticated(String clientId, byte[] challenge, byte[] challengeResponse, String clientVersion) throws Exception {
 					return authenticateClient(clientId, challenge, challengeResponse);
 				}
 			};
 
-
-			ServerResponder responder = new ServerResponder(m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD, au);
-			m_server = server = new HubConnector("localhost", HUBPORT, "", id, responder, "Server");
+			String pw = m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD;
+			m_server = server = HubConnector.server(au, "localhost", HUBPORT, pw, id);
 			server.start();
 		}
 		return server;

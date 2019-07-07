@@ -1,6 +1,7 @@
 package to.etc.cocos.connectors.client;
 
 import com.google.protobuf.ByteString;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import to.etc.cocos.connectors.AbstractResponder;
 import to.etc.cocos.connectors.CommandContext;
 import to.etc.cocos.connectors.IHubResponder;
@@ -14,6 +15,7 @@ import java.security.MessageDigest;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 23-1-19.
  */
+@NonNullByDefault
 public class ClientResponder extends AbstractResponder implements IHubResponder {
 	private final String m_clientVersion = "HubClient 1.0";
 
@@ -21,7 +23,10 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 
 	private final String m_targetCluster;
 
-	public ClientResponder(String clientPassword, String targetClusterAndOrg) {
+	private final IClientPacketHandler m_clientHandler;
+
+	public ClientResponder(IClientPacketHandler clientHandler, String clientPassword, String targetClusterAndOrg) {
+		m_clientHandler = clientHandler;
 		if(targetClusterAndOrg.indexOf('@') != -1)
 			throw new IllegalStateException("The target for a client must be in the format 'organisation#cluster' or just a cluster name");
 		m_clientPassword = clientPassword;
@@ -29,7 +34,8 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 	}
 
 	/**
-	 * Respond with a Client HELO response, and encode the challenge with the password.
+	 * Respond with a Client HELO response. This send the inventory
+	 * packet, and encodes the challenge with the password.
 	 */
 	@Synchronous
 	public void handleHELO(CommandContext cc) throws Exception {
@@ -52,7 +58,7 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 				.setClientVersion(m_clientVersion)
 				.build()
 			);
-		cc.respond();
+		cc.respondJson(m_clientHandler.getInventory());
 	}
 
 	/**
@@ -63,28 +69,6 @@ public class ClientResponder extends AbstractResponder implements IHubResponder 
 		cc.getConnector().authorized();
 		cc.log("Authenticated successfully");
 	}
-
-	//@Override public void onHelloPacket(HubConnector connector, Hubcore.Envelope envelope, List<byte[]> payload) throws Exception {
-	//	Hubcore.HelloChallenge c = envelope.getChallenge();
-	//	if(envelope.getVersion() != 1)
-	//		throw new IllegalStateException("Cannot accept hub version " + c.getVersion());
-	//	String sv = c.getServerVersion();
-	//	System.out.println(">> connected to hub " + sv);
-	//	byte[] challenge = c.getChallenge().toByteArray();
-	//
-	//	Hubcore.ClientHeloResponse response = Hubcore.ClientHeloResponse.newBuilder()
-	//			.setChallengeResponse(ByteString.EMPTY)
-	//			.setClientVersion(m_clientVersion)
-	//			.setVersion(1)
-	//			.build();
-	//
-	//
-	//	connector.sendPacket(0x01, CommandNames.CLNT_CMD, response);
-	//}
-	//
-	//@Override public void onAuth(HubConnector connector, Hubcore.Envelope envelope, List<byte[]> payload) throws Exception {
-	//
-	//}
 
 	private byte[] encodeChallenge(byte[] challenge) {
 		return challenge;

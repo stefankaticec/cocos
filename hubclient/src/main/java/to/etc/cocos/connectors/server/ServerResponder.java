@@ -5,6 +5,7 @@ import to.etc.cocos.connectors.AbstractResponder;
 import to.etc.cocos.connectors.CommandContext;
 import to.etc.cocos.connectors.IHubResponder;
 import to.etc.cocos.connectors.Synchronous;
+import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
@@ -12,6 +13,9 @@ import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientAuthRequest;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -25,6 +29,10 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 	private final String m_clusterPassword;
 
 	private final IClientAuthenticator m_authenticator;
+
+	private CopyOnWriteArrayList<IClientListener> m_clientListeners = new CopyOnWriteArrayList<>();
+
+	private Map<String, IRemoteClient> m_remoteClientMap = new HashMap<>();
 
 	public ServerResponder(String clusterPassword, IClientAuthenticator authenticator) {
 		m_clusterPassword = clusterPassword;
@@ -84,37 +92,21 @@ public class ServerResponder extends AbstractResponder implements IHubResponder 
 		cc.log("Authenticated successfully");
 	}
 
-	//@Override public void onHelloPacket(HubConnector connector, Hubcore.Envelope envelope, List<byte[]> payload) throws Exception {
-	//	Hubcore.HelloChallenge c = envelope.getChallenge();
-	//	if(envelope.getVersion() != 1)
-	//		throw new IllegalStateException("Cannot accept hub version " + c.getVersion());
-	//	String sv = c.getServerVersion();
-	//	System.out.println(">> connected to hub " + sv);
-	//
-	//	Hubcore.ServerHeloResponse r = Hubcore.ServerHeloResponse.newBuilder()
-	//			.setVersion(1)
-	//			.setServerVersion(m_serverVersion)
-	//			.setChallengeResponse(ByteString.EMPTY)
-	//			.build();
-	//	connector.sendPacket(0x01, CommandNames.SRVR_CMD, r);
-	//}
-	//
-	//@Override public void onAuth(HubConnector connector, Hubcore.Envelope envelope, List<byte[]> payload) throws Exception {
-	//
-	//}
-	//
-	///**
-	// * CLIENT wants a login. Check his authentication, then send back an AUTH packet if accepted or an error
-	// * packet if not.
-	// */
-	//public void handleCLNT(HubConnector hc, Hubcore.Envelope envelope, List<byte[]> payload) throws Exception {
-	//	byte[] response = r.getChallengeResponse().toByteArray();
-	//
-	//	////-- IMPLEMENT check
-	//	//
-	//	//
-	//	////-- Send back AUTH
-	//	//PacketBuilder b = hc.allocatePacketBuilder(0x01, packet.getSourceID(), m_serverId, CommandNames.AUTH_CMD);
-	//	//hc.sendPacket(b);
-	//}
+	public void addClientListener(IClientListener c) {
+		m_clientListeners.add(c);
+	}
+
+	public void removeClientListener(IClientListener l) {
+		m_clientListeners.remove(l);
+	}
+
+	private void callListeners(ConsumerEx<IClientListener> what) {
+		for(IClientListener l : m_clientListeners) {
+			try {
+				what.accept(l);
+			} catch(Exception x) {
+				x.printStackTrace();
+			}
+		}
+	}
 }

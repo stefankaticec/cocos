@@ -26,6 +26,10 @@ public class TestClientConnections extends TestAllBase {
 		Assert.assertEquals("Connector must have gotten to connected status", ConnectorState.AUTHENTICATED, connectorState);
 	}
 
+	/**
+	 * Connect to the hub with an incorrect password, and check that we indeed
+	 * get an error message saying so.
+	 */
 	@Test
 	public void testHubServerAuthFail() throws Exception {
 		hub();
@@ -42,5 +46,4 @@ public class TestClientConnections extends TestAllBase {
 		Assert.assertNotNull("There must be a HUB error that is returned", lastError);
 		Assert.assertNotNull("The hub error must have code " + ErrorCode.authenticationFailure.name(), lastError.getCode());
 	}
-
 }

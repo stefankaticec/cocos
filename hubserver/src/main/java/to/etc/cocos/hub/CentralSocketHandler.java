@@ -12,17 +12,18 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.AbstractConnection;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.Server;
-import to.etc.hubserver.protocol.FatalHubException;
-import to.etc.hubserver.protocol.HubException;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.hubserver.protocol.FatalHubException;
+import to.etc.hubserver.protocol.HubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientHeloResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.HelloChallenge;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ServerHeloResponse;
+import to.etc.util.ByteBufferOutputStream;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
 
@@ -63,6 +64,12 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private int m_envelopeOffset;
 
 	private Envelope m_envelope;
+
+	@NonNull
+	private PayloadState m_payloadState = PayloadState.EMPTY;
+
+	@Nullable
+	private ByteBufferOutputStream m_payloadOutputStream;
 
 	/**
 	 * The state for reading a packet.
@@ -216,6 +223,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				throw new ProtocolViolationException("Envelope length " + length + " is out of limits");
 			}
 			m_length = length;
+			m_payloadOutputStream = null;
 
 			/*
 			 * We now have all info to decide what to do with the data. The data payload will not be read
@@ -225,8 +233,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			if(length == 0) {
 				//-- Nothing to do: we're just set for another packet.
 				m_readState = this::readHeaderLong;
+				m_payloadState = PayloadState.EMPTY;
 			} else {
 				m_readState = this::bodyReadError;
+				m_payloadState = PayloadState.UNREAD;
+				m_payloadOutputStream = new ByteBufferOutputStream();
 			}
 
 			handlePacket();
@@ -234,11 +245,79 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	/**
+	 * Usable after readPayloadLength, this actually reads the payload into a
+	 * payload buffer set.
+	 */
+	private void readPayloadBodyBytes(ChannelHandlerContext channelHandlerContext, ByteBuf source) throws Exception {
+		switch(m_payloadState) {
+			default:
+				throw new IllegalStateException(m_payloadState + "??");
+
+			case EMPTY:
+				m_payloadOutputStream = new ByteBufferOutputStream();
+				m_payloadState = PayloadState.READ;
+				return;
+
+			case READ:
+				throw new IllegalStateException("Attempt to read payload when it has already been read");
+
+			case UNREAD:
+				int available = source.readableBytes();
+				if(available == 0)
+					return;
+				int todo = m_length;
+				if(todo > available) {
+					todo = available;
+				}
+				ByteBufferOutputStream pos = Objects.requireNonNull(m_payloadOutputStream);
+				source.readBytes(pos, todo);
+				m_length -= todo;
+				if(m_length < 0)
+					throw new IllegalStateException();
+				else if(m_length == 0) {
+					m_payloadState = PayloadState.READ;
+					handlePacket();
+				}
+				break;
+		}
+	}
+
+
+
+	/**
 	 * This state means that a body was present but the packet handler did not decide to read it proper. It
 	 * reports an error, then terminates the connection.
 	 */
 	private void bodyReadError(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf) {
 		throw new ProtocolViolationException("The packet handler did not cause the payload for the packet to be read");
+	}
+
+	private int getPayloadLength() {
+		switch(m_payloadState) {
+			default:
+				throw new IllegalStateException(m_payloadState + ": ??");
+			case EMPTY:
+				return 0;
+			case UNREAD:
+				throw new IllegalStateException("The payload has not yet been read");
+			case READ:
+				return Objects.requireNonNull(m_payloadOutputStream).getSize();
+		}
+	}
+
+	private boolean isPayloadLoaded() {
+		switch(m_payloadState) {
+			default:
+				throw new IllegalStateException(m_payloadState + ": ??");
+			case EMPTY:
+				m_payloadOutputStream = new ByteBufferOutputStream();
+				return true;
+			case UNREAD:
+				m_readState = this::readPayloadBodyBytes;
+				return false;
+			case READ:
+				return true;
+		}
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -261,7 +340,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	private void expectHeloResponse(Hubcore.Envelope envelope) throws Exception {
 		if(envelope.hasHeloClient()) {
-			handleClientHello(envelope, envelope.getHeloClient());
+			//-- The client expects a JSON inventory in the body, so first start reading that
+			if(isPayloadLoaded()) {
+				handleClientHello(envelope, envelope.getHeloClient());
+			}
 		} else if(envelope.hasHeloServer()) {
 			handleServerHello(envelope, envelope.getHeloServer());
 		} else
@@ -272,6 +354,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * The server helo response contains the challenge response for authorisation.
 	 */
 	private void handleServerHello(Envelope envelope, ServerHeloResponse heloServer) throws Exception {
+		//-- We must have an empty body
+		if(getPayloadLength() != 0)
+			throw new ProtocolViolationException("Non-empty payload on server hello");
+
 		String sourceId = envelope.getSourceId();
 		String[] split = sourceId.split("@");
 		if(split.length != 2)
@@ -299,7 +385,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		rb.send();
 	}
 
+	/**
+	 * Handles the client HELO response. It stores the inventory packet, and
+	 * then forwards the HELO request as an CLAUTH command to the remote server.
+	 */
 	private void handleClientHello(Envelope envelope, ClientHeloResponse heloClient) {
+		//-- We must have some body as the inventory
+		if(getPayloadLength() == 0)
+			throw new ProtocolViolationException("Missing inventory packet on client HELO response packet");
+
 		String targetId = envelope.getTargetId();
 		String[] split = targetId.split("#");
 		Server server;
@@ -482,5 +576,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	interface IPacketHandler {
 		void handlePacket(Hubcore.Envelope envelope) throws Exception;
+	}
+
+	private enum PayloadState {
+		EMPTY,
+		UNREAD,
+		READ;
 	}
 }
