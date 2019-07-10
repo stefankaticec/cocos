@@ -6,7 +6,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
-import to.etc.util.ByteBufferOutputStream;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -236,4 +236,7 @@ abstract public class AbstractConnection {
 		return getSystemContext().getDirectory();
 	}
 
+	public void onPacketForward(AbstractConnection connection, Envelope envelope) {
+
+	}
 }

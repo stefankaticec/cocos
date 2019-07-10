@@ -31,6 +31,8 @@ import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
 
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -91,6 +93,19 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	@Nullable
 	private Object m_packetStateData;
+
+	/** Normal priority packets to send. */
+	private List<TxPacket> m_txPacketQueue = new LinkedList<>();
+
+	/** Priority packets to send */
+	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
+
+	/** Buffers to send for the current packet */
+	private List<ByteBuf> m_txBufferList = new LinkedList<>();
+
+	@Nullable
+	private TxPacket m_txCurrentPacket;
+
 
 	public CentralSocketHandler(Hub central, SocketChannel socketChannel) {
 		m_central = central;
@@ -588,6 +603,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		ctx.close();
 	}
 
+
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Sending data to this channel's remote.						*/
 	/*----------------------------------------------------------------------*/
@@ -603,6 +619,159 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			;
 
 		return responseBuilder;
+	}
+
+	/**
+	 * Schedule a packet to be sent with normal priority.
+	 */
+	public void sendPacket(TxPacket packet) {
+		synchronized(this) {
+			//-- Is the transmitter busy? Then queue the packet.
+			if(m_txCurrentPacket != null) {
+				m_txPacketQueue.add(packet);					// Will be picked up when current packet tx finishes.
+				return;
+			}
+
+			m_txCurrentPacket = packet;
+		}
+		initiatePacketSending(packet);
+	}
+
+	public void sendPacketPrio(TxPacket packet) {
+		synchronized(this) {
+			//-- Is the transmitter busy? Then queue the packet.
+			if(m_txCurrentPacket != null) {
+				m_txPacketQueuePrio.add(packet);					// Will be picked up when current packet tx finishes.
+				return;
+			}
+
+			m_txCurrentPacket = packet;
+		}
+		initiatePacketSending(packet);
+	}
+
+	/**
+	 * Initiate sending of a packet, by converting the packet into a list
+	 * of send buffers and starting the transmit.
+	 */
+	private void initiatePacketSending(TxPacket packet) {
+		for(;;) {
+			try {
+				ByteBuf buffer = m_channel.alloc().buffer(1024);
+				buffer.writeBytes(CommandNames.HEADER);
+				try(BufferWriter bw = new BufferWriter(m_txBufferList, buffer)) {
+					packet.getEnvelope().writeTo(bw.getOutputStream());
+					packet.getBodySender().sendBody(bw);
+				}
+
+				//-- Start the transmitter.
+
+			} catch(Exception x) {
+				log("prepare transmit failed: " + x);
+				try {
+					AbstractConnection onBehalfOf = packet.getOnBehalfOf();
+					if(null != onBehalfOf) {
+						onBehalfOf.onPacketForward(Objects.requireNonNull(m_connection), packet.getEnvelope());
+					}
+				} catch(Exception xx) {
+					xx.printStackTrace();
+				}
+
+				/*
+				 * As it is the PREPARE that failed we just notify the source and try the next packet
+				 */
+				synchronized(this) {
+					packet = getNextPacketToTransmit();
+					if(null == packet)						// Nothing more to do?
+						return;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Called when the sender is idle and there is data to send. This
+	 * starts sending the first buffer.
+	 */
+	private void startSendingBuffers() {
+		ByteBuf buf;
+		synchronized(this) {
+			buf = m_txBufferList.remove(0);
+		}
+		txBuffer(buf);
+	}
+
+	private void txBuffer(ByteBuf buf) {
+		ChannelFuture future = m_channel.writeAndFlush(buf);
+		future.addListener((ChannelFutureListener) f -> {
+			if(f.isSuccess()) {
+				txHandleSuccessfulSend();
+			} else {
+				txHandleFailedSend();
+			}
+		});
+	}
+
+	/**
+	 * Called when a send buffer has been fully transmitted, this sends the next buffer or
+	 * starts sending the next packet.
+	 */
+	private void txHandleSuccessfulSend() {
+		ByteBuf byteBuf;
+		TxPacket packet = null;
+		synchronized(this) {
+			if(m_txBufferList.size() > 0) {
+				byteBuf = m_txBufferList.remove(0);
+			} else {
+				byteBuf = null;
+
+				//-- We need to send a new packet
+				packet = getNextPacketToTransmit();
+				if(null == packet)								// No more packet(s)?
+					return;
+			}
+		}
+
+		if(byteBuf != null) {
+			txBuffer(byteBuf);
+			return;
+		}
+		initiatePacketSending(packet);
+	}
+
+	/**
+	 * Send failed. Requeue the failed packet on the prio queue, then disconnect. When the remote reconnects
+	 * the packet is retried (unless we have a tx timeout).
+	 */
+	private void txHandleFailedSend() {
+		synchronized(this) {
+			TxPacket packet = m_txCurrentPacket;
+			if(null == packet) {
+				throw new IllegalStateException("current packet is null while transmitting");
+			}
+			m_txCurrentPacket = null;
+			m_txPacketQueuePrio.add(0, packet);
+			for(ByteBuf byteBuf : m_txBufferList) {
+				byteBuf.release();
+			}
+			m_txBufferList.clear();
+		}
+
+		m_channel.disconnect();
+	}
+
+	/**
+	 * Select the next packet to send, and make it the current packet.
+	 */
+	private synchronized TxPacket getNextPacketToTransmit() {
+		m_txBufferList.clear();
+		if(m_txPacketQueuePrio.size() > 0) {
+			return m_txCurrentPacket = m_txPacketQueuePrio.remove(0);
+		} else if(m_txPacketQueue.size() > 0) {
+			return m_txCurrentPacket = m_txPacketQueue.remove(0);
+		} else {
+			return m_txCurrentPacket = null;
+		}
 	}
 
 	/**
