@@ -1,12 +1,16 @@
-package to.etc.cocos.hub.parties;
+package to.etc.cocos.hub;
 
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import to.etc.cocos.hub.CentralSocketHandler;
-import to.etc.cocos.hub.Hub;
+import to.etc.cocos.hub.parties.Cluster;
+import to.etc.cocos.hub.parties.ConnectionDirectory;
+import to.etc.cocos.hub.parties.ConnectionState;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
+
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -33,8 +37,13 @@ abstract public class AbstractConnection {
 
 	private long m_tsLastDuplicate;
 
-
 	private ConnectionState m_state = ConnectionState.DISCONNECTED;
+
+	/** Normal priority packets to send. */
+	private List<TxPacket> m_txPacketQueue = new LinkedList<>();
+
+	/** Priority packets to send */
+	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
 
 	public AbstractConnection(Cluster cluster, Hub systemContext, String id) {
 		m_cluster = cluster;
@@ -138,6 +147,62 @@ abstract public class AbstractConnection {
 	}
 
 
+	/*----------------------------------------------------------------------*/
+	/*	CODING:	Buffered packet transmitter.								*/
+	/*----------------------------------------------------------------------*/
+
+	/**
+	 * Schedule a packet to be sent with normal priority.
+	 */
+	public void sendPacket(TxPacket packet) {
+		CentralSocketHandler handler;
+		synchronized(this) {
+			m_txPacketQueue.add(packet);					// Will be picked up when current packet tx finishes.
+			handler = m_handler;
+		}
+		if(null != handler) {
+			handler.tryScheduleSend(this, packet);			// If the transmitter is empty start it
+		}
+	}
+
+	public void sendPacketPrio(TxPacket packet) {
+		CentralSocketHandler handler;
+		synchronized(this) {
+			m_txPacketQueuePrio.add(packet);
+			handler = m_handler;
+		}
+		if(null != handler) {
+			handler.tryScheduleSend(this, packet);				// If the transmitter is empty start it
+		}
+	}
+
+	/**
+	 * Select the next packet to send, and make it the current packet.
+	 */
+	@Nullable
+	synchronized TxPacket getNextPacketToTransmit() {
+		if(m_txPacketQueuePrio.size() > 0) {
+			return m_txPacketQueuePrio.get(0);
+		} else if(m_txPacketQueue.size() > 0) {
+			return m_txPacketQueue.get(0);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * Remove the packet that was sent from its queue.
+	 */
+	synchronized void txPacketFinished(TxPacket packetToFinish) {
+		if(m_txPacketQueue.size() > 0 && m_txPacketQueue.get(0) == packetToFinish) {
+			m_txPacketQueue.remove(0);
+		} else if(m_txPacketQueuePrio.size() > 0 && m_txPacketQueuePrio.get(0) == packetToFinish) {
+			m_txPacketQueuePrio.remove(0);
+		} else {
+			throw new IllegalStateException("TxPacket was completed, but it cannot be found in either transmit queue");
+		}
+	}
+
 
 	//public void sendHubMessage(int packetCode, String command, @Nullable Message message, @Nullable RunnableEx after) {
 	//	getHandler().sendHubMessage(packetCode, command, message, after);
@@ -239,4 +304,5 @@ abstract public class AbstractConnection {
 	public void onPacketForward(AbstractConnection connection, Envelope envelope) {
 
 	}
+
 }

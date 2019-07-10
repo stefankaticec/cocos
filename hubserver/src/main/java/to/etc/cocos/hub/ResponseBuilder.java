@@ -50,6 +50,6 @@ final public class ResponseBuilder {
 	}
 
 	public void send() {
-		m_handler.sendResponse(this);
+		m_handler.immediateSendResponse(this);
 	}
 }

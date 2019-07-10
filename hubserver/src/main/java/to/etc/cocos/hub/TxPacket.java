@@ -1,8 +1,9 @@
 package to.etc.cocos.hub;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import to.etc.cocos.hub.parties.AbstractConnection;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A packet to be transmitted to a remote as soon as its channel is
@@ -19,6 +20,8 @@ final public class TxPacket {
 	private final AbstractConnection m_onBehalfOf;
 
 	private final IPacketBodySender m_bodySender;
+
+	private final CompletableFuture<TxPacket> m_sendFuture = new CompletableFuture<>();
 
 	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf, IPacketBodySender bodySender) {
 		m_envelope = envelope;
@@ -45,5 +48,9 @@ final public class TxPacket {
 
 	public IPacketBodySender getBodySender() {
 		return m_bodySender;
+	}
+
+	public CompletableFuture<TxPacket> getSendFuture() {
+		return m_sendFuture;
 	}
 }

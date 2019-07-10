@@ -2,6 +2,7 @@ package to.etc.cocos.hub.parties;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.function.ConsumerEx;

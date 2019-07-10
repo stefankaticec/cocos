@@ -1,6 +1,7 @@
 package to.etc.cocos.hub.parties;
 
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.Hub;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ByteBufferOutputStream;

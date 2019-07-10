@@ -1,5 +1,6 @@
 package to.etc.cocos.hub.parties;
 
+import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.hubserver.protocol.CommandNames;

@@ -9,7 +9,6 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.SocketChannel;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
-import to.etc.cocos.hub.parties.AbstractConnection;
 import to.etc.cocos.hub.parties.BeforeClientData;
 import to.etc.cocos.hub.parties.Client;
 import to.etc.cocos.hub.parties.Cluster;
@@ -94,12 +93,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@Nullable
 	private Object m_packetStateData;
 
-	/** Normal priority packets to send. */
-	private List<TxPacket> m_txPacketQueue = new LinkedList<>();
-
-	/** Priority packets to send */
-	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
-
 	/** Buffers to send for the current packet */
 	private List<ByteBuf> m_txBufferList = new LinkedList<>();
 
@@ -120,7 +113,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				m_readState.handleRead(context, data);
 			}
 		} catch(HubException x) {
-			sendHubException(x);
+			immediateSendHubException(x);
 		} catch(ProtocolViolationException px) {
 			throw px;
 		} catch(Exception x) {
@@ -319,7 +312,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 
-
 	/**
 	 * This state means that a body was present but the packet handler did not decide to read it proper. It
 	 * reports an error, then terminates the connection.
@@ -507,7 +499,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			)
 			.build();
 		setPacketState(this::expectClientServerAuth, new BeforeClientData(cluster, orgId, m_envelope.getSourceId()));
-		server.getHandler().sendEnvelopeAndEmptyBody(tgtEnvelope);
+		server.getHandler().immediateSendEnvelopeAndEmptyBody(tgtEnvelope);
 	}
 
 	private void expectClientServerAuth(Envelope envelope) {
@@ -522,13 +514,13 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		//-- Expecting an AUTH or ERROR response.
 		if(envelope.hasError()) {
 			ErrorResponse error = envelope.getError();
-			sendEnvelopeAndEmptyBody(envelope, true);		// Return the error verbatim
+			immediateSendEnvelopeAndEmptyBody(envelope, true);		// Return the error verbatim
 
 			//-- REMOVE CLIENT
 		} else if(envelope.getCommand().equals(CommandNames.AUTH_CMD)) {
 			//-- We're authenticated! Yay!
 			log("CLIENT authenticated!!");
-			sendEnvelopeAndEmptyBody(envelope);							// Forward AUTH to client
+			immediateSendEnvelopeAndEmptyBody(envelope);							// Forward AUTH to client
 			registerClient(getPacketStateData(BeforeClientData.class));
 			setPacketState(this::handleClientInventory);
 		} else {
@@ -547,8 +539,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			throw new ProtocolViolationException("The inventory packet data is missing");
 
 		getClientConnection().updateInventory(payload);
-
-
 	}
 
 	private void registerClient(BeforeClientData data) {
@@ -621,32 +611,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		return responseBuilder;
 	}
 
-	/**
-	 * Schedule a packet to be sent with normal priority.
-	 */
-	public void sendPacket(TxPacket packet) {
-		synchronized(this) {
-			//-- Is the transmitter busy? Then queue the packet.
-			if(m_txCurrentPacket != null) {
-				m_txPacketQueue.add(packet);					// Will be picked up when current packet tx finishes.
-				return;
-			}
-
-			m_txCurrentPacket = packet;
-		}
-		initiatePacketSending(packet);
-	}
-
-	public void sendPacketPrio(TxPacket packet) {
-		synchronized(this) {
-			//-- Is the transmitter busy? Then queue the packet.
-			if(m_txCurrentPacket != null) {
-				m_txPacketQueuePrio.add(packet);					// Will be picked up when current packet tx finishes.
-				return;
-			}
-
-			m_txCurrentPacket = packet;
-		}
+	void tryScheduleSend(AbstractConnection conn, TxPacket packet) {
 		initiatePacketSending(packet);
 	}
 
@@ -654,8 +619,16 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * Initiate sending of a packet, by converting the packet into a list
 	 * of send buffers and starting the transmit.
 	 */
-	private void initiatePacketSending(TxPacket packet) {
+	private void initiatePacketSending(@Nullable TxPacket packet) {
 		for(;;) {
+			if(null == packet)
+				return;
+			synchronized(this) {
+				if(m_txCurrentPacket != null)				// Transmitter busy?
+					return;
+				m_txCurrentPacket = packet;
+			}
+
 			try {
 				ByteBuf buffer = m_channel.alloc().buffer(1024);
 				buffer.writeBytes(CommandNames.HEADER);
@@ -665,6 +638,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				}
 
 				//-- Start the transmitter.
+				startSendingBuffers();
 
 			} catch(Exception x) {
 				log("prepare transmit failed: " + x);
@@ -680,11 +654,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				/*
 				 * As it is the PREPARE that failed we just notify the source and try the next packet
 				 */
+				AbstractConnection conn;
 				synchronized(this) {
-					packet = getNextPacketToTransmit();
-					if(null == packet)						// Nothing more to do?
+					releaseTxBuffers();
+					m_txCurrentPacket = null;
+					conn = m_connection;
+					if(null == conn)
 						return;
 				}
+				packet = conn.getNextPacketToTransmit();
 			}
 		}
 	}
@@ -718,25 +696,39 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 */
 	private void txHandleSuccessfulSend() {
 		ByteBuf byteBuf;
+		TxPacket packetToFinish;
 		TxPacket packet = null;
+		AbstractConnection conn;
 		synchronized(this) {
+			conn = m_connection;
+			if(null == conn) {
+				log("? send completed but Party has left");
+				releaseTxBuffers();
+				return;
+			}
 			if(m_txBufferList.size() > 0) {
 				byteBuf = m_txBufferList.remove(0);
+				packetToFinish = null;
 			} else {
 				byteBuf = null;
 
 				//-- We need to send a new packet
-				packet = getNextPacketToTransmit();
-				if(null == packet)								// No more packet(s)?
-					return;
+				packetToFinish = m_txCurrentPacket;
+				if(null == packetToFinish)
+					throw new IllegalStateException("Null current txpacket at end of send");
 			}
+		}
+
+		if(packetToFinish != null) {
+			conn.txPacketFinished(packetToFinish);
+			packetToFinish.getSendFuture().complete(packetToFinish);
 		}
 
 		if(byteBuf != null) {
 			txBuffer(byteBuf);
 			return;
 		}
-		initiatePacketSending(packet);
+		initiatePacketSending(conn.getNextPacketToTransmit());
 	}
 
 	/**
@@ -749,44 +741,34 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			if(null == packet) {
 				throw new IllegalStateException("current packet is null while transmitting");
 			}
-			m_txCurrentPacket = null;
-			m_txPacketQueuePrio.add(0, packet);
-			for(ByteBuf byteBuf : m_txBufferList) {
-				byteBuf.release();
-			}
-			m_txBufferList.clear();
-		}
 
-		m_channel.disconnect();
+			//-- We tell the Party nothing, this will cause it to resent the packet once a new connection has been made.
+			m_txCurrentPacket = null;
+			releaseTxBuffers();
+		}
+		disconnectOnly();
 	}
 
-	/**
-	 * Select the next packet to send, and make it the current packet.
-	 */
-	private synchronized TxPacket getNextPacketToTransmit() {
-		m_txBufferList.clear();
-		if(m_txPacketQueuePrio.size() > 0) {
-			return m_txCurrentPacket = m_txPacketQueuePrio.remove(0);
-		} else if(m_txPacketQueue.size() > 0) {
-			return m_txCurrentPacket = m_txPacketQueue.remove(0);
-		} else {
-			return m_txCurrentPacket = null;
+	private synchronized void releaseTxBuffers() {
+		for(ByteBuf byteBuf : m_txBufferList) {
+			byteBuf.release();
 		}
+		m_txBufferList.clear();
 	}
 
 	/**
 	 *
 	 */
-	void sendResponse(ResponseBuilder r) {
+	void immediateSendResponse(ResponseBuilder r) {
 		log("Sending response packet: " + r.getEnvelope().getCommand());
-		sendEnvelopeAndEmptyBody(r.getEnvelope().build());
+		immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build());
 	}
 
-	private void sendEnvelopeAndEmptyBody(Hubcore.Envelope envelope) {
-		sendEnvelopeAndEmptyBody(envelope, false);
+	private void immediateSendEnvelopeAndEmptyBody(Hubcore.Envelope envelope) {
+		immediateSendEnvelopeAndEmptyBody(envelope, false);
 	}
 
-	private void sendEnvelopeAndEmptyBody(Envelope envelope, boolean andDisconnect) {
+	private void immediateSendEnvelopeAndEmptyBody(Envelope envelope, boolean andDisconnect) {
 		ByteBuf buf = new PacketBuilder(m_channel.alloc())
 			.appendMessage(envelope)
 			.emptyBody()
@@ -797,10 +779,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			if(! f.isSuccess() || andDisconnect)
 				m_channel.disconnect();
 		});
-
 	}
 
-	private void sendHubException(HubException x) {
+	private void immediateSendHubException(HubException x) {
 		log("sending hub exception " + x);
 
 		ResponseBuilder rb = new ResponseBuilder(this)
@@ -883,22 +864,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			throw new IllegalStateException("The connection's ID is not yet known - HELO packet response has not yet been received?");
 		return m_cluster;
 	}
-
-
-	//public void forwardPacket(HubPacket packet) {
-	//	ByteArrayUtil.setInt(m_lenBuf, 0, packet.getData().length);
-	//	ChannelFuture future = m_channel.write(m_lenBuf);
-	//	future.addListener((ChannelFutureListener) f -> {
-	//		if(! f.isSuccess())
-	//			m_channel.disconnect();
-	//	});
-	//
-	//	future = m_channel.writeAndFlush(packet.getData());
-	//	future.addListener((ChannelFutureListener) f -> {
-	//		if(! f.isSuccess())
-	//			m_channel.disconnect();
-	//	});
-	//}
 
 	private synchronized void setHelloInformation(String clientId, Cluster cluster, String resourceId) {
 		if(m_myId != null || m_cluster != null || m_resourceId != null) {

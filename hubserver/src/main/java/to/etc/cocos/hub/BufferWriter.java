@@ -2,6 +2,7 @@ package to.etc.cocos.hub;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 
 import java.io.OutputStream;
@@ -11,6 +12,7 @@ import java.util.List;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 10-07-19.
  */
+@NonNullByDefault
 final public class BufferWriter implements AutoCloseable {
 	private final List<ByteBuf> m_list;
 
