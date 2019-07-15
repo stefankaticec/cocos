@@ -2,6 +2,7 @@ package to.etc.cocos.hub;
 
 import com.google.protobuf.ByteString;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -132,7 +133,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 		//-- Send HELO with challenge
 		byte[] challenge = m_challenge = m_central.getChallenge();
-		ResponseBuilder response = new ResponseBuilder(this);
+		ImmediateResponseBuilder response = new ImmediateResponseBuilder(this);
 		response.getEnvelope()
 			.setCommand(CommandNames.HELO_CMD)
 			.setSourceId("")							// from HUB
@@ -165,7 +166,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	public synchronized AbstractConnection getConnection() {
-		return m_connection;
+		AbstractConnection connection = m_connection;
+		if(null == connection)
+			throw new IllegalStateException("The party is no longer connected to this connection.");
+		return connection;
 	}
 
 	Client getClientConnection() {
@@ -436,7 +440,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_connection = server;
 		setPacketState(server::packetReceived);
 
-		ResponseBuilder rb = new ResponseBuilder(this)
+		ImmediateResponseBuilder rb = new ImmediateResponseBuilder(this)
 			.fromEnvelope(envelope)
 			;
 		rb.getEnvelope().setCommand(CommandNames.AUTH_CMD);				// Authorized
@@ -517,6 +521,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			immediateSendEnvelopeAndEmptyBody(envelope, true);		// Return the error verbatim
 
 			//-- REMOVE CLIENT
+			getDirectory().unregisterTmpClient(this);
 		} else if(envelope.getCommand().equals(CommandNames.AUTH_CMD)) {
 			//-- We're authenticated! Yay!
 			log("CLIENT authenticated!!");
@@ -534,6 +539,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 		if(! isPayloadLoaded())
 			return;
+		log("in handleClientInventory, got " + envelope.getCommand());
 		ByteBufferOutputStream payload = getPayload();
 		if(payload.getSize() == 0)
 			throw new ProtocolViolationException("The inventory packet data is missing");
@@ -541,8 +547,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		getClientConnection().updateInventory(payload);
 	}
 
-	private void registerClient(BeforeClientData data) {
-		getCluster().registerAuthorizedClient(this);
+	private synchronized void registerClient(BeforeClientData data) {
+		m_connection = getCluster().registerAuthorizedClient(this);
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -598,8 +604,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/*	CODING:	Sending data to this channel's remote.						*/
 	/*----------------------------------------------------------------------*/
 
-	public ResponseBuilder packetBuilder(String command) {
-		ResponseBuilder responseBuilder = new ResponseBuilder(this);
+	private ImmediateResponseBuilder packetBuilder(String command) {
+		ImmediateResponseBuilder responseBuilder = new ImmediateResponseBuilder(this);
 		responseBuilder.getEnvelope()
 			.setDataFormat("")
 			.setVersion(1)
@@ -620,6 +626,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * of send buffers and starting the transmit.
 	 */
 	private void initiatePacketSending(@Nullable TxPacket packet) {
+		int txfailCount = 0;
 		for(;;) {
 			if(null == packet)
 				return;
@@ -630,18 +637,28 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			}
 
 			try {
+				List<ByteBuf> bufferList = new LinkedList<>();
 				ByteBuf buffer = m_channel.alloc().buffer(1024);
+				bufferList.add(buffer);
 				buffer.writeBytes(CommandNames.HEADER);
-				try(BufferWriter bw = new BufferWriter(m_txBufferList, buffer)) {
-					packet.getEnvelope().writeTo(bw.getOutputStream());
+				try(BufferWriter bw = new BufferWriter(bufferList, buffer)) {
+					byte[] bytes = packet.getEnvelope().toByteArray();
+					bw.getHeaderBuf().writeInt(bytes.length);
+					bw.getHeaderBuf().writeBytes(bytes);
 					packet.getBodySender().sendBody(bw);
 				}
 
 				//-- Start the transmitter.
-				startSendingBuffers();
+				startSendingBuffers(bufferList);
 
 			} catch(Exception x) {
 				log("prepare transmit failed: " + x);
+				if(txfailCount++ > 20) {
+					disconnectOnly();
+					x.printStackTrace();
+					throw new IllegalStateException("TOO MANY RETRIES INITIATING SEND");
+				}
+
 				try {
 					AbstractConnection onBehalfOf = packet.getOnBehalfOf();
 					if(null != onBehalfOf) {
@@ -671,9 +688,13 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * Called when the sender is idle and there is data to send. This
 	 * starts sending the first buffer.
 	 */
-	private void startSendingBuffers() {
+	private void startSendingBuffers(List<ByteBuf> bufferList) {
 		ByteBuf buf;
 		synchronized(this) {
+			m_txBufferList = bufferList;
+			if(m_txBufferList.size()  == 0) {
+				throw new IllegalStateException("Starting the transmitter without buffers to send");
+			}
 			buf = m_txBufferList.remove(0);
 		}
 		txBuffer(buf);
@@ -759,7 +780,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 *
 	 */
-	void immediateSendResponse(ResponseBuilder r) {
+	void immediateSendResponse(ImmediateResponseBuilder r) {
 		log("Sending response packet: " + r.getEnvelope().getCommand());
 		immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build());
 	}
@@ -784,7 +805,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private void immediateSendHubException(HubException x) {
 		log("sending hub exception " + x);
 
-		ResponseBuilder rb = new ResponseBuilder(this)
+		ImmediateResponseBuilder rb = new ImmediateResponseBuilder(this)
 			.fromEnvelope(m_envelope)
 			;
 		rb.getEnvelope()
@@ -811,7 +832,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	public void sendPing() {
-		ResponseBuilder response = new ResponseBuilder(this);
+		ImmediateResponseBuilder response = new ImmediateResponseBuilder(this);
 		response.getEnvelope()
 			.setCommand(CommandNames.PING_CMD)
 			.setSourceId("")							// from HUB
@@ -872,6 +893,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_myId = clientId;
 		m_cluster = cluster;
 		m_resourceId = resourceId;
+	}
+
+	public ByteBufAllocator alloc() {
+		return m_channel.alloc();
 	}
 
 

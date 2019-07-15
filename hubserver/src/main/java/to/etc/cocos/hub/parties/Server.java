@@ -1,8 +1,10 @@
 package to.etc.cocos.hub.parties;
 
+import io.netty.buffer.ByteBuf;
 import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
+import to.etc.cocos.hub.PacketResponseBuilder;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
@@ -53,27 +55,40 @@ public class Server extends AbstractConnection {
 
 	}
 
+	public PacketResponseBuilder packetBuilder(String clientID, String command) {
+		PacketResponseBuilder b = packetBuilder();
+		b.getEnvelope()
+			.setCommand(command)
+			.setSourceId(clientID)
+			.setTargetId(getFullId())
+			.setVersion(1)
+			.setDataFormat("")
+			;
+		return b;
+	}
+
+
 	/**
 	 * Send a "client unregistered" packet to the remote.
 	 */
 	public void sendEventClientUnregistered(String fullId) {
-		getHandler().packetBuilder(CommandNames.CLIENT_DISCONNECTED)
-			.sourceId(fullId)
-			.send();
+		PacketResponseBuilder b = packetBuilder(fullId, CommandNames.CLIENT_DISCONNECTED);
+		b.send();
 	}
 
 	public void sendEventClientRegistered(String clientId) {
-		getHandler().packetBuilder(CommandNames.CLIENT_CONNECTED)
-			.sourceId(clientId)
-			.send();
+		PacketResponseBuilder b = packetBuilder(clientId, CommandNames.CLIENT_CONNECTED);
+		b.send();
 	}
 
 	public void sendEventClientInventory(String clientId, ByteBufferOutputStream payload) {
-		getHandler().packetBuilder(CommandNames.CLIENT_CONNECTED)
+		ByteBuf buffer = getHandler().alloc().buffer();
+		for(byte[] bb : payload.getBuffers()) {
+			buffer.writeBytes(bb);
+		}
+
+		packetBuilder(clientId, CommandNames.CLIENT_CONNECTED)
 			.sourceId(clientId)
-			.send();
-
-
-
+			.send(buffer);
 	}
 }

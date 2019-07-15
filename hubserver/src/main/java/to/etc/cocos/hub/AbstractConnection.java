@@ -305,4 +305,14 @@ abstract public class AbstractConnection {
 
 	}
 
+	public PacketResponseBuilder packetBuilder() {
+		return new PacketResponseBuilder(this);
+	}
+
+	public PacketResponseBuilder packetBuilder(Envelope source) {
+		PacketResponseBuilder b = new PacketResponseBuilder(this);
+		b.fromEnvelope(source);
+		return b;
+	}
+
 }

@@ -54,7 +54,7 @@ public class TestClientConnections extends TestAllBase {
 		IServerEvent event = server().observeServerEvents()
 			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
 			.filter(a -> a.getType() == ServerEventType.clientInventoryReceived)
-			.timeout(5, TimeUnit.SECONDS)
+			.timeout(5000, TimeUnit.SECONDS)
 			.blockingFirst();
 
 
