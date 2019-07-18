@@ -2,6 +2,7 @@ package to.etc.cocos.connectors.server;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.connectors.RemoteClient;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -12,5 +13,5 @@ public interface IServerEvent {
 	IServerEventType getType();
 
 	@Nullable
-	IRemoteClient getClient();
+	RemoteClient getClient();
 }

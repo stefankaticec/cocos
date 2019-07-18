@@ -3,8 +3,8 @@ package to.etc.cocos.tests;
 import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.ConnectorState;
-import to.etc.cocos.connectors.server.IRemoteClient;
 import to.etc.cocos.connectors.server.IServerEvent;
+import to.etc.cocos.connectors.RemoteClient;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
@@ -41,7 +41,7 @@ public class TestClientConnections extends TestAllBase {
 			.blockingFirst();
 
 
-		IRemoteClient client = event.getClient();
+		RemoteClient client = event.getClient();
 		Assert.assertNotNull(client);
 		Assert.assertEquals("Connector must have gotten client connected event", CLIENTID, client.getClientKey());
 	}
@@ -58,7 +58,7 @@ public class TestClientConnections extends TestAllBase {
 			.blockingFirst();
 
 
-		IRemoteClient client = event.getClient();
+		RemoteClient client = event.getClient();
 		Assert.assertNotNull(client);
 		Assert.assertEquals("Connector must have gotten client inventory event", CLIENTID, client.getClientKey());
 	}

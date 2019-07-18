@@ -110,13 +110,26 @@ abstract public class AbstractResponder implements IHubResponder {
 
 	@Nullable
 	private Method findHandlerMethod(String command, @Nullable Object body) {
+		String name = "handle" + command;
 		try {
-			String name = "handle" + command;
 			return body == null
 				? getClass().getMethod(name, CommandContext.class)
 				: getClass().getMethod(name, CommandContext.class, body.getClass());
 		} catch(Exception x) {
-			return null;
 		}
+		if(null == body)
+			return null;
+
+		//slow method to get overrides
+		for(Method method : getClass().getMethods()) {
+			if(method.getName().equals(name)) {
+				if(method.getReturnType() == Void.class && method.getParameterCount() == 2) {
+					if(method.getParameterTypes()[0] == CommandContext.class && method.getParameterTypes()[1].isAssignableFrom(body.getClass())) {
+						return method;
+					}
+				}
+			}
+		}
+		return null;
 	}
 }

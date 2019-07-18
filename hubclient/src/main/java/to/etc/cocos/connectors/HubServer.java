@@ -6,7 +6,6 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
 import to.etc.cocos.connectors.server.IClientListener;
-import to.etc.cocos.connectors.server.IRemoteClient;
 import to.etc.cocos.connectors.server.IServerEvent;
 import to.etc.cocos.connectors.server.ServerEventBase;
 import to.etc.cocos.connectors.server.ServerEventType;
@@ -30,7 +29,7 @@ final public class HubServer {
 		m_serverEventSubject = PublishSubject.create();
 	}
 
-	static public HubServer create(IClientAuthenticator<?> au, String hubServer, int hubServerPort, String hubPassword, String id) {
+	static public HubServer create(IClientAuthenticator au, String hubServer, int hubServerPort, String hubPassword, String id) {
 		if(id.indexOf('@') == -1)
 			throw new IllegalArgumentException("The server ID must be in the format servername@clustername");
 
@@ -40,12 +39,16 @@ final public class HubServer {
 		HubServer hs = new HubServer(server, responder);
 
 		responder.addClientListener(new IClientListener() {
-			@Override public void clientConnected(IRemoteClient client) throws Exception {
+			@Override public void clientConnected(RemoteClient client) throws Exception {
 				hs.m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientConnected, client));
 			}
 
-			@Override public void clientDisconnected(IRemoteClient client) throws Exception {
+			@Override public void clientDisconnected(RemoteClient client) throws Exception {
 				hs.m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientDisconnected, client));
+			}
+
+			@Override public void clientInventoryPacketReceived(RemoteClient client, JsonPacket packet) {
+				hs.m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientInventoryReceived, client));
 			}
 		});
 		server.observeConnectionState()

@@ -81,7 +81,7 @@ public class Server extends AbstractConnection {
 		b.send();
 	}
 
-	public void sendEventClientInventory(String clientId, ByteBufferOutputStream payload) {
+	public void sendEventClientInventory(String clientId, String dataFormat, ByteBufferOutputStream payload) {
 		ByteBuf buffer = getHandler().alloc().buffer();
 		//System.out.println("Payload = " + payload);
 		//System.out.println(" buffers= " + payload.getBuffers());
@@ -91,6 +91,7 @@ public class Server extends AbstractConnection {
 
 		packetBuilder(clientId, CommandNames.INVENTORY_CMD)
 			.sourceId(clientId)
+			.dataFormat(dataFormat)
 			.send(buffer);
 	}
 }

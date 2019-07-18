@@ -1,6 +1,7 @@
 package to.etc.cocos.connectors.server;
 
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.connectors.RemoteClient;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -10,14 +11,14 @@ public class ServerEventBase implements IServerEvent {
 	private final IServerEventType m_type;
 
 	@Nullable
-	private final IRemoteClient m_client;
+	private final RemoteClient m_client;
 
 	public ServerEventBase(IServerEventType type) {
 		m_type = type;
 		m_client = null;
 	}
 
-	public ServerEventBase(IServerEventType type, IRemoteClient client) {
+	public ServerEventBase(IServerEventType type, RemoteClient client) {
 		m_type = type;
 		m_client = client;
 	}
@@ -26,7 +27,7 @@ public class ServerEventBase implements IServerEvent {
 		return m_type;
 	}
 
-	@Override public IRemoteClient getClient() {
+	@Override public RemoteClient getClient() {
 		return m_client;
 	}
 }

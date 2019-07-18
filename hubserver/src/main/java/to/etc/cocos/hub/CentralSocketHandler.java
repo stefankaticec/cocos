@@ -546,8 +546,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		ByteBufferOutputStream payload = getPayload();
 		if(payload.getSize() == 0)
 			throw new ProtocolViolationException("The inventory packet data is missing");
+		String dataFormat = envelope.getDataFormat();
+		if(null == dataFormat || dataFormat.trim().length() == 0)
+			throw new ProtocolViolationException("The inventory packet data format is missing");
 
-		getClientConnection().updateInventory(payload);
+		getClientConnection().updateInventory(dataFormat, payload);
 	}
 
 	private synchronized void registerClient(BeforeClientData data) {

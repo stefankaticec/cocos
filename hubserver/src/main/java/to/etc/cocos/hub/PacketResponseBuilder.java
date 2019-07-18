@@ -43,6 +43,11 @@ final public class PacketResponseBuilder {
 		return this;
 	}
 
+	public PacketResponseBuilder dataFormat(String format) {
+		getEnvelope().setDataFormat(format);
+		return this;
+	}
+
 	public PacketResponseBuilder targetId(String id) {
 		getEnvelope().setTargetId(id);
 		return this;

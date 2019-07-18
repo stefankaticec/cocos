@@ -3,7 +3,6 @@ package to.etc.cocos.connectors;
 import com.google.protobuf.ByteString;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
 import to.etc.cocos.connectors.server.IClientListener;
-import to.etc.cocos.connectors.server.IRemoteClient;
 import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
@@ -23,17 +22,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class HubServerResponder extends AbstractResponder implements IHubResponder {
 	private final String m_serverVersion = "1.0";
 
-	//private final String m_serverId;
-
 	private final String m_clusterPassword;
 
-	private final IClientAuthenticator<?> m_authenticator;
+	private final IClientAuthenticator m_authenticator;
 
 	private CopyOnWriteArrayList<IClientListener> m_clientListeners = new CopyOnWriteArrayList<>();
 
-	private Map<String, IRemoteClient> m_remoteClientMap = new HashMap<>();
+	private Map<String, RemoteClient> m_remoteClientMap = new HashMap<>();
 
-	public HubServerResponder(String clusterPassword, IClientAuthenticator<?> authenticator) {
+	public HubServerResponder(String clusterPassword, IClientAuthenticator authenticator) {
 		m_clusterPassword = clusterPassword;
 		m_authenticator = authenticator;
 	}
@@ -106,7 +103,7 @@ public class HubServerResponder extends AbstractResponder implements IHubRespond
 	public void handleCLCONN(CommandContext cc) throws Exception {
 		String id = cc.getSourceEnvelope().getSourceId();
 		synchronized(this) {
-			IRemoteClient rc = m_remoteClientMap.computeIfAbsent(id, a -> m_authenticator.newClient(id));
+			RemoteClient rc = m_remoteClientMap.computeIfAbsent(id, a -> new RemoteClient(this, id));
 			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientConnected(rc)));
 		}
 		cc.log("Client (re)connected: " + id);
@@ -119,7 +116,7 @@ public class HubServerResponder extends AbstractResponder implements IHubRespond
 	public void handleCLDISC(CommandContext cc) throws Exception {
 		String id = cc.getSourceEnvelope().getSourceId();
 		synchronized(this) {
-			IRemoteClient rc = m_remoteClientMap.remove(id);
+			RemoteClient rc = m_remoteClientMap.remove(id);
 			if(null == rc) {
 				cc.error("Unexpected disconncted event for unknown client " + id);
 				return;
@@ -127,6 +124,23 @@ public class HubServerResponder extends AbstractResponder implements IHubRespond
 			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientDisconnected(rc)));
 		}
 		cc.log("Client disconnected: " + id);
+	}
+
+	/**
+	 * Client Inventory: a client has updated its inventory.
+	 */
+	@Synchronous
+	public void handleCLINVE(CommandContext cc, JsonPacket packet) throws Exception {
+		String id = cc.getSourceEnvelope().getSourceId();
+		synchronized(this) {
+			RemoteClient rc = m_remoteClientMap.remove(id);
+			if(null == rc) {
+				cc.error("Unexpected client inventory event for unknown client " + id);
+				return;
+			}
+			rc.inventoryReceived(packet);
+			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientInventoryPacketReceived(rc, packet)));
+		}
 	}
 
 	public void addClientListener(IClientListener c) {

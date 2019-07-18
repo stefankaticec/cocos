@@ -1,6 +1,8 @@
 package to.etc.cocos.connectors.server;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import to.etc.cocos.connectors.JsonPacket;
+import to.etc.cocos.connectors.RemoteClient;
 
 /**
  * Listen for clients arriving and leaving.
@@ -10,7 +12,9 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault
 public interface IClientListener {
-	void clientConnected(IRemoteClient client) throws Exception;
+	void clientConnected(RemoteClient client) throws Exception;
 
-	void clientDisconnected(IRemoteClient client) throws Exception;
+	void clientDisconnected(RemoteClient client) throws Exception;
+
+	void clientInventoryPacketReceived(RemoteClient client, JsonPacket packet);
 }

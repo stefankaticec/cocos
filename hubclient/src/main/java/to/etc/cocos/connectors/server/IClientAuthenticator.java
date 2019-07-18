@@ -7,8 +7,6 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  * Created on 03-07-19.
  */
 @NonNullByDefault
-public interface IClientAuthenticator<C extends IRemoteClient> {
+public interface IClientAuthenticator {
 	boolean clientAuthenticated(String clientId, byte[] challenge, byte[] challengeResponse, String clientVersion) throws Exception;
-
-	C newClient(String id);
 }
