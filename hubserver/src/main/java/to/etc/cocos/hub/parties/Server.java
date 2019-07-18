@@ -83,11 +83,13 @@ public class Server extends AbstractConnection {
 
 	public void sendEventClientInventory(String clientId, ByteBufferOutputStream payload) {
 		ByteBuf buffer = getHandler().alloc().buffer();
+		//System.out.println("Payload = " + payload);
+		//System.out.println(" buffers= " + payload.getBuffers());
 		for(byte[] bb : payload.getBuffers()) {
 			buffer.writeBytes(bb);
 		}
 
-		packetBuilder(clientId, CommandNames.CLIENT_CONNECTED)
+		packetBuilder(clientId, CommandNames.INVENTORY_CMD)
 			.sourceId(clientId)
 			.send(buffer);
 	}

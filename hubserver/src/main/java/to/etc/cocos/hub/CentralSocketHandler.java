@@ -309,6 +309,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 					throw new IllegalStateException();
 				else if(m_length == 0) {
 					m_payloadState = PayloadState.READ;
+					Objects.requireNonNull(m_payloadOutputStream).close();
 					handlePacket();
 				}
 				break;
@@ -345,7 +346,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				throw new IllegalStateException("The payload has not yet been read");
 			case READ:
 			case EMPTY:
-				return Objects.requireNonNull(m_payloadOutputStream);
+				ByteBufferOutputStream payload = Objects.requireNonNull(m_payloadOutputStream);
+				m_payloadOutputStream = null;
+				return payload;
 		}
 	}
 
@@ -737,6 +740,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				packetToFinish = m_txCurrentPacket;
 				if(null == packetToFinish)
 					throw new IllegalStateException("Null current txpacket at end of send");
+				m_txCurrentPacket = null;
 			}
 		}
 
