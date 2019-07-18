@@ -123,7 +123,7 @@ abstract public class AbstractResponder implements IHubResponder {
 		//slow method to get overrides
 		for(Method method : getClass().getMethods()) {
 			if(method.getName().equals(name)) {
-				if(method.getReturnType() == Void.class && method.getParameterCount() == 2) {
+				if(/* method.getReturnType() == Void.class && */ method.getParameterCount() == 2) {
 					if(method.getParameterTypes()[0] == CommandContext.class && method.getParameterTypes()[1].isAssignableFrom(body.getClass())) {
 						return method;
 					}

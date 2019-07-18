@@ -131,6 +131,7 @@ public class HubServerResponder extends AbstractResponder implements IHubRespond
 	 */
 	@Synchronous
 	public void handleCLINVE(CommandContext cc, JsonPacket packet) throws Exception {
+		cc.log("Got client inventory packet " + packet);
 		String id = cc.getSourceEnvelope().getSourceId();
 		synchronized(this) {
 			RemoteClient rc = m_remoteClientMap.remove(id);
