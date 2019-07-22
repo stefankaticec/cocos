@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * This is the server-side proxy of a remote client.
+ *
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 18-07-19.
  */
@@ -33,9 +35,21 @@ final public class RemoteClient {
 		return m_clientId;
 	}
 
+	/**
+	 * Retrieve the specified inventory type from the client.
+	 */
 	@Nullable
 	public <I extends JsonPacket> I getInventory(Class<I> packetClass) {
 		JsonPacket jsonPacket = m_inventoryMap.get(packetClass);
 		return (I) jsonPacket;
 	}
+
+	///**
+	// * Send a command to the client.
+	// */
+	//String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, IRemoteCommandListener l) throws Exception {
+	//	return m_hubServer.sendJsonCommand(packet, commandTimeout, commandKey, description, l);
+	//
+	//
+	//}
 }

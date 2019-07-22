@@ -118,7 +118,7 @@ public class HubServerResponder extends AbstractResponder implements IHubRespond
 		synchronized(this) {
 			RemoteClient rc = m_remoteClientMap.remove(id);
 			if(null == rc) {
-				cc.error("Unexpected disconncted event for unknown client " + id);
+				cc.error("Unexpected disconnected event for unknown client " + id);
 				return;
 			}
 			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientDisconnected(rc)));
@@ -161,4 +161,13 @@ public class HubServerResponder extends AbstractResponder implements IHubRespond
 			}
 		}
 	}
+
+	//public String sendJsonCommand(JsonPacket packet, long commandTimeout, String commandKey, String description, IRemoteCommandListener l) {
+	//	String commandId = StringTool.generateGUID();
+	//	Envelope.newBuilder()
+	//		.setDataFormat("JSON:" + packet.getClass().getName())
+	//		.setSourceId()
+	//
+	//
+	//}
 }
