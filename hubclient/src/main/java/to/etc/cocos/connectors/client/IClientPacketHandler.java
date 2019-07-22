@@ -1,6 +1,7 @@
 package to.etc.cocos.connectors.client;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import to.etc.cocos.connectors.CommandContext;
 import to.etc.cocos.connectors.JsonPacket;
 
 /**
@@ -11,4 +12,5 @@ import to.etc.cocos.connectors.JsonPacket;
 public interface IClientPacketHandler {
 	JsonPacket getInventory();
 
+	void executeCommand(CommandContext cc, JsonPacket packet) throws Exception;
 }

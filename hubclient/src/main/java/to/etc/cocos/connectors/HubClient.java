@@ -81,6 +81,14 @@ final public class HubClient extends HubConnectorBase {
 		cc.respondJson(inventory);
 	}
 
+	/**
+	 * Received a JSON command. The command gets executed asynchronously, and is delegated
+	 * to the client command handler.
+	 */
+	public void handleJCMD(CommandContext cc, JsonPacket packet) throws Exception {
+		m_clientHandler.executeCommand(cc, packet);
+	}
+
 	private byte[] encodeChallenge(byte[] challenge) {
 		return challenge;
 	}

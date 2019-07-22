@@ -3,6 +3,8 @@ package to.etc.cocos.connectors;
 import com.google.protobuf.ByteString;
 import io.reactivex.Observable;
 import io.reactivex.subjects.PublishSubject;
+import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
 import to.etc.cocos.connectors.server.IClientListener;
 import to.etc.cocos.connectors.server.IServerEvent;
@@ -17,7 +19,9 @@ import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -25,6 +29,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 13-1-19.
  */
+@NonNullByDefault
 final public class HubServer extends HubConnectorBase {
 	private final String m_serverVersion = "1.0";
 
@@ -189,7 +194,7 @@ final public class HubServer extends HubConnectorBase {
 		cc.log("Got client inventory packet " + packet);
 		String id = cc.getSourceEnvelope().getSourceId();
 		synchronized(this) {
-			RemoteClient rc = m_remoteClientMap.remove(id);
+			RemoteClient rc = m_remoteClientMap.get(id);
 			if(null == rc) {
 				cc.error("Unexpected client inventory event for unknown client " + id);
 				return;
@@ -216,6 +221,20 @@ final public class HubServer extends HubConnectorBase {
 			}
 		}
 	}
+
+	/*----------------------------------------------------------------------*/
+	/*	CODING:	Interface.													*/
+	/*----------------------------------------------------------------------*/
+
+	public synchronized List<RemoteClient> getClientList() {
+		return new ArrayList<>(m_remoteClientMap.values());
+	}
+
+	@Nullable
+	public synchronized RemoteClient findClient(String clientId) {
+		return m_remoteClientMap.get(clientId);
+	}
+
 
 	public void sendJsonCommand(RemoteCommand command, JsonPacket packet) {
 		synchronized(this) {

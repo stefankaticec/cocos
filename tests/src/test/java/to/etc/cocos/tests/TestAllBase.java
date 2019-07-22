@@ -1,12 +1,15 @@
 package to.etc.cocos.tests;
 
 import org.junit.After;
+import to.etc.cocos.connectors.CommandContext;
 import to.etc.cocos.connectors.ConnectorState;
 import to.etc.cocos.connectors.HubClient;
 import to.etc.cocos.connectors.HubServer;
 import to.etc.cocos.connectors.JsonPacket;
 import to.etc.cocos.connectors.client.IClientPacketHandler;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
+import to.etc.cocos.connectors.server.IServerEvent;
+import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.Hub;
 
 import java.nio.charset.StandardCharsets;
@@ -49,6 +52,10 @@ public class TestAllBase {
 			IClientPacketHandler ph = new IClientPacketHandler() {
 				@Override public JsonPacket getInventory() {
 					return new InventoryTestPacket();
+				}
+
+				@Override public void executeCommand(CommandContext cc, JsonPacket packet) throws Exception {
+					throw new IllegalStateException("I have no clue on how to " + packet.getClass().getName());
 				}
 			};
 
@@ -126,5 +133,16 @@ public class TestAllBase {
 
 	protected void setClientPassword(String clientPassword) {
 		m_clientPassword = clientPassword;
+	}
+
+	protected void waitConnected() throws Exception {
+		hub();
+		serverConnected();
+		client();
+		IServerEvent event = server().observeServerEvents()
+			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
+			.filter(a -> a.getType() == ServerEventType.clientInventoryReceived)
+			.timeout(15000, TimeUnit.SECONDS)
+			.blockingFirst();
 	}
 }

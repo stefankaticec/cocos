@@ -51,7 +51,7 @@ final public class RemoteClient {
 	/**
 	 * Send a command to the client.
 	 */
-	String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
+	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
 		String commandId = StringTool.generateGUID();
 		RemoteCommand command = new RemoteCommand(commandId, getClientKey(), commandTimeout, commandKey, description);
 		if(null != l)
