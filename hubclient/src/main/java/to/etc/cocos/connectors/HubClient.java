@@ -1,56 +1,87 @@
 package to.etc.cocos.connectors;
 
-import io.reactivex.Observable;
+import com.google.protobuf.ByteString;
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.client.IClientPacketHandler;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
+import to.etc.hubserver.protocol.CommandNames;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 /**
- * Wrapper for a hub client, encapsulating the client responder and
- * the hubConnector.
- *
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
- * Created on 07-07-19.
+ * Created on 23-1-19.
  */
 @NonNullByDefault
-final public class HubClient {
-	private final HubConnector m_connector;
+final public class HubClient extends HubConnectorBase {
+	private final String m_clientVersion = "HubClient 1.0";
 
-	private final HubClientResponder m_responder;
+	private final String m_clientPassword;
 
-	private HubClient(HubConnector connector, HubClientResponder responder) {
-		m_connector = connector;
-		m_responder = responder;
+	private final String m_targetCluster;
+
+	private final IClientPacketHandler m_clientHandler;
+
+	private HubClient(String hubServer, int hubServerPort, IClientPacketHandler clientHandler, String clientPassword, String targetClusterAndOrg, String myId) {
+		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
+		m_clientHandler = clientHandler;
+		if(targetClusterAndOrg.indexOf('@') != -1)
+			throw new IllegalStateException("The target for a client must be in the format 'organisation#cluster' or just a cluster name");
+		m_clientPassword = clientPassword;
+		m_targetCluster = targetClusterAndOrg;
 	}
 
 	static public HubClient create(IClientPacketHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId, String myPassword) {
-		HubClientResponder responder = new HubClientResponder(handler, myPassword, targetClusterAndOrg);
-		HubConnector client = new HubConnector(hubServer, hubServerPort, targetClusterAndOrg, myId, responder, "Client");
-		return new HubClient(client, responder);
+		HubClient responder = new HubClient(hubServer, hubServerPort, handler, myPassword, targetClusterAndOrg, myId);
+		return responder;
+	}
+	/**
+	 * Respond with a Client HELO response. This send the inventory
+	 * packet, and encodes the challenge with the password.
+	 */
+	@Synchronous
+	public void handleHELO(CommandContext cc) throws Exception {
+		System.out.println("Got HELO request");
+		ByteString ba = cc.getSourceEnvelope().getChallenge().getChallenge();
+		byte[] challenge = ba.toByteArray();
+
+		String ref = m_clientPassword + ":" + cc.getConnector().getMyId();
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		md.update(ref.getBytes(StandardCharsets.UTF_8));
+		md.update(challenge);
+		byte[] digest = md.digest();
+
+		cc.getResponseEnvelope()
+			.setSourceId(cc.getConnector().getMyId())
+			.setVersion(1)
+			.setTargetId(m_targetCluster)
+			.setHeloClient(Hubcore.ClientHeloResponse.newBuilder()
+				.setChallengeResponse(ByteString.copyFrom(digest))
+				.setClientVersion(m_clientVersion)
+				.build()
+			);
+		cc.respond();
+		//cc.respondJson(m_clientHandler.getInventory());
 	}
 
-	public void start() {
-		m_connector.start();
+	/**
+	 * If the authorization was successful we receive this; move to AUTHORIZED status.
+	 */
+	@Synchronous
+	public void handleAUTH(CommandContext cc) throws Exception {
+		cc.getConnector().authorized();
+		cc.log("Authenticated successfully");
+
+		//-- Immediately send the inventory packet
+		JsonPacket inventory = m_clientHandler.getInventory();
+		cc.getResponseEnvelope()
+			.setCommand(CommandNames.INVENTORY_CMD)
+			;
+		cc.respondJson(inventory);
 	}
 
-	public void terminate() {
-		m_connector.terminate();
-	}
-
-	public void terminateAndWait() throws Exception {
-		m_connector.terminateAndWait();
-	}
-
-	public ConnectorState getState() {
-		return m_connector.getState();
-	}
-
-	public Observable<ConnectorState> observeConnectionState() {
-		return m_connector.observeConnectionState();
-	}
-
-	@Nullable public ErrorResponse getLastError() {
-		return m_connector.getLastError();
+	private byte[] encodeChallenge(byte[] challenge) {
+		return challenge;
 	}
 }

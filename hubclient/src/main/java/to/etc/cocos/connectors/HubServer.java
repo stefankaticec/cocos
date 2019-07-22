@@ -1,110 +1,224 @@
 package to.etc.cocos.connectors;
 
+import com.google.protobuf.ByteString;
 import io.reactivex.Observable;
 import io.reactivex.subjects.PublishSubject;
-import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
 import to.etc.cocos.connectors.server.IClientListener;
 import to.etc.cocos.connectors.server.IServerEvent;
 import to.etc.cocos.connectors.server.ServerEventBase;
 import to.etc.cocos.connectors.server.ServerEventType;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
+import to.etc.function.ConsumerEx;
+import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientAuthRequest;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
- * Created on 07-07-19.
+ * Created on 13-1-19.
  */
-@NonNullByDefault
-final public class HubServer {
-	private final HubConnector m_connector;
+final public class HubServer extends HubConnectorBase {
+	private final String m_serverVersion = "1.0";
 
-	private final HubServerResponder m_responder;
+	private final String m_clusterPassword;
+
+	private final IClientAuthenticator m_authenticator;
+
+	private CopyOnWriteArrayList<IClientListener> m_clientListeners = new CopyOnWriteArrayList<>();
+
+	private Map<String, RemoteClient> m_remoteClientMap = new HashMap<>();
 
 	private final PublishSubject<IServerEvent> m_serverEventSubject;
 
-	private HubServer(HubConnector connector, HubServerResponder responder) {
-		m_connector = connector;
-		m_responder = responder;
+	private HubServer(String hubServer, int hubServerPort, String clusterPassword, IClientAuthenticator authenticator, String id) {
+		super(hubServer, hubServerPort, "", id, "Server");
+		m_clusterPassword = clusterPassword;
+		m_authenticator = authenticator;
 		m_serverEventSubject = PublishSubject.create();
-	}
 
-	static public HubServer create(IClientAuthenticator au, String hubServer, int hubServerPort, String hubPassword, String id) {
-		if(id.indexOf('@') == -1)
-			throw new IllegalArgumentException("The server ID must be in the format servername@clustername");
-
-		HubServerResponder responder = new HubServerResponder(hubPassword, au);
-		HubConnector server = new HubConnector(hubServer, hubServerPort, "", id, responder, "Server");
-
-		HubServer hs = new HubServer(server, responder);
-
-		responder.addClientListener(new IClientListener() {
+		addClientListener(new IClientListener() {
 			@Override public void clientConnected(RemoteClient client) throws Exception {
-				hs.m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientConnected, client));
+				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientConnected, client));
 			}
 
 			@Override public void clientDisconnected(RemoteClient client) throws Exception {
-				hs.m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientDisconnected, client));
+				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientDisconnected, client));
 			}
 
 			@Override public void clientInventoryPacketReceived(RemoteClient client, JsonPacket packet) {
-				hs.m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientInventoryReceived, client));
+				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientInventoryReceived, client));
 			}
 		});
-		server.observeConnectionState()
+		observeConnectionState()
 			.subscribe(connectorState -> {
 				switch(connectorState) {
 					default:
 						return;
 
 					case AUTHENTICATED:
-						hs.m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.serverConnected));
+						m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.serverConnected));
 						break;
 
 					case RECONNECT_WAIT:
 					case STOPPED:
-						hs.m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.serverDisconnected));
+						m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.serverDisconnected));
 						break;
 				}
 			});
-
-		return hs;
 	}
 
-	public void start() {
-		m_connector.start();
-	}
+	static public HubServer create(IClientAuthenticator au, String hubServer, int hubServerPort, String hubPassword, String id) {
+		if(id.indexOf('@') == -1)
+			throw new IllegalArgumentException("The server ID must be in the format servername@clustername");
 
-	public void terminate() {
-		m_connector.terminate();
-	}
-
-	public void terminateAndWait() throws Exception {
-		m_connector.terminateAndWait();
-	}
-
-	public ConnectorState getState() {
-		return m_connector.getState();
-	}
-
-	public Observable<ConnectorState> observeConnectionState() {
-		return m_connector.observeConnectionState();
-	}
-
-	@Nullable public ErrorResponse getLastError() {
-		return m_connector.getLastError();
-	}
-
-	public void addClientListener(IClientListener c) {
-		m_responder.addClientListener(c);
-	}
-
-	public void removeClientListener(IClientListener l) {
-		m_responder.removeClientListener(l);
+		HubServer responder = new HubServer(hubServer, hubServerPort, hubPassword, au, id);
+		return responder;
 	}
 
 	public Observable<IServerEvent> observeServerEvents() {
 		return m_serverEventSubject;
 	}
-}
 
+	/*----------------------------------------------------------------------*/
+	/*	CODING:	Authentication.												*/
+	/*----------------------------------------------------------------------*/
+
+	/**
+	 * Server authentication request from the HUB. Respond with a Server
+	 * HELO response, and encode the challenge with the password.
+	 */
+	@Synchronous
+	public void handleHELO(CommandContext cc) throws Exception {
+		System.out.println("Got HELO request");
+
+		ByteString ba = cc.getSourceEnvelope().getChallenge().getChallenge();
+		byte[] challenge = ba.toByteArray();
+
+		String ref = m_clusterPassword + ":" + cc.getConnector().getMyId();
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		md.update(ref.getBytes(StandardCharsets.UTF_8));
+		md.update(challenge);
+		byte[] digest = md.digest();
+
+		cc.getResponseEnvelope()
+			.setSourceId(cc.getConnector().getMyId())
+			.setVersion(1)
+			.setTargetId("")
+			.setHeloServer(Hubcore.ServerHeloResponse.newBuilder()
+				.setChallengeResponse(ByteString.copyFrom(digest))
+				.setServerVersion(m_serverVersion)
+				.build()
+			);
+		cc.respond();
+	}
+
+	/**
+	 * If the server's authorization was successful we receive this; move to AUTHORIZED status.
+	 */
+	@Synchronous
+	public void handleAUTH(CommandContext cc) throws Exception {
+		cc.getConnector().authorized();
+		cc.log("Authenticated successfully");
+	}
+
+	/**
+	 * Client authentication request.
+	 */
+	@Synchronous
+	public void handleCLAUTH(CommandContext cc) throws Exception {
+		ClientAuthRequest clau = cc.getSourceEnvelope().getClientAuth();
+		cc.log("Client authentication request from " + clau.getClientId());
+		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion())) {
+			cc.respondErrorPacket(ErrorCode.authenticationFailure, "");
+			return;
+		}
+
+		//-- Respond with an AUTH packet.
+		cc.getResponseEnvelope()
+			.setCommand(CommandNames.AUTH_CMD)
+			;
+		cc.respond();
+	}
+
+	/**
+	 * Client connected event. Add the client, then start sending events.
+	 */
+	@Synchronous
+	public void handleCLCONN(CommandContext cc) throws Exception {
+		String id = cc.getSourceEnvelope().getSourceId();
+		synchronized(this) {
+			RemoteClient rc = m_remoteClientMap.computeIfAbsent(id, a -> new RemoteClient(this, id));
+			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientConnected(rc)));
+		}
+		cc.log("Client (re)connected: " + id);
+	}
+
+	/**
+	 * Client disconnected event. Remove the client, then start sending events.
+	 */
+	@Synchronous
+	public void handleCLDISC(CommandContext cc) throws Exception {
+		String id = cc.getSourceEnvelope().getSourceId();
+		synchronized(this) {
+			RemoteClient rc = m_remoteClientMap.remove(id);
+			if(null == rc) {
+				cc.error("Unexpected disconnected event for unknown client " + id);
+				return;
+			}
+			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientDisconnected(rc)));
+		}
+		cc.log("Client disconnected: " + id);
+	}
+
+	/**
+	 * Client Inventory: a client has updated its inventory.
+	 */
+	@Synchronous
+	public void handleCLINVE(CommandContext cc, JsonPacket packet) throws Exception {
+		cc.log("Got client inventory packet " + packet);
+		String id = cc.getSourceEnvelope().getSourceId();
+		synchronized(this) {
+			RemoteClient rc = m_remoteClientMap.remove(id);
+			if(null == rc) {
+				cc.error("Unexpected client inventory event for unknown client " + id);
+				return;
+			}
+			rc.inventoryReceived(packet);
+			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientInventoryPacketReceived(rc, packet)));
+		}
+	}
+
+	public void addClientListener(IClientListener c) {
+		m_clientListeners.add(c);
+	}
+
+	public void removeClientListener(IClientListener l) {
+		m_clientListeners.remove(l);
+	}
+
+	private void callListeners(ConsumerEx<IClientListener> what) {
+		for(IClientListener l : m_clientListeners) {
+			try {
+				what.accept(l);
+			} catch(Exception x) {
+				x.printStackTrace();
+			}
+		}
+	}
+
+	//public String sendJsonCommand(JsonPacket packet, long commandTimeout, String commandKey, String description, IRemoteCommandListener l) {
+	//	String commandId = StringTool.generateGUID();
+	//	Envelope.newBuilder()
+	//		.setDataFormat("JSON:" + packet.getClass().getName())
+	//		.setSourceId()
+	//
+	//
+	//}
+}

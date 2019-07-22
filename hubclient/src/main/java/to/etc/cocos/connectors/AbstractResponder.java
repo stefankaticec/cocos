@@ -83,7 +83,7 @@ abstract public class AbstractResponder implements IHubResponder {
 	}
 
 	@Nullable
-	private Object decodeBody(HubConnector connector,String bodyType, List<byte[]> data) throws IOException {
+	private Object decodeBody(HubConnectorBase connector,String bodyType, List<byte[]> data) throws IOException {
 		switch(bodyType) {
 			case CommandNames.BODY_BYTES:
 				return data;

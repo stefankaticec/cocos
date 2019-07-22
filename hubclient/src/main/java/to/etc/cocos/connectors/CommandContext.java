@@ -17,13 +17,13 @@ import to.etc.util.StringTool;
  */
 @NonNullByDefault
 final public class CommandContext {
-	private final HubConnector m_connector;
+	private final HubConnectorBase m_connector;
 
 	private final Hubcore.Envelope m_envelope;
 
 	private final Builder m_responseEnvelope;
 
-	public CommandContext(HubConnector connector, Envelope envelope) {
+	public CommandContext(HubConnectorBase connector, Envelope envelope) {
 		m_connector = connector;
 		m_envelope = envelope;
 
@@ -60,7 +60,7 @@ final public class CommandContext {
 		return m_responseEnvelope;
 	}
 
-	public HubConnector getConnector() {
+	public HubConnectorBase getConnector() {
 		return m_connector;
 	}
 

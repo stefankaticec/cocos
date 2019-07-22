@@ -16,11 +16,11 @@ import java.util.Map;
 final public class RemoteClient {
 	final private String m_clientId;
 
-	private final HubServerResponder m_hubServer;
+	private final HubServer m_hubServer;
 
 	private Map<Class<?>, JsonPacket> m_inventoryMap = new HashMap<>();
 
-	public RemoteClient(HubServerResponder server, String clientId) {
+	public RemoteClient(HubServer server, String clientId) {
 		m_hubServer= server;
 		m_clientId = clientId;
 	}

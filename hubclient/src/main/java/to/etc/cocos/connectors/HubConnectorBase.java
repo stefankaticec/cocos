@@ -9,8 +9,12 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.HubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
+import to.etc.util.ByteBufferInputStream;
+import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 
@@ -20,8 +24,11 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.Socket;
 import java.security.KeyStore;
@@ -44,18 +51,16 @@ import java.util.concurrent.Executors;
  * Created on 10-1-19.
  */
 @NonNullByDefault
-final class HubConnector {
+abstract class HubConnectorBase {
 	static private final int MAX_PACKET_SIZE = 1024 * 1024;
 
-	static private final Logger LOG = LoggerFactory.getLogger(HubConnector.class);
+	static private final Logger LOG = LoggerFactory.getLogger(HubConnectorBase.class);
 
 	private final PublishSubject<ConnectorState> m_connStatePublisher;
 
 	private final ObjectMapper m_mapper;
 
 	private final String m_logName;
-
-	private final IHubResponder m_responder;
 
 	private boolean m_logTx = true;
 
@@ -125,12 +130,11 @@ final class HubConnector {
 	@Nullable
 	private ErrorResponse m_lastError;
 
-	HubConnector(String server, int port, String targetId, String myId, IHubResponder responder, String logName) {
+	HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
 		m_server = server;
 		m_port = port;
 		m_myId = myId;
 		m_targetId = targetId;
-		m_responder = responder;
 		m_connStatePublisher = PublishSubject.<ConnectorState>create();
 		m_logName = logName;
 
@@ -481,43 +485,13 @@ final class HubConnector {
 		log("Received packet: " + env.getCommand());
 		CommandContext ctx = new CommandContext(this, env);
 		try {
-			m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
+			packetReceived(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
+			//m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
 		} catch(Exception px) {
 			log("Fatal command handler exception: " + px);
 			forceDisconnect(px.toString());
 		}
 	}
-
-	//private void handleServerFatal(BytePacket packet) throws IOException {
-	//	Hubcore.ErrorResponse response = Hubcore.ErrorResponse.parseFrom(packet.getRemainingInput());
-	//	throw new FatalServerException("Server sent a fatal error: " + response.getCode() + ": " + response.getText());
-	//}
-	//
-	///**
-	// * Create a HELO response packet.
-	// */
-	//private void respondHelo(BytePacket input) throws Exception {
-	//	if(input.getType() != 0x00 || ! input.getCommand().equals(CommandNames.HELO_CMD)) {
-	//		throw new ProtocolViolationException("Expecting HELO packet");
-	//	}
-	//	m_responder.onHelloPacket(this, input);
-	//	m_packetState = this::respondAuth;
-	//}
-	//
-	///**
-	// * Wait for AUTH.
-	// */
-	//private void respondAuth(BytePacket input) throws Exception {
-	//	if(input.getType() != 0x01 || !input.getCommand().equals(CommandNames.AUTH_CMD)) {
-	//		throw new ProtocolViolationException("Expecting AUTH packet");
-	//	}
-	//	m_responder.onAuth(this, input);
-	//	synchronized(this) {
-	//		m_state = ConnectorState.CONNECTED;
-	//		m_reconnectCount = 0;
-	//	}
-	//	m_packetState = packet -> m_responder.acceptPacket(this, packet);
-	//}
 
 	/**
 	 * Force disconnect and enter the next appropriate state, depending on
@@ -686,4 +660,126 @@ final class HubConnector {
 			}
 		}
 	}
+
+
+	/*----------------------------------------------------------------------*/
+	/*	CODING:	Command handling											*/
+	/*----------------------------------------------------------------------*/
+	static private final byte[] NULLBODY = new byte[0];
+
+	private void packetReceived(CommandContext ctx, List<byte[]> data) throws Exception {
+		Object body = decodeBody(ctx.getConnector(), ctx.getSourceEnvelope().getDataFormat(), data);
+		Method m = findHandlerMethod(ctx.getSourceEnvelope().getCommand(), body);
+		if(null == m) {
+			throw new ProtocolViolationException("No handler for packet command " + ctx.getSourceEnvelope().getCommand() + " with body type " + bodyType(body));
+		}
+
+		if(m.getAnnotation(Synchronous.class) != null) {
+			invokeCall(ctx, body, m);
+		} else {
+			invokeCallAsync(ctx, body, m);
+		}
+	}
+
+	private String bodyType(@Nullable Object body) {
+		return null == body ? "(void)" : body.getClass().getName();
+	}
+
+	private void invokeCallAsync(CommandContext ctx, @Nullable Object body, Method m) {
+		ctx.getConnector().getExecutor().execute(() -> {
+			try {
+				invokeCall(ctx, body, m);
+			} catch(Exception x) {
+				ctx.log("Failed to execute " + m.getName() + ": " + x);
+				try {
+					handleException(ctx, x);
+				} catch(Exception xx) {
+					ctx.log("Could not return protocol error: " + xx);
+				}
+			}
+		});
+	}
+
+	private void invokeCall(CommandContext ctx, @Nullable Object body, Method m) throws Exception {
+		try {
+			if(null == body)
+				m.invoke(this, ctx);
+			else
+				m.invoke(this, ctx, body);
+		} catch(InvocationTargetException itx) {
+			handleException(ctx, itx);
+		}
+	}
+
+	private void handleException(CommandContext cc, Throwable t) throws Exception {
+		while(t instanceof InvocationTargetException) {
+			t = ((InvocationTargetException)t).getTargetException();
+		}
+
+		if(t instanceof HubException) {
+			cc.respondHubException((HubException) t);
+		}  if(t instanceof RuntimeException) {
+			throw (RuntimeException) t;
+		} else if(t instanceof Error) {
+			throw (Error) t;
+		} else if(t instanceof Exception) {
+			throw (Exception) t;
+		} else {
+			throw new RuntimeException(t);
+		}
+	}
+
+	@Nullable
+	private Object decodeBody(HubConnectorBase connector,String bodyType, List<byte[]> data) throws IOException {
+		switch(bodyType) {
+			case CommandNames.BODY_BYTES:
+				return data;
+
+			case "":
+				return null;
+		}
+
+		int pos = bodyType.indexOf(':');
+		if(pos == -1)
+			throw new ProtocolViolationException("Unknown body type " + bodyType);
+		String clzz = bodyType.substring(pos + 1);
+		String sub = bodyType.substring(0, pos);
+
+		switch(sub) {
+			default:
+				throw new ProtocolViolationException("Unknown body type " + bodyType);
+
+			case CommandNames.BODY_JSON:
+				Class<?> bodyClass = ClassUtil.loadClass(getClass().getClassLoader(), clzz);
+				return connector.getMapper().readerFor(bodyClass).readValue(new ByteBufferInputStream(data.toArray(new byte[data.size()][])));
+		}
+	}
+
+	@Nullable
+	private Method findHandlerMethod(String command, @Nullable Object body) {
+		String name = "handle" + command;
+		try {
+			return body == null
+				? getClass().getMethod(name, CommandContext.class)
+				: getClass().getMethod(name, CommandContext.class, body.getClass());
+		} catch(Exception x) {
+		}
+		if(null == body)
+			return null;
+
+		//slow method to get overrides
+		for(Method method : getClass().getMethods()) {
+			if(method.getName().equals(name)) {
+				if(/* method.getReturnType() == Void.class && */ method.getParameterCount() == 2) {
+					if(method.getParameterTypes()[0] == CommandContext.class && method.getParameterTypes()[1].isAssignableFrom(body.getClass())) {
+						return method;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+
+
 }
