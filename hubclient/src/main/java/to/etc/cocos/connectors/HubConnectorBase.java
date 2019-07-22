@@ -17,6 +17,7 @@ import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
+import to.etc.util.StringTool;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
@@ -779,7 +780,4 @@ abstract class HubConnectorBase {
 		}
 		return null;
 	}
-
-
-
 }

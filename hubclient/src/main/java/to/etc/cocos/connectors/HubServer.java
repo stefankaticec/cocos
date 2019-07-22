@@ -13,6 +13,7 @@ import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientAuthRequest;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -36,6 +37,9 @@ final public class HubServer extends HubConnectorBase {
 	private Map<String, RemoteClient> m_remoteClientMap = new HashMap<>();
 
 	private final PublishSubject<IServerEvent> m_serverEventSubject;
+
+	private final Map<String, RemoteCommand> m_commandMap = new HashMap<>();
+	private final Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
 
 	private HubServer(String hubServer, int hubServerPort, String clusterPassword, IClientAuthenticator authenticator, String id) {
 		super(hubServer, hubServerPort, "", id, "Server");
@@ -213,12 +217,24 @@ final public class HubServer extends HubConnectorBase {
 		}
 	}
 
-	//public String sendJsonCommand(JsonPacket packet, long commandTimeout, String commandKey, String description, IRemoteCommandListener l) {
-	//	String commandId = StringTool.generateGUID();
-	//	Envelope.newBuilder()
-	//		.setDataFormat("JSON:" + packet.getClass().getName())
-	//		.setSourceId()
-	//
-	//
-	//}
+	public void sendJsonCommand(RemoteCommand command, JsonPacket packet) {
+		synchronized(this) {
+			m_commandMap.put(command.getCommandId(), command);
+		}
+
+		Envelope jcmd = Envelope.newBuilder()
+			.setDataFormat("JSON:" + packet.getClass().getName())
+			.setSourceId(getMyId())
+			.setTargetId(command.getClientKey())
+			.setVersion(1)
+			.setCommand("JCMD")
+			.setCommandId(command.getCommandId())
+			.build();
+		sendPacket(new ISendPacket() {
+			@Override public void send(PacketWriter os) throws Exception {
+				os.send(jcmd, packet);
+			}
+		});
+	}
+
 }

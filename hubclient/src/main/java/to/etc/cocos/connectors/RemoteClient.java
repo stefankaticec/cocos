@@ -2,6 +2,7 @@ package to.etc.cocos.connectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.util.StringTool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,6 +20,9 @@ final public class RemoteClient {
 	private final HubServer m_hubServer;
 
 	private Map<Class<?>, JsonPacket> m_inventoryMap = new HashMap<>();
+
+	private Map<String, RemoteCommand> m_commandMap = new HashMap<>();
+	private Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
 
 	public RemoteClient(HubServer server, String clientId) {
 		m_hubServer= server;
@@ -44,12 +48,23 @@ final public class RemoteClient {
 		return (I) jsonPacket;
 	}
 
-	///**
-	// * Send a command to the client.
-	// */
-	//String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, IRemoteCommandListener l) throws Exception {
-	//	return m_hubServer.sendJsonCommand(packet, commandTimeout, commandKey, description, l);
-	//
-	//
-	//}
+	/**
+	 * Send a command to the client.
+	 */
+	String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
+		String commandId = StringTool.generateGUID();
+		RemoteCommand command = new RemoteCommand(commandId, getClientKey(), commandTimeout, commandKey, description);
+		if(null != l)
+			command.addListener(l);
+		synchronized(m_hubServer) {
+			if(null != commandKey) {
+				if(m_commandByKeyMap.containsKey(commandKey))
+					throw new IllegalStateException("The command with key=" + commandKey + " is already pending for client " + this);
+			}
+
+			m_commandMap.put(commandId, command);
+		}
+		m_hubServer.sendJsonCommand(command, packet);
+		return commandId;
+	}
 }
