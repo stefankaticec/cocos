@@ -26,10 +26,10 @@ import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.HelloChallenge;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ServerHeloResponse;
-import to.etc.util.ByteBufferOutputStream;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -69,7 +69,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@NonNull
 	final private byte[] m_lenBuf = new byte[4];
 
-	private int m_length;
+	private int pshLength;
 
 	@Nullable
 	private byte[] m_envelopeBuffer;
@@ -78,18 +78,17 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	private Envelope m_envelope;
 
-	@NonNull
-	private PayloadState m_payloadState = PayloadState.EMPTY;
+	private int m_payloadLength;
 
 	@Nullable
-	private ByteBufferOutputStream m_payloadOutputStream;
+	private ByteBuf m_payloadBuffer;
 
 	/**
-	 * The state for reading a packet.
+	 * PacketReaderState: the state for the engine that reads bytes and converts them into packet data.
 	 */
-	private IReadHandler m_readState = this::readHeaderLong;
+	private IReadHandler m_prState = this::prReadHeaderLong;
 
-	private IPacketHandler m_packetState = this::expectHeloResponse;
+	private IPacketHandler m_packetState = this::psExpectHeloResponse;
 
 	@Nullable
 	private Object m_packetStateData;
@@ -111,7 +110,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 		try {
 			while(data.readableBytes() > 0) {
-				m_readState.handleRead(context, data);
+				m_prState.handleRead(context, data);
 			}
 		} catch(HubException x) {
 			immediateSendHubException(x);
@@ -147,7 +146,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 					.setServerVersion(Hub.VERSION)
 			)
 		;
-		setPacketState(this::expectHeloResponse);
+		setPacketState(this::psExpectHeloResponse);
 		response.send();
 	}
 
@@ -179,14 +178,14 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	Server getServerConnection() {
 		return (Server) getConnection();
 	}
+
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Packet reader states.										*/
 	/*----------------------------------------------------------------------*/
-
 	/**
-	 * Packet state: read the header and check it once read.
+	 * PacketReader: read the header and check it once read.
 	 */
-	private void readHeaderLong(ChannelHandlerContext context, ByteBuf source) {
+	private void prReadHeaderLong(ChannelHandlerContext context, ByteBuf source) {
 		m_intBuf.writeBytes(source);
 		if(m_intBuf.readableBytes() >= 4) {
 			//-- Compare against header
@@ -197,24 +196,24 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			}
 
 			//-- It worked. Next thing is the envelope length.
-			m_readState = this::readEnvelopeLength;
+			m_prState = this::prReadEnvelopeLength;
 		}
 	}
 
 	/**
 	 * Read the length bytes for the envelope.
 	 */
-	private void readEnvelopeLength(ChannelHandlerContext context, ByteBuf source) {
+	private void prReadEnvelopeLength(ChannelHandlerContext context, ByteBuf source) {
 		m_intBuf.writeBytes(source);
 		if(m_intBuf.readableBytes() >= 4) {
 			int length = m_intBuf.readInt();
 			if(length < 0 || length >= CommandNames.MAX_ENVELOPE_LENGTH) {
 				throw new ProtocolViolationException("Envelope length " + length + " is out of limits");
 			}
-			m_length = length;
+			pshLength = length;
 			m_envelopeBuffer = new byte[length];
 			m_envelopeOffset = 0;
-			m_readState = this::readEnvelope;
+			m_prState = this::prReadEnvelope;
 		}
 	}
 
@@ -222,11 +221,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * With the length from the previous step, collect the envelope data into a byte array
 	 * and when finished convert it into the Envelope class.
 	 */
-	private void readEnvelope(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf) throws Exception {
+	private void prReadEnvelope(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf) throws Exception {
 		int available = byteBuf.readableBytes();
 		if(available == 0)
 			return;
-		int todo = m_length - m_envelopeOffset;
+		int todo = pshLength - m_envelopeOffset;
 		if(todo > available) {
 			todo = available;
 		}
@@ -235,7 +234,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_envelopeOffset += todo;
 
 		//-- All data read?
-		if(m_envelopeOffset < m_length)
+		if(m_envelopeOffset < pshLength)
 			return;
 
 		//-- Create the Envelope
@@ -245,168 +244,75 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			m_envelopeBuffer = null;
 		}
 
-		m_readState = this::readPayloadLength;
+		m_prState = this::prReadPayloadLength;
 	}
 
-	private void readPayloadLength(ChannelHandlerContext channelHandlerContext, ByteBuf source) throws Exception {
+	/**
+	 * Envelope has been fully obtained and decoded as an Envelope. What follows is the payload length.
+	 */
+	private void prReadPayloadLength(ChannelHandlerContext channelHandlerContext, ByteBuf source) throws Exception {
 		m_intBuf.writeBytes(source);
 		if(m_intBuf.readableBytes() >= 4) {
 			int length = m_intBuf.readInt();
-			if(length < 0 || length >= CommandNames.MAX_ENVELOPE_LENGTH) {
-				throw new ProtocolViolationException("Envelope length " + length + " is out of limits");
+			if(length < 0 || length >= CommandNames.MAX_DATA_LENGTH) {
+				throw new ProtocolViolationException("Packet payload length " + length + " is out of limits");
 			}
-			m_length = length;
-			m_payloadOutputStream = null;
-
-			/*
-			 * We now have all info to decide what to do with the data. The data payload will not be read
-			 * until the envelope has been decoded and handled. If decode decides that the data needs to be
-			 * copied it will schedule that here.
-			 */
+			pshLength = m_payloadLength = length;
 			if(length == 0) {
 				//-- Nothing to do: we're just set for another packet.
-				m_readState = this::readHeaderLong;
-				m_payloadState = PayloadState.EMPTY;
+				m_prState = this::prReadHeaderLong;
+				m_payloadBuffer = null;
+				handlePacket();
 			} else {
-				m_readState = this::bodyReadError;
-				m_payloadState = PayloadState.UNREAD;
-				m_payloadOutputStream = new ByteBufferOutputStream();
+				m_payloadBuffer = alloc().buffer(length, CommandNames.MAX_DATA_LENGTH);
+				m_prState = this::prReadPayload;
 			}
+		}
+	}
 
+	/**
+	 * Copy payload bytes to the payload buffer for this channel until all bytes have been transferred.
+	 */
+	private void prReadPayload(ChannelHandlerContext channelHandlerContext, ByteBuf source) throws Exception {
+		int available = source.readableBytes();
+		if(available == 0)
+			return;
+		int todo = pshLength;
+		if(todo > available) {
+			todo = available;
+		}
+		ByteBuf outb = m_payloadBuffer;
+		if(null == outb)
+			throw new IllegalStateException("No payload buffer in readPayload phase");
+		outb.writeBytes(source, todo);
+		pshLength -= todo;
+		if(pshLength == 0) {
+			m_prState = this::prReadHeaderLong;
 			handlePacket();
 		}
 	}
 
-	/**
-	 * Usable after readPayloadLength, this actually reads the payload into a
-	 * payload buffer set.
-	 */
-	private void readPayloadBodyBytes(ChannelHandlerContext channelHandlerContext, ByteBuf source) throws Exception {
-		switch(m_payloadState) {
-			default:
-				throw new IllegalStateException(m_payloadState + "??");
-
-			case EMPTY:
-				m_payloadOutputStream = new ByteBufferOutputStream();
-				m_payloadState = PayloadState.READ;
-				return;
-
-			case READ:
-				throw new IllegalStateException("Attempt to read payload when it has already been read");
-
-			case UNREAD:
-				int available = source.readableBytes();
-				if(available == 0)
-					return;
-				int todo = m_length;
-				if(todo > available) {
-					todo = available;
-				}
-				ByteBufferOutputStream pos = Objects.requireNonNull(m_payloadOutputStream);
-				source.readBytes(pos, todo);
-				m_length -= todo;
-				if(m_length < 0)
-					throw new IllegalStateException();
-				else if(m_length == 0) {
-					m_payloadState = PayloadState.READ;
-					Objects.requireNonNull(m_payloadOutputStream).close();
-					handlePacket();
-				}
-				break;
-		}
-	}
-
-
-	/**
-	 * This state means that a body was present but the packet handler did not decide to read it proper. It
-	 * reports an error, then terminates the connection.
-	 */
-	private void bodyReadError(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf) {
-		throw new ProtocolViolationException("The packet handler did not cause the payload for the packet to be read");
-	}
-
 	private int getPayloadLength() {
-		switch(m_payloadState) {
-			default:
-				throw new IllegalStateException(m_payloadState + ": ??");
-			case EMPTY:
-				return 0;
-			case UNREAD:
-				throw new IllegalStateException("The payload has not yet been read");
-			case READ:
-				return Objects.requireNonNull(m_payloadOutputStream).getSize();
-		}
+		return m_payloadLength;
 	}
 
-	private ByteBufferOutputStream getPayload() {
-		switch(m_payloadState) {
-			default:
-				throw new IllegalStateException(m_payloadState + ": ??");
-			case UNREAD:
-				throw new IllegalStateException("The payload has not yet been read");
-			case READ:
-			case EMPTY:
-				ByteBufferOutputStream payload = Objects.requireNonNull(m_payloadOutputStream);
-				m_payloadOutputStream = null;
-				return payload;
-		}
-	}
-
-	private boolean isPayloadLoaded() {
-		switch(m_payloadState) {
-			default:
-				throw new IllegalStateException(m_payloadState + ": ??");
-			case EMPTY:
-				m_payloadOutputStream = new ByteBufferOutputStream();
-				return true;
-			case UNREAD:
-				m_readState = this::readPayloadBodyBytes;
-				return false;
-			case READ:
-				return true;
-		}
+	private ByteBuf getPayload() {
+		ByteBuf b = m_payloadBuffer;
+		if(null == b)
+			throw new IllegalStateException("There is no payload body");
+		m_payloadBuffer = null;
+		return b;
 	}
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Command state handler.										*/
 	/*----------------------------------------------------------------------*/
 	/**
-	 *
+	 * Starting state: the remote must send a HELO command to start off the protocol.
 	 */
-	private void handlePacket() throws Exception {
-		IPacketHandler packetState;
-		synchronized(this) {
-			packetState = m_packetState;
-		}
-		packetState.handlePacket(m_envelope);
-	}
-
-	private synchronized void setPacketState(IPacketHandler handler) {
-		m_packetState = handler;
-		m_packetStateData = null;
-	}
-
-	private synchronized void setPacketState(IPacketHandler handler, Object data) {
-		m_packetState = handler;
-		m_packetStateData = data;
-	}
-
-	private synchronized <T> T getPacketStateData(Class<T> clz) {
-		Object data = m_packetStateData;
-		if(null == data) {
-			throw new IllegalStateException("Invalid packet state data: expected " + clz.getClass().getName() + " but got null");
-		}
-		if(clz.isInstance(data))
-			return (T) data;
-		throw new IllegalStateException("Invalid packet state data: expected " + clz.getClass().getName() + " but got " + data.getClass().getName());
-	}
-
-	private void expectHeloResponse(Hubcore.Envelope envelope) throws Exception {
+	private void psExpectHeloResponse(Hubcore.Envelope envelope) throws Exception {
 		if(envelope.hasHeloClient()) {
-			//-- The client expects a JSON inventory in the body, so first start reading that
-			if(isPayloadLoaded()) {
-				handleClientHello(envelope, envelope.getHeloClient());
-			}
+			handleClientHello(envelope, envelope.getHeloClient());
 		} else if(envelope.hasHeloServer()) {
 			handleServerHello(envelope, envelope.getHeloServer());
 		} else
@@ -450,6 +356,16 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		rb.send();
 	}
 
+	private void serverPacketReceived(Envelope envelope) {
+
+
+	}
+
+
+
+	/*----------------------------------------------------------------------*/
+	/*	CODING:	Client handler.												*/
+	/*----------------------------------------------------------------------*/
 	/**
 	 * Handles the client HELO response. It stores the inventory packet, and
 	 * then forwards the HELO request as an CLAUTH command to the remote server.
@@ -478,6 +394,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 					throw new FatalHubException(ErrorCode.clusterNotFound, split[0]);
 				orgId = null;
 				break;
+
 			case 2:
 				cluster = getDirectory().getCluster(split[1]);
 				orgId = split[0];
@@ -536,26 +453,60 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 	}
 
-	private void handleClientInventory(Envelope envelope) {
+	private void handleClientInventory(Envelope envelope) throws IOException {
 		if(! envelope.getCommand().equals(CommandNames.INVENTORY_CMD)) {
 			throw new ProtocolViolationException("Expecting inventory, got " + envelope.getCommand());
 		}
-		if(! isPayloadLoaded())
-			return;
 		log("in handleClientInventory, got " + envelope.getCommand());
-		ByteBufferOutputStream payload = getPayload();
-		if(payload.getSize() == 0)
+		if(getPayloadLength() == 0)
 			throw new ProtocolViolationException("The inventory packet data is missing");
+		ByteBuf payload = getPayload();
 		String dataFormat = envelope.getDataFormat();
 		if(null == dataFormat || dataFormat.trim().length() == 0)
 			throw new ProtocolViolationException("The inventory packet data format is missing");
 
-		getClientConnection().updateInventory(dataFormat, payload);
+		try {
+			getClientConnection().updateInventory(dataFormat, payload, getPayloadLength());
+		} finally {
+			payload.release();
+		}
 	}
 
 	private synchronized void registerClient(BeforeClientData data) {
 		m_connection = getCluster().registerAuthorizedClient(this);
 	}
+
+	/**
+	 * State handler that handles the packet level dialogue.
+	 */
+	private void handlePacket() throws Exception {
+		IPacketHandler packetState;
+		synchronized(this) {
+			packetState = m_packetState;
+		}
+		packetState.handlePacket(m_envelope);
+	}
+
+	private synchronized void setPacketState(IPacketHandler handler) {
+		m_packetState = handler;
+		m_packetStateData = null;
+	}
+
+	private synchronized void setPacketState(IPacketHandler handler, Object data) {
+		m_packetState = handler;
+		m_packetStateData = data;
+	}
+
+	private synchronized <T> T getPacketStateData(Class<T> clz) {
+		Object data = m_packetStateData;
+		if(null == data) {
+			throw new IllegalStateException("Invalid packet state data: expected " + clz.getClass().getName() + " but got null");
+		}
+		if(clz.isInstance(data))
+			return (T) data;
+		throw new IllegalStateException("Invalid packet state data: expected " + clz.getClass().getName() + " but got " + data.getClass().getName());
+	}
+
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	All kinds of disconnect handling							*/
@@ -917,11 +868,5 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	interface IPacketHandler {
 		void handlePacket(Hubcore.Envelope envelope) throws Exception;
-	}
-
-	private enum PayloadState {
-		EMPTY,
-		UNREAD,
-		READ;
 	}
 }

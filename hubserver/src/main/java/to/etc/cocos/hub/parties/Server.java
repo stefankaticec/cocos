@@ -10,7 +10,6 @@ import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
-import to.etc.util.ByteBufferOutputStream;
 import to.etc.util.ConsoleUtil;
 
 /**
@@ -22,6 +21,9 @@ public class Server extends AbstractConnection {
 		super(cluster, systemContext, id);
 	}
 
+	/**
+	 * Packet received from the remote server.
+	 */
 	public void packetReceived(Envelope envelope) {
 		if(!isUsable())
 			throw new FatalHubException(ErrorCode.serverDisconnected);
@@ -33,6 +35,10 @@ public class Server extends AbstractConnection {
 		} else {
 			Client client = getCluster().findClient(targetId);
 			if(null != client) {
+				//-- Forward the packet to the client.
+
+
+
 				client.packetFromServer(this, envelope);
 			} else {
 				CentralSocketHandler tmpClient = getDirectory().findTempClient(targetId);
@@ -81,17 +87,17 @@ public class Server extends AbstractConnection {
 		b.send();
 	}
 
-	public void sendEventClientInventory(String clientId, String dataFormat, ByteBufferOutputStream payload) {
+	public void sendEventClientInventory(String clientId, ByteBufferPacket packet) {
 		ByteBuf buffer = getHandler().alloc().buffer();
 		//System.out.println("Payload = " + payload);
 		//System.out.println(" buffers= " + payload.getBuffers());
-		for(byte[] bb : payload.getBuffers()) {
+		for(byte[] bb : packet.getBuffers()) {
 			buffer.writeBytes(bb);
 		}
 
 		packetBuilder(clientId, CommandNames.INVENTORY_CMD)
 			.sourceId(clientId)
-			.dataFormat(dataFormat)
+			.dataFormat(packet.getDataFormat())
 			.send(buffer);
 	}
 }

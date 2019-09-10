@@ -17,7 +17,6 @@ import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
-import to.etc.util.StringTool;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
@@ -641,11 +640,11 @@ abstract class HubConnectorBase {
 	}
 
 	public void error(String s) {
-		ConsoleUtil.consoleError(m_myId, s);
+		ConsoleUtil.consoleError(m_logName, s);
 	}
 
 	private void error(Throwable t, String s) {
-		ConsoleUtil.consoleError(m_myId, s);
+		ConsoleUtil.consoleError(m_logName, s);
 		t.printStackTrace();
 	}
 
