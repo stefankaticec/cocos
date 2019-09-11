@@ -262,7 +262,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				//-- Nothing to do: we're just set for another packet.
 				m_prState = this::prReadHeaderLong;
 				m_payloadBuffer = null;
-				handlePacket();
+				handlePacket(null, 0);
 			} else {
 				m_payloadBuffer = alloc().buffer(length, CommandNames.MAX_DATA_LENGTH);
 				m_prState = this::prReadPayload;
@@ -288,20 +288,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		pshLength -= todo;
 		if(pshLength == 0) {
 			m_prState = this::prReadHeaderLong;
-			handlePacket();
+			m_payloadBuffer = null;
+			handlePacket(outb, m_payloadLength);
 		}
-	}
-
-	private int getPayloadLength() {
-		return m_payloadLength;
-	}
-
-	private ByteBuf getPayload() {
-		ByteBuf b = m_payloadBuffer;
-		if(null == b)
-			throw new IllegalStateException("There is no payload body");
-		m_payloadBuffer = null;
-		return b;
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -310,11 +299,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * Starting state: the remote must send a HELO command to start off the protocol.
 	 */
-	private void psExpectHeloResponse(Hubcore.Envelope envelope) throws Exception {
+	private void psExpectHeloResponse(Hubcore.Envelope envelope, ByteBuf payload, int length) throws Exception {
 		if(envelope.hasHeloClient()) {
-			handleClientHello(envelope, envelope.getHeloClient());
+			handleClientHello(envelope, envelope.getHeloClient(), payload, length);
 		} else if(envelope.hasHeloServer()) {
-			handleServerHello(envelope, envelope.getHeloServer());
+			handleServerHello(envelope, envelope.getHeloServer(), payload, length);
 		} else
 			throw new ProtocolViolationException("No client nor server part in HELO response");
 	}
@@ -322,9 +311,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * The server helo response contains the challenge response for authorisation.
 	 */
-	private void handleServerHello(Envelope envelope, ServerHeloResponse heloServer) throws Exception {
+	private void handleServerHello(Envelope envelope, ServerHeloResponse heloServer, ByteBuf payload, int length) throws Exception {
 		//-- We must have an empty body
-		if(getPayloadLength() != 0)
+		if(length != 0)
 			throw new ProtocolViolationException("Non-empty payload on server hello");
 
 		String sourceId = envelope.getSourceId();
@@ -345,23 +334,17 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		server.newConnection(this);
 		log("new connection for server " + server.getFullId() + " in state " + server.getState());
 
-		//-- send back AUTH packet
+		//-- From now on this channel services the specified server
 		m_connection = server;
 		setPacketState(server::packetReceived);
 
+		//-- send back AUTH packet
 		ImmediateResponseBuilder rb = new ImmediateResponseBuilder(this)
 			.fromEnvelope(envelope)
 			;
 		rb.getEnvelope().setCommand(CommandNames.AUTH_CMD);				// Authorized
 		rb.send();
 	}
-
-	private void serverPacketReceived(Envelope envelope) {
-
-
-	}
-
-
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Client handler.												*/
@@ -370,9 +353,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * Handles the client HELO response. It stores the inventory packet, and
 	 * then forwards the HELO request as an CLAUTH command to the remote server.
 	 */
-	private void handleClientHello(Envelope envelope, ClientHeloResponse heloClient) {
+	private void handleClientHello(Envelope envelope, ClientHeloResponse heloClient, ByteBuf payload, int length) {
 		//-- We must have an empty body
-		if(getPayloadLength() != 0)
+		if(length != 0)
 			throw new ProtocolViolationException("Non-empty payload on client hello");
 
 		/*
@@ -422,11 +405,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				.setClientVersion(envelope.getHeloClient().getClientVersion())
 			)
 			.build();
-		setPacketState(this::expectClientServerAuth, new BeforeClientData(cluster, orgId, m_envelope.getSourceId()));
+		setPacketState(this::waitForServerAuth, new BeforeClientData(cluster, orgId, m_envelope.getSourceId()));
 		server.getHandler().immediateSendEnvelopeAndEmptyBody(tgtEnvelope);
 	}
 
-	private void expectClientServerAuth(Envelope envelope) {
+	private void waitForServerAuth(Envelope envelope, @Nullable ByteBuf payload, int length) {
 		throw new ProtocolViolationException("Not expecting a packet while waiting for client authentication by the server");
 	}
 
@@ -434,7 +417,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * Called only when we're a temp client, this checks whether the server
 	 * accepted our auth request.
 	 */
-	public void tmpGotResponseFrom(Server server, Envelope envelope) {
+	public void tmpGotResponseFrom(Server server, Envelope envelope, ByteBuf payload, int length) {
 		//-- Expecting an AUTH or ERROR response.
 		if(envelope.hasError()) {
 			ErrorResponse error = envelope.getError();
@@ -447,29 +430,24 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			log("CLIENT authenticated!!");
 			immediateSendEnvelopeAndEmptyBody(envelope);							// Forward AUTH to client
 			registerClient(getPacketStateData(BeforeClientData.class));
-			setPacketState(this::handleClientInventory);
+			setPacketState(this::psExpectClientInventory);
 		} else {
 			throw new ProtocolViolationException("Expected server:auth, got " + envelope.getCommand());
 		}
 	}
 
-	private void handleClientInventory(Envelope envelope) throws IOException {
+	private void psExpectClientInventory(Envelope envelope, @Nullable ByteBuf payload, int length) throws IOException {
 		if(! envelope.getCommand().equals(CommandNames.INVENTORY_CMD)) {
 			throw new ProtocolViolationException("Expecting inventory, got " + envelope.getCommand());
 		}
 		log("in handleClientInventory, got " + envelope.getCommand());
-		if(getPayloadLength() == 0)
+		if(length == 0)
 			throw new ProtocolViolationException("The inventory packet data is missing");
-		ByteBuf payload = getPayload();
 		String dataFormat = envelope.getDataFormat();
 		if(null == dataFormat || dataFormat.trim().length() == 0)
 			throw new ProtocolViolationException("The inventory packet data format is missing");
 
-		try {
-			getClientConnection().updateInventory(dataFormat, payload, getPayloadLength());
-		} finally {
-			payload.release();
-		}
+		getClientConnection().updateInventory(dataFormat, Objects.requireNonNull(payload), length);
 	}
 
 	private synchronized void registerClient(BeforeClientData data) {
@@ -479,12 +457,18 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * State handler that handles the packet level dialogue.
 	 */
-	private void handlePacket() throws Exception {
+	private void handlePacket(@Nullable ByteBuf payload, int length) throws Exception {
 		IPacketHandler packetState;
 		synchronized(this) {
 			packetState = m_packetState;
 		}
-		packetState.handlePacket(m_envelope);
+		try {
+			packetState.handlePacket(m_envelope, payload, length);
+		} finally {
+			if(null != payload) {
+				payload.release();
+			}
+		}
 	}
 
 	private synchronized void setPacketState(IPacketHandler handler) {
@@ -867,6 +851,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	interface IPacketHandler {
-		void handlePacket(Hubcore.Envelope envelope) throws Exception;
+		void handlePacket(Hubcore.Envelope envelope, @Nullable ByteBuf payload, int length) throws Exception;
 	}
 }

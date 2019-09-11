@@ -1,6 +1,7 @@
 package to.etc.cocos.hub.parties;
 
 import io.netty.buffer.ByteBuf;
+import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
@@ -24,7 +25,7 @@ public class Server extends AbstractConnection {
 	/**
 	 * Packet received from the remote server.
 	 */
-	public void packetReceived(Envelope envelope) {
+	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) {
 		if(!isUsable())
 			throw new FatalHubException(ErrorCode.serverDisconnected);
 		log("Packet received: " + envelope.getCommand());
@@ -36,16 +37,13 @@ public class Server extends AbstractConnection {
 			Client client = getCluster().findClient(targetId);
 			if(null != client) {
 				//-- Forward the packet to the client.
-
-
-
-				client.packetFromServer(this, envelope);
+				client.packetFromServer(this, envelope, payload, length);
 			} else {
 				CentralSocketHandler tmpClient = getDirectory().findTempClient(targetId);
 				if(null == tmpClient) {
 					throw new HubException(ErrorCode.clientNotFound, targetId);
 				}
-				tmpClient.tmpGotResponseFrom(this, envelope);
+				tmpClient.tmpGotResponseFrom(this, envelope, payload, length);
 			}
 		}
 	}

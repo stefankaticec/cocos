@@ -1,8 +1,11 @@
 package to.etc.cocos.hub.parties;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCountUtil;
 import to.etc.cocos.hub.AbstractConnection;
+import to.etc.cocos.hub.ByteBufPacketSender;
 import to.etc.cocos.hub.Hub;
+import to.etc.cocos.hub.TxPacket;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ByteBufferOutputStream;
 import to.etc.util.ConsoleUtil;
@@ -28,8 +31,14 @@ final public class Client extends AbstractConnection {
 		ConsoleUtil.consoleLog("Hub:Server", getFullId(), s);
 	}
 
-	public void packetFromServer(Server server, Envelope envelope) {
+	/**
+	 * Called when a server has a packet for a client. This sends the packet to the client.
+	 */
+	public void packetFromServer(Server server, Envelope envelope, ByteBuf payload, int length) {
 		log("RX from server " + server.getFullId() + ": " + envelope.getCommand());
+		TxPacket p = new TxPacket(envelope, server, new ByteBufPacketSender(payload));
+		ReferenceCountUtil.retain(payload);
+		sendPacket(p);
 	}
 
 	public void updateInventory(String dataFormat, ByteBuf payload, int length) throws IOException {
