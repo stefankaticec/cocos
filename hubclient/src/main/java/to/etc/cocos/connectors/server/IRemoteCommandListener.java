@@ -1,4 +1,4 @@
-package to.etc.cocos.connectors;
+package to.etc.cocos.connectors.server;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>

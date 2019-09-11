@@ -2,7 +2,7 @@ package to.etc.cocos.tests;
 
 import org.junit.Assert;
 import org.junit.Test;
-import to.etc.cocos.connectors.ConnectorState;
+import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
 

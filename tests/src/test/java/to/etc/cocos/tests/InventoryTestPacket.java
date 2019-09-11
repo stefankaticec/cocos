@@ -1,6 +1,6 @@
 package to.etc.cocos.tests;
 
-import to.etc.cocos.connectors.JsonPacket;
+import to.etc.cocos.connectors.common.JsonPacket;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>

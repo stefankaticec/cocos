@@ -1,7 +1,7 @@
 package to.etc.cocos.tests;
 
 import org.junit.Test;
-import to.etc.cocos.connectors.RemoteClient;
+import to.etc.cocos.connectors.server.RemoteClient;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>

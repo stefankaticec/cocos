@@ -1,8 +1,11 @@
-package to.etc.cocos.connectors;
+package to.etc.cocos.connectors.client;
 
 import com.google.protobuf.ByteString;
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import to.etc.cocos.connectors.client.IClientPacketHandler;
+import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.HubConnectorBase;
+import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 

@@ -1,15 +1,16 @@
-package to.etc.cocos.connectors;
+package to.etc.cocos.connectors.server;
 
 import com.google.protobuf.ByteString;
 import io.reactivex.Observable;
 import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import to.etc.cocos.connectors.server.IClientAuthenticator;
-import to.etc.cocos.connectors.server.IClientListener;
-import to.etc.cocos.connectors.server.IServerEvent;
-import to.etc.cocos.connectors.server.ServerEventBase;
-import to.etc.cocos.connectors.server.ServerEventType;
+import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.HubConnectorBase;
+import to.etc.cocos.connectors.common.ISendPacket;
+import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.common.PacketWriter;
+import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;

@@ -1,7 +1,6 @@
 package to.etc.cocos.connectors.server;
 
 import org.eclipse.jdt.annotation.Nullable;
-import to.etc.cocos.connectors.RemoteClient;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>

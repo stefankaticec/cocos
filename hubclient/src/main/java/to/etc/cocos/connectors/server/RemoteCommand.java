@@ -1,4 +1,4 @@
-package to.etc.cocos.connectors;
+package to.etc.cocos.connectors.server;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;

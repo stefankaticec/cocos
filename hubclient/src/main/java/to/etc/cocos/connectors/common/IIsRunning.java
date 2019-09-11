@@ -1,4 +1,4 @@
-package to.etc.cocos.connectors;
+package to.etc.cocos.connectors.common;
 
 /**
  * Moronic interface because Java's lambda's are not lambda's at all.

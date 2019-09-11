@@ -1,4 +1,4 @@
-package to.etc.cocos.connectors;
+package to.etc.cocos.connectors.common;
 
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -51,7 +51,7 @@ import java.util.concurrent.Executors;
  * Created on 10-1-19.
  */
 @NonNullByDefault
-abstract class HubConnectorBase {
+public abstract class HubConnectorBase {
 	static private final int MAX_PACKET_SIZE = 1024 * 1024;
 
 	static private final Logger LOG = LoggerFactory.getLogger(HubConnectorBase.class);
@@ -130,7 +130,7 @@ abstract class HubConnectorBase {
 	@Nullable
 	private ErrorResponse m_lastError;
 
-	HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
+	protected HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
 		m_server = server;
 		m_port = port;
 		m_myId = myId;

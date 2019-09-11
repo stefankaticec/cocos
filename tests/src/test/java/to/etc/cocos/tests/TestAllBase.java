@@ -1,11 +1,11 @@
 package to.etc.cocos.tests;
 
 import org.junit.After;
-import to.etc.cocos.connectors.CommandContext;
-import to.etc.cocos.connectors.ConnectorState;
-import to.etc.cocos.connectors.HubClient;
-import to.etc.cocos.connectors.HubServer;
-import to.etc.cocos.connectors.JsonPacket;
+import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.ConnectorState;
+import to.etc.cocos.connectors.client.HubClient;
+import to.etc.cocos.connectors.server.HubServer;
+import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.client.IClientPacketHandler;
 import to.etc.cocos.connectors.server.IClientAuthenticator;
 import to.etc.cocos.connectors.server.IServerEvent;

@@ -1,8 +1,7 @@
 package to.etc.cocos.connectors.server;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import to.etc.cocos.connectors.JsonPacket;
-import to.etc.cocos.connectors.RemoteClient;
+import to.etc.cocos.connectors.common.JsonPacket;
 
 /**
  * Listen for clients arriving and leaving.

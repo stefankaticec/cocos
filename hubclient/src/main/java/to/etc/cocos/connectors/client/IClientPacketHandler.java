@@ -1,8 +1,8 @@
 package to.etc.cocos.connectors.client;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import to.etc.cocos.connectors.CommandContext;
-import to.etc.cocos.connectors.JsonPacket;
+import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.JsonPacket;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>

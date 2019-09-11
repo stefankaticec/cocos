@@ -1,4 +1,4 @@
-package to.etc.cocos.connectors;
+package to.etc.cocos.connectors.common;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

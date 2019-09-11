@@ -1,7 +1,8 @@
-package to.etc.cocos.connectors;
+package to.etc.cocos.connectors.server;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.util.StringTool;
 
 import java.util.HashMap;
