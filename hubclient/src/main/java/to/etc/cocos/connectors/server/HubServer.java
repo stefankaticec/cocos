@@ -10,6 +10,7 @@ import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.ISendPacket;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.PacketWriter;
+import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
@@ -99,6 +100,37 @@ final public class HubServer extends HubConnectorBase {
 
 	@Override protected void onErrorPacket(Envelope env) {
 		// IMPLEMENT
+	}
+
+	@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {
+		switch(ctx.getSourceEnvelope().getPayloadCase()) {
+			default:
+				throw new ProtocolViolationException("Unexpected packet type=" + ctx.getSourceEnvelope().getPayloadCase());
+
+			case CHALLENGE:
+				handleHELO(ctx);
+				break;
+
+			case AUTH:
+				handleAUTH(ctx);
+				break;
+
+			case CLIENTAUTH:
+				handleCLAUTH(ctx);
+				break;
+
+			case CLIENTCONNECTED:
+				handleCLCONN(ctx);
+				break;
+
+			case CLIENTDISCONNECTED:
+				handleCLDISC(ctx);
+				break;
+
+			case INVENTORY:
+				handleCLINVE(ctx, data);
+				break;
+		}
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -196,7 +228,15 @@ final public class HubServer extends HubConnectorBase {
 	 * Client Inventory: a client has updated its inventory.
 	 */
 	@Synchronous
-	public void handleCLINVE(CommandContext cc, JsonPacket packet) throws Exception {
+	public void handleCLINVE(CommandContext cc, List<byte[]> data) throws Exception {
+		String dataFormat = cc.getSourceEnvelope().getInventory().getDataFormat();
+		if(! CommandNames.isJsonDataFormat(dataFormat))
+			throw new ProtocolViolationException("Inventory packet must be in JSON format");
+		Object o = decodeBody(dataFormat, data);
+		if(! (o instanceof JsonPacket))
+			throw new ProtocolViolationException("Inventory packet does not extend JsonPacket");
+		JsonPacket packet = (JsonPacket) o;
+
 		cc.log("Got client inventory packet " + packet);
 		String id = cc.getSourceEnvelope().getSourceId();
 		synchronized(this) {

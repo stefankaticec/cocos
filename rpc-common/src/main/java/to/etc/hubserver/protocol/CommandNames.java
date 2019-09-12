@@ -10,23 +10,8 @@ final public class CommandNames {
 	public final static int MAX_ENVELOPE_LENGTH = 1024*1024;
 	public final static int MAX_DATA_LENGTH = 10*1024*1024;
 
-	//public static final String PING_CMD = "$PING";
-	//public static final String PONG_CMD = "$PONG";
-	//
-	//static public final String HELO_CMD = "HELO";
-	//static public final String CLNT_CMD = "CLNT";
-	//static public final String SRVR_CMD = "SRVR";
-	//static public final String AUTH_CMD = "AUTH";
-	//static public final String CLAUTH_CMD = "CLAUTH";
-
 	static public final String BODY_BYTES = "octet-stream";
 	static public final String BODY_JSON = "json";
-
-
-	//public static final String CLIENT_CONNECTED = "CLCONN";
-	//public static final String CLIENT_DISCONNECTED = "CLDISC";
-	//
-	//public static final String INVENTORY_CMD = "CLINVE";
 
 	static public final String getJsonDataFormat(Class<?> clz) {
 		return "JSON:" + clz.getName();
@@ -35,4 +20,7 @@ final public class CommandNames {
 		return "JSON:" + obj.getClass().getName();
 	}
 
+	public static boolean isJsonDataFormat(String dataFormat) {
+		return dataFormat.startsWith("JSON:");
+	}
 }

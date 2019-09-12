@@ -5,6 +5,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
@@ -12,6 +13,7 @@ import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -40,6 +42,39 @@ final public class HubClient extends HubConnectorBase {
 		HubClient responder = new HubClient(hubServer, hubServerPort, handler, myPassword, targetClusterAndOrg, myId);
 		return responder;
 	}
+
+	@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {
+		switch(ctx.getSourceEnvelope().getPayloadCase()) {
+			default:
+				throw new ProtocolViolationException("Unexpected packet type=" + ctx.getSourceEnvelope().getPayloadCase());
+
+			case CHALLENGE:
+				handleHELO(ctx);
+				break;
+
+			case AUTH:
+				handleAUTH(ctx);
+				break;
+
+			case COMMAND:
+				handleCommand(ctx, data);
+				break;
+
+			case HUBERROR:
+				onErrorPacket(ctx.getSourceEnvelope());
+				forceDisconnect("Hub error: " + ctx.getSourceEnvelope().getHubError().getText());
+				break;
+		}
+	}
+
+	private void handleCommand(CommandContext ctx, List<byte[]> data) {
+
+
+
+
+
+	}
+
 	/**
 	 * Respond with a Client HELO response. This send the inventory
 	 * packet, and encodes the challenge with the password.

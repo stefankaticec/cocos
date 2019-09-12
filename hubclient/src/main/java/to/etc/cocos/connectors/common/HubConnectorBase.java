@@ -133,6 +133,8 @@ public abstract class HubConnectorBase {
 
 	protected abstract void onErrorPacket(Envelope env);
 
+	protected abstract void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception;
+
 
 	protected HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
 		m_server = server;
@@ -527,7 +529,7 @@ public abstract class HubConnectorBase {
 	 * state and m_terminate. This is a no-op if the disconnection is
 	 * already a fact. In that case no message will be reported either.
 	 */
-	private void forceDisconnect(String why) {
+	protected void forceDisconnect(String why) {
 		log("forceDisconnect: " + why);
 		Socket socket;
 		InputStream is;
@@ -681,50 +683,56 @@ public abstract class HubConnectorBase {
 	static private final byte[] NULLBODY = new byte[0];
 
 	private void packetReceived(CommandContext ctx, List<byte[]> data) throws Exception {
-		Object body = decodeBody(ctx.getConnector(), ctx.getSourceEnvelope().getDataFormat(), data);
-		Method m = findHandlerMethod(ctx.getSourceEnvelope().getCommand(), body);
-		if(null == m) {
-			throw new ProtocolViolationException("No handler for packet command " + ctx.getSourceEnvelope().getCommand() + " with body type " + bodyType(body));
+		try {
+			handlePacketReceived(ctx, data);
+		} catch(Exception x) {
+			unwrapAndRethrowException(ctx, x);
 		}
-
-		if(m.getAnnotation(Synchronous.class) != null) {
-			invokeCall(ctx, body, m);
-		} else {
-			invokeCallAsync(ctx, body, m);
-		}
+		//Object body = decodeBody(ctx.getConnector(), ctx.getSourceEnvelope().getDataFormat(), data);
+		//Method m = findHandlerMethod(ctx.getSourceEnvelope().getCommand(), body);
+		//if(null == m) {
+		//	throw new ProtocolViolationException("No handler for packet command " + ctx.getSourceEnvelope().getCommand() + " with body type " + bodyType(body));
+		//}
+		//
+		//if(m.getAnnotation(Synchronous.class) != null) {
+		//	invokeCall(ctx, body, m);
+		//} else {
+		//	invokeCallAsync(ctx, body, m);
+		//}
 	}
 
 	private String bodyType(@Nullable Object body) {
 		return null == body ? "(void)" : body.getClass().getName();
 	}
 
-	private void invokeCallAsync(CommandContext ctx, @Nullable Object body, Method m) {
-		ctx.getConnector().getExecutor().execute(() -> {
-			try {
-				invokeCall(ctx, body, m);
-			} catch(Exception x) {
-				ctx.log("Failed to execute " + m.getName() + ": " + x);
-				try {
-					handleException(ctx, x);
-				} catch(Exception xx) {
-					ctx.log("Could not return protocol error: " + xx);
-				}
-			}
-		});
-	}
 
-	private void invokeCall(CommandContext ctx, @Nullable Object body, Method m) throws Exception {
-		try {
-			if(null == body)
-				m.invoke(this, ctx);
-			else
-				m.invoke(this, ctx, body);
-		} catch(InvocationTargetException itx) {
-			handleException(ctx, itx);
-		}
-	}
+	//private void invokeCallAsync(CommandContext ctx, @Nullable Object body, Method m) {
+	//	ctx.getConnector().getExecutor().execute(() -> {
+	//		try {
+	//			invokeCall(ctx, body, m);
+	//		} catch(Exception x) {
+	//			ctx.log("Failed to execute " + m.getName() + ": " + x);
+	//			try {
+	//				unwrapAndRethrowException(ctx, x);
+	//			} catch(Exception xx) {
+	//				ctx.log("Could not return protocol error: " + xx);
+	//			}
+	//		}
+	//	});
+	//}
+	//
+	//private void invokeCall(CommandContext ctx, @Nullable Object body, Method m) throws Exception {
+	//	try {
+	//		if(null == body)
+	//			m.invoke(this, ctx);
+	//		else
+	//			m.invoke(this, ctx, body);
+	//	} catch(InvocationTargetException itx) {
+	//		unwrapAndRethrowException(ctx, itx);
+	//	}
+	//}
 
-	private void handleException(CommandContext cc, Throwable t) throws Exception {
+	private void unwrapAndRethrowException(CommandContext cc, Throwable t) throws Exception {
 		while(t instanceof InvocationTargetException) {
 			t = ((InvocationTargetException)t).getTargetException();
 		}
@@ -743,7 +751,7 @@ public abstract class HubConnectorBase {
 	}
 
 	@Nullable
-	private Object decodeBody(HubConnectorBase connector,String bodyType, List<byte[]> data) throws IOException {
+	protected Object decodeBody(String bodyType, List<byte[]> data) throws IOException {
 		switch(bodyType) {
 			case CommandNames.BODY_BYTES:
 				return data;
@@ -764,7 +772,7 @@ public abstract class HubConnectorBase {
 
 			case CommandNames.BODY_JSON:
 				Class<?> bodyClass = ClassUtil.loadClass(getClass().getClassLoader(), clzz);
-				return connector.getMapper().readerFor(bodyClass).readValue(new ByteBufferInputStream(data.toArray(new byte[data.size()][])));
+				return getMapper().readerFor(bodyClass).readValue(new ByteBufferInputStream(data.toArray(new byte[data.size()][])));
 		}
 	}
 
