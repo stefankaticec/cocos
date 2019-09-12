@@ -40,7 +40,7 @@ final class PacketReader {
 	@Nullable
 	private final Consumer<String> m_logger;
 
-	private boolean m_logPackets = true;
+	private boolean m_logPackets = false;
 
 	@Nullable
 	private ByteArrayOutputStream m_baos;

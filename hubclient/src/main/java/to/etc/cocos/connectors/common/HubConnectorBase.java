@@ -65,9 +65,9 @@ public abstract class HubConnectorBase {
 
 	private final String m_logName;
 
-	private boolean m_logTx = true;
+	private boolean m_logTx = false;
 
-	private boolean m_logRx = true;
+	private boolean m_logRx = false;
 
 	private int m_dumpLimit = 1024;
 

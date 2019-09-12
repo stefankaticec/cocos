@@ -18,6 +18,7 @@ import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.AuthResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientAuthRequest;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.CommandError;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 import java.nio.charset.StandardCharsets;
@@ -130,7 +131,16 @@ final public class HubServer extends HubConnectorBase {
 			case INVENTORY:
 				handleCLINVE(ctx, data);
 				break;
+
+			case COMMANDERROR:
+				handleCommandError(ctx);
+				break;
 		}
+	}
+
+	private void handleCommandError(CommandContext ctx) {
+		CommandError err = ctx.getSourceEnvelope().getCommandError();
+		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command error: " + err.getCode() + " " + err.getMessage());
 	}
 
 	/*----------------------------------------------------------------------*/
