@@ -8,12 +8,16 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.Command;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -28,6 +32,8 @@ final public class HubClient extends HubConnectorBase {
 	private final String m_targetCluster;
 
 	private final IClientPacketHandler m_clientHandler;
+
+	private final Map<String, IClientCommandHandler> m_commandMap = new HashMap<>();
 
 	private HubClient(String hubServer, int hubServerPort, IClientPacketHandler clientHandler, String clientPassword, String targetClusterAndOrg, String myId) {
 		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
@@ -67,12 +73,29 @@ final public class HubClient extends HubConnectorBase {
 		}
 	}
 
-	private void handleCommand(CommandContext ctx, List<byte[]> data) {
+	public synchronized void registerCommand(String commandName, IClientCommandHandler handler) {
+		if(null != m_commandMap.put(commandName, handler))
+			throw new IllegalStateException("Duplicate command name registered: " + commandName);
+	}
 
+	private synchronized IClientCommandHandler findCommandHandler(String commandName) {
+		return m_commandMap.get(commandName);
+	}
 
-
-
-
+	private void handleCommand(CommandContext ctx, List<byte[]> data) throws Exception {
+		Command cmd = ctx.getSourceEnvelope().getCmd();
+		IClientCommandHandler commandHandler = findCommandHandler(cmd.getName());
+		if(null == commandHandler) {
+			ctx.error("No command handler for " + cmd.getName());
+			sendCommandErrorPacket(ctx, ErrorCode.commandNotFound, cmd.getName());
+			return;
+		}
+		try {
+			commandHandler.execute(ctx, data);
+		} catch(Exception x) {
+			ctx.log("Command " + cmd.getName() + " failed: " + x);
+			sendCommandErrorPacket(ctx, x);
+		}
 	}
 
 	/**

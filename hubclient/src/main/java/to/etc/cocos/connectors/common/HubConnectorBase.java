@@ -10,7 +10,9 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.HubException;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.CommandError;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 import to.etc.util.ByteBufferInputStream;
@@ -29,7 +31,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.Socket;
 import java.security.KeyStore;
@@ -37,6 +38,7 @@ import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -220,7 +222,7 @@ public abstract class HubConnectorBase {
 		m_executor = executor;
 	}
 
-	synchronized Executor getExecutor() {
+	synchronized public Executor getExecutor() {
 		Executor executor = m_executor;
 		if(null == executor) {
 			executor = m_executor = m_createdExecutor = Executors.newCachedThreadPool();
@@ -502,14 +504,14 @@ public abstract class HubConnectorBase {
 			//m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
 		} catch(CommandFailedException cfx) {
 			log("Command failed: " + cfx);
-			sendErrorPacket(ctx, cfx);
+			sendHubErrorPacket(ctx, cfx);
 		} catch(Exception px) {
 			log("Fatal command handler exception: " + px);
 			forceDisconnect(px.toString());
 		}
 	}
 
-	private void sendErrorPacket(CommandContext ctx, CommandFailedException cfx) {
+	private void sendHubErrorPacket(CommandContext ctx, CommandFailedException cfx) {
 
 		ctx.getResponseEnvelope().getHubErrorBuilder()
 			.setText(cfx.getMessage())
@@ -523,6 +525,61 @@ public abstract class HubConnectorBase {
 		};
 		sendPacket(sp);
 	}
+
+	public void sendCommandErrorPacket(CommandContext ctx, String code, String message, @Nullable String details) {
+		CommandError cmdE = CommandError.newBuilder()
+			.setId(ctx.getSourceEnvelope().getCmd().getId())
+			.setName(ctx.getSourceEnvelope().getCmd().getName())
+			.setCode(code)
+			.setMessage(message)
+			.setDetails(details)
+			.build();
+		ctx.getResponseEnvelope().setCommandError(cmdE);
+		ISendPacket sp = new ISendPacket() {
+			@Override public void send(PacketWriter os) throws Exception {
+				os.send(ctx.getResponseEnvelope().build(), null);
+			}
+		};
+		sendPacket(sp);
+	}
+
+	public void sendCommandErrorPacket(CommandContext ctx, ErrorCode code, Object... params) {
+		String message = MessageFormat.format(code.getText(), params);
+		CommandError cmdE = CommandError.newBuilder()
+			.setId(ctx.getSourceEnvelope().getCmd().getId())
+			.setName(ctx.getSourceEnvelope().getCmd().getName())
+			.setCode(code.name())
+			.setMessage(message)
+			//.setDetails(details)
+			.build();
+		ctx.getResponseEnvelope().setCommandError(cmdE);
+		ISendPacket sp = new ISendPacket() {
+			@Override public void send(PacketWriter os) throws Exception {
+				os.send(ctx.getResponseEnvelope().build(), null);
+			}
+		};
+		sendPacket(sp);
+	}
+
+	public void sendCommandErrorPacket(CommandContext ctx, Throwable t) {
+		String message = "Exception in command: " + t.toString();
+		CommandError cmdE = CommandError.newBuilder()
+			.setId(ctx.getSourceEnvelope().getCmd().getId())
+			.setName(ctx.getSourceEnvelope().getCmd().getName())
+			.setCode(ErrorCode.commandException.name())
+			.setMessage(message)
+			.setDetails(StringTool.strStacktrace(t))
+			.build();
+		ctx.getResponseEnvelope().setCommandError(cmdE);
+		ISendPacket sp = new ISendPacket() {
+			@Override public void send(PacketWriter os) throws Exception {
+				os.send(ctx.getResponseEnvelope().build(), null);
+			}
+		};
+		sendPacket(sp);
+	}
+
+
 
 	/**
 	 * Force disconnect and enter the next appropriate state, depending on
@@ -732,7 +789,7 @@ public abstract class HubConnectorBase {
 	//	}
 	//}
 
-	private void unwrapAndRethrowException(CommandContext cc, Throwable t) throws Exception {
+	static public void unwrapAndRethrowException(CommandContext cc, Throwable t) throws Exception {
 		while(t instanceof InvocationTargetException) {
 			t = ((InvocationTargetException)t).getTargetException();
 		}
@@ -750,8 +807,9 @@ public abstract class HubConnectorBase {
 		}
 	}
 
+
 	@Nullable
-	protected Object decodeBody(String bodyType, List<byte[]> data) throws IOException {
+	public Object decodeBody(String bodyType, List<byte[]> data) throws IOException {
 		switch(bodyType) {
 			case CommandNames.BODY_BYTES:
 				return data;
@@ -774,30 +832,5 @@ public abstract class HubConnectorBase {
 				Class<?> bodyClass = ClassUtil.loadClass(getClass().getClassLoader(), clzz);
 				return getMapper().readerFor(bodyClass).readValue(new ByteBufferInputStream(data.toArray(new byte[data.size()][])));
 		}
-	}
-
-	@Nullable
-	private Method findHandlerMethod(String command, @Nullable Object body) {
-		String name = "handle" + command;
-		try {
-			return body == null
-				? getClass().getMethod(name, CommandContext.class)
-				: getClass().getMethod(name, CommandContext.class, body.getClass());
-		} catch(Exception x) {
-		}
-		if(null == body)
-			return null;
-
-		//slow method to get overrides
-		for(Method method : getClass().getMethods()) {
-			if(method.getName().equals(name)) {
-				if(/* method.getReturnType() == Void.class && */ method.getParameterCount() == 2) {
-					if(method.getParameterTypes()[0] == CommandContext.class && method.getParameterTypes()[1].isAssignableFrom(body.getClass())) {
-						return method;
-					}
-				}
-			}
-		}
-		return null;
 	}
 }

@@ -83,4 +83,8 @@ final public class CommandContext {
 		);
 		respond();
 	}
+
+	public void respondCommandErrorPacket(Exception x) {
+		getConnector().sendCommandErrorPacket(this, x);
+	}
 }
