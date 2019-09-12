@@ -14,13 +14,13 @@ final public class CommandNames {
 	static public final String BODY_JSON = "json";
 
 	static public final String getJsonDataFormat(Class<?> clz) {
-		return "JSON:" + clz.getName();
+		return BODY_JSON + ":" + clz.getName();
 	}
 	static public final String getJsonDataFormat(Object obj) {
-		return "JSON:" + obj.getClass().getName();
+		return BODY_JSON + ":" + obj.getClass().getName();
 	}
 
 	public static boolean isJsonDataFormat(String dataFormat) {
-		return dataFormat.startsWith("JSON:");
+		return dataFormat.startsWith(BODY_JSON + ":");
 	}
 }
