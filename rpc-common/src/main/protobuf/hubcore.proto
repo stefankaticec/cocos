@@ -106,7 +106,7 @@ message Envelope {
          AuthResponse auth = 20;
          HubErrorResponse hubError = 21;
 
-         Command command = 30;
+         Command cmd = 30;
          CommandResponse response = 31;
          CommandError commandError = 32;
          CommandProgress progress = 33;

@@ -291,7 +291,7 @@ final public class HubServer extends HubConnectorBase {
 			.setSourceId(getMyId())
 			.setTargetId(command.getClientKey())
 			.setVersion(1)
-			.setCommand(Hubcore.Command.newBuilder()
+			.setCmd(Hubcore.Command.newBuilder()
 				.setDataFormat(CommandNames.getJsonDataFormat(packet))
 				.setId(command.getCommandId())
 				.setName(packet.getClass().getName())

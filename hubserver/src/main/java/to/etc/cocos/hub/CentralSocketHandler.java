@@ -303,7 +303,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		} else if(envelope.hasHeloServer()) {
 			handleServerHello(envelope, envelope.getHeloServer(), payload, length);
 		} else
-			throw new ProtocolViolationException("No client nor server part in HELO response, got " + envelope.getPayloadCase());
+			throw new ProtocolViolationException("No client nor server part in CHALLENGE response, got " + envelope.getPayloadCase());
 	}
 
 	/**
@@ -367,7 +367,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		String orgId;
 		switch(split.length) {
 			default:
-				throw new IllegalStateException("Invalid client target: " + targetId);
+				throw new FatalHubException(ErrorCode.targetNotFound, targetId);
 
 			case 1:
 				cluster = getDirectory().getCluster(split[0]);
@@ -428,7 +428,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			registerClient(getPacketStateData(BeforeClientData.class));
 			setPacketState(this::psExpectClientInventory);
 		} else {
-			throw new ProtocolViolationException("Expected server:auth, got " + envelope.getCommand());
+			throw new ProtocolViolationException("Expected server:auth, got " + envelope.getPayloadCase());
 		}
 	}
 
@@ -718,7 +718,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 *
 	 */
 	void immediateSendResponse(ImmediateResponseBuilder r) {
-		log("Sending response packet: " + r.getEnvelope().getCommand());
+		log("Sending response packet: " + r.getEnvelope().getPayloadCase());
 		immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build());
 	}
 

@@ -56,7 +56,7 @@ final public class HubClient extends HubConnectorBase {
 				handleAUTH(ctx);
 				break;
 
-			case COMMAND:
+			case CMD:
 				handleCommand(ctx, data);
 				break;
 

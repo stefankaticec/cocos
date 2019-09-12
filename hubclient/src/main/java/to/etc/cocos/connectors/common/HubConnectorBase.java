@@ -478,7 +478,7 @@ public abstract class HubConnectorBase {
 		if(env.hasHubError()) {
 			HubErrorResponse error = env.getHubError();
 
-			log("Received HUB ERROR packet: " + env.getCommand() + " " + error.getCode() + " " + error.getText());
+			log("Received HUB ERROR packet: " + error.getCode() + " " + error.getText());
 			synchronized(this) {
 				m_lastError = error;
 			}
@@ -495,7 +495,7 @@ public abstract class HubConnectorBase {
 			return;
 		}
 
-		log("Received packet: " + env.getCommand());
+		log("Received packet: " + env.getPayloadCase());
 		CommandContext ctx = new CommandContext(this, env);
 		try {
 			packetReceived(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));

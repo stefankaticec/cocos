@@ -35,7 +35,7 @@ final public class Client extends AbstractConnection {
 	 * Called when a server has a packet for a client. This sends the packet to the client.
 	 */
 	public void packetFromServer(Server server, Envelope envelope, ByteBuf payload, int length) {
-		log("RX from server " + server.getFullId() + ": " + envelope.getCommand());
+		log("RX from server " + server.getFullId() + ": " + envelope.getPayloadCase());
 		TxPacket p = new TxPacket(envelope, server, new ByteBufPacketSender(payload));
 		ReferenceCountUtil.retain(payload);
 		sendPacket(p);
