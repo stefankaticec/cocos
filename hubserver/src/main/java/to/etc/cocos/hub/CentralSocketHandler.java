@@ -22,9 +22,10 @@ import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientHeloResponse;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientInventory;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.HelloChallenge;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ServerHeloResponse;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
@@ -134,11 +135,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		byte[] challenge = m_challenge = m_central.getChallenge();
 		ImmediateResponseBuilder response = new ImmediateResponseBuilder(this);
 		response.getEnvelope()
-			.setCommand(CommandNames.HELO_CMD)
 			.setSourceId("")							// from HUB
 			.setTargetId("unknown-client")				// We have no client ID yet
-			.setDataFormat("")							// Zero body bytes, actually
-			.setCommandId("*")
 			.setVersion(1)
 			.setChallenge(
 				HelloChallenge.newBuilder()
@@ -305,7 +303,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		} else if(envelope.hasHeloServer()) {
 			handleServerHello(envelope, envelope.getHeloServer(), payload, length);
 		} else
-			throw new ProtocolViolationException("No client nor server part in HELO response");
+			throw new ProtocolViolationException("No client nor server part in HELO response, got " + envelope.getPayloadCase());
 	}
 
 	/**
@@ -342,7 +340,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		ImmediateResponseBuilder rb = new ImmediateResponseBuilder(this)
 			.fromEnvelope(envelope)
 			;
-		rb.getEnvelope().setCommand(CommandNames.AUTH_CMD);				// Authorized
+		rb.getEnvelope().getAuthBuilder()
+			.build();
 		rb.send();
 	}
 
@@ -392,11 +391,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		getDirectory().registerTmpClient(m_tmpClientId, this);
 
 		Envelope tgtEnvelope = Envelope.newBuilder()
-			.setCommand(CommandNames.CLAUTH_CMD)
 			.setSourceId(m_tmpClientId)						// From tmp client ID
 			.setTargetId(server.getFullId())				// To the selected server
-			.setDataFormat("")								// Zero body bytes, actually
-			.setCommandId("")
 			.setVersion(1)
 			.setClientAuth(Hubcore.ClientAuthRequest.newBuilder()
 				.setChallenge(ByteString.copyFrom(m_challenge))
@@ -419,8 +415,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 */
 	public void tmpGotResponseFrom(Server server, Envelope envelope, ByteBuf payload, int length) {
 		//-- Expecting an AUTH or ERROR response.
-		if(envelope.hasError()) {
-			ErrorResponse error = envelope.getError();
+		if(envelope.hasHubError()) {
+			HubErrorResponse error = envelope.getHubError();
 			immediateSendEnvelopeAndEmptyBody(envelope, true);		// Return the error verbatim
 
 			//-- REMOVE CLIENT
@@ -437,13 +433,14 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	private void psExpectClientInventory(Envelope envelope, @Nullable ByteBuf payload, int length) throws IOException {
-		if(! envelope.getCommand().equals(CommandNames.INVENTORY_CMD)) {
-			throw new ProtocolViolationException("Expecting inventory, got " + envelope.getCommand());
+		if(! envelope.hasInventory()) {
+			throw new ProtocolViolationException("Expecting inventory, got " + envelope.getPayloadCase());
 		}
-		log("in handleClientInventory, got " + envelope.getCommand());
+		log("Client inventory received");
 		if(length == 0)
 			throw new ProtocolViolationException("The inventory packet data is missing");
-		String dataFormat = envelope.getDataFormat();
+		ClientInventory inventory = envelope.getInventory();
+		String dataFormat = inventory.getDataFormat();
 		if(null == dataFormat || dataFormat.trim().length() == 0)
 			throw new ProtocolViolationException("The inventory packet data format is missing");
 
@@ -548,9 +545,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private ImmediateResponseBuilder packetBuilder(String command) {
 		ImmediateResponseBuilder responseBuilder = new ImmediateResponseBuilder(this);
 		responseBuilder.getEnvelope()
-			.setDataFormat("")
 			.setVersion(1)
-			.setCommand(command)
 			.setTargetId(getMyID())
 			.setSourceId("")
 			;
@@ -751,8 +746,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			.fromEnvelope(m_envelope)
 			;
 		rb.getEnvelope()
-			.setDataFormat("")
-			.setError(ErrorResponse.newBuilder()
+			.setHubError(HubErrorResponse.newBuilder()
 				.setCode(x.getCode().name())
 				.setText(x.getMessage())
 				.setDetails(StringTool.strStacktrace(x))
@@ -776,12 +770,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	public void sendPing() {
 		ImmediateResponseBuilder response = new ImmediateResponseBuilder(this);
 		response.getEnvelope()
-			.setCommand(CommandNames.PING_CMD)
 			.setSourceId("")							// from HUB
 			.setTargetId(getMyID())						// Whatever is known
-			.setDataFormat("")							// Zero body bytes, actually
-			.setCommandId("*")
 			.setVersion(1)
+			.setPing(Hubcore.Ping.newBuilder().build())
 		;
 		response.send();
 		log("sent ping");

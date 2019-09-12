@@ -17,6 +17,7 @@ import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
+import to.etc.util.StringTool;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
@@ -129,6 +130,9 @@ public abstract class HubConnectorBase {
 
 	@Nullable
 	private ErrorResponse m_lastError;
+
+	protected abstract void onErrorPacket(Envelope env);
+
 
 	protected HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
 		m_server = server;
@@ -477,8 +481,15 @@ public abstract class HubConnectorBase {
 				m_lastError = error;
 			}
 
+			try {
+				onErrorPacket(env);
+			} catch(Exception x) {
+				log("Unexpected exception while handling error packet: " + x);
+				x.printStackTrace();;
+			}
+
 			//-- Disconnect.
-			forceDisconnect("HUB error: " + error.getCode());
+			//forceDisconnect("HUB error: " + error.getCode());
 			return;
 		}
 
@@ -487,10 +498,28 @@ public abstract class HubConnectorBase {
 		try {
 			packetReceived(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
 			//m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
+		} catch(CommandFailedException cfx) {
+			log("Command failed: " + cfx);
+			sendErrorPacket(ctx, cfx);
 		} catch(Exception px) {
 			log("Fatal command handler exception: " + px);
 			forceDisconnect(px.toString());
 		}
+	}
+
+	private void sendErrorPacket(CommandContext ctx, CommandFailedException cfx) {
+
+		ctx.getResponseEnvelope().getErrorBuilder()
+			.setText(cfx.getMessage())
+			.setCode("command.exception")
+			.setDetails(StringTool.strStacktrace(cfx))
+			;
+		ISendPacket sp = new ISendPacket() {
+			@Override public void send(PacketWriter os) throws Exception {
+				os.send(ctx.getResponseEnvelope().build(), null);
+			}
+		};
+		sendPacket(sp);
 	}
 
 	/**
@@ -552,22 +581,6 @@ public abstract class HubConnectorBase {
 		}
 		FileTool.closeAll(is, os, socket);
 	}
-
-	/*----------------------------------------------------------------------*/
-	/*	CODING:	Packet handlers												*/
-	/*----------------------------------------------------------------------*/
-
-
-
-	private void expectHeloPacket(Envelope envelope, List<byte[]> bytes) {
-
-	}
-
-
-
-	//private synchronized boolean inReceivingState() {
-	//	return m_state == ConnectorState.CONNECTED || m_state == ConnectorState.WAIT_HELO;
-	//}
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	SSL and security related code								*/

@@ -6,10 +6,10 @@ import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.PacketResponseBuilder;
-import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ConsoleUtil;
 
@@ -59,14 +59,12 @@ public class Server extends AbstractConnection {
 
 	}
 
-	public PacketResponseBuilder packetBuilder(String clientID, String command) {
+	public PacketResponseBuilder packetBuilder(String clientID) {
 		PacketResponseBuilder b = packetBuilder();
 		b.getEnvelope()
-			.setCommand(command)
 			.setSourceId(clientID)
 			.setTargetId(getFullId())
 			.setVersion(1)
-			.setDataFormat("")
 			;
 		return b;
 	}
@@ -76,12 +74,14 @@ public class Server extends AbstractConnection {
 	 * Send a "client unregistered" packet to the remote.
 	 */
 	public void sendEventClientUnregistered(String fullId) {
-		PacketResponseBuilder b = packetBuilder(fullId, CommandNames.CLIENT_DISCONNECTED);
+		PacketResponseBuilder b = packetBuilder(fullId);
+		b.getEnvelope().setClientDisconnected(Hubcore.ClientDisconnected.getDefaultInstance());
 		b.send();
 	}
 
 	public void sendEventClientRegistered(String clientId) {
-		PacketResponseBuilder b = packetBuilder(clientId, CommandNames.CLIENT_CONNECTED);
+		PacketResponseBuilder b = packetBuilder(clientId);
+		b.getEnvelope().setClientConnected(Hubcore.ClientConnected.getDefaultInstance());
 		b.send();
 	}
 
@@ -93,9 +93,12 @@ public class Server extends AbstractConnection {
 			buffer.writeBytes(bb);
 		}
 
-		packetBuilder(clientId, CommandNames.INVENTORY_CMD)
-			.sourceId(clientId)
-			.dataFormat(packet.getDataFormat())
-			.send(buffer);
+		PacketResponseBuilder b = packetBuilder(clientId)
+			.sourceId(clientId);
+		b.getEnvelope().setInventory(
+			Hubcore.ClientInventory.newBuilder()
+				.setDataFormat(packet.getDataFormat())
+		);
+		b.send(buffer);
 	}
 }

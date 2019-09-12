@@ -1,7 +1,7 @@
 syntax = "proto3";
 package to.etc.puzzler.daemon.rpc.messages;
 
-// The challenge format sent by the hub to a client or server connecting
+// The challenge format sent by the hub to a client or server connecting (the first packet)
 message HelloChallenge {
     string serverVersion = 1;
     bytes challenge = 2;
@@ -27,10 +27,17 @@ message ClientHeloResponse {
     bytes challengeResponse = 2;
 }
 
-message AuthResponse {
+message ClientInventory {
+    string dataFormat = 1;
 }
 
-message ErrorResponse {
+message AuthResponse {
+}
+message Ping {}
+message Pong {}
+
+//-- Errors sent when there is a transport level error
+message HubErrorResponse {
     string code = 1;
     string text = 2;
     string details = 3;
@@ -38,21 +45,74 @@ message ErrorResponse {
     string extraBytes = 5;
 }
 
+//-- A command sent to the client
+message Command {
+    string name = 1;
+    string id = 2;
+    string dataFormat = 3;
+    string parameters = 4;
+}
+
+//-- The command's result. This finishes the command
+message CommandResponse {
+    string name = 1;
+    string id = 2;
+    string dataFormat = 3;
+}
+
+//-- A command failure notification. This finishes the command
+message CommandError {
+    string name = 1;
+    string id = 2;
+    string code = 3;
+    string message = 4;
+    string details = 5;
+}
+
+message CommandProgress {
+    string name = 1;
+    string id = 2;
+    string code = 3;
+    string task = 4;
+    string percentageComplete = 5;
+}
+
+message CommandOutput {
+    string name = 1;
+    string id = 2;
+    string code = 3;
+}
+
+//-- Event classes
+message ClientDisconnected {}
+
+message ClientConnected {}
+
 message Envelope {
      int32 version = 1;
      string sourceId = 2;
      string targetId = 3;
-     string command = 4;
-     string commandId = 5;
-     string dataFormat = 6;
 
      oneof payload {
+         Ping ping = 8;
+         Pong pong = 9;
+
          HelloChallenge challenge  = 10;
          ServerHeloResponse heloServer = 11;
          ClientHeloResponse heloClient = 12;
          ClientAuthRequest clientAuth = 13;
+         ClientInventory inventory = 14;
 
-         AuthResponse auth = 14;
-         ErrorResponse error = 15;
+         AuthResponse auth = 20;
+         HubErrorResponse hubError = 21;
+
+         Command command = 30;
+         CommandResponse response = 31;
+         CommandError commandError = 32;
+         CommandProgress progress = 33;
+         CommandOutput output = 34;
+
+         ClientConnected clientConnected = 40;
+         ClientDisconnected clientDisconnected = 41;
      }
 }

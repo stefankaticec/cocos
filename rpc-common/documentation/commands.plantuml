@@ -1,0 +1,10 @@
+@startuml
+
+Server -> Hub : CMD(id=aeab1)
+Hub -> Client: CMD(id=aeab1)
+
+
+
+
+
+@enduml

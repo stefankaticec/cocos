@@ -26,8 +26,6 @@ final public class PacketResponseBuilder {
 	public PacketResponseBuilder fromEnvelope(Envelope envelope) {
 		m_envelope
 			.setVersion(envelope.getVersion())
-			.setCommand(envelope.getCommand())
-			.setCommandId(envelope.getCommandId())
 			.setSourceId(envelope.getTargetId())			// Swap src and dest
 			.setTargetId(envelope.getSourceId())
 			;
@@ -43,20 +41,20 @@ final public class PacketResponseBuilder {
 		return this;
 	}
 
-	public PacketResponseBuilder dataFormat(String format) {
-		getEnvelope().setDataFormat(format);
-		return this;
-	}
+	//public PacketResponseBuilder dataFormat(String format) {
+	//	getEnvelope().setDataFormat(format);
+	//	return this;
+	//}
 
 	public PacketResponseBuilder targetId(String id) {
 		getEnvelope().setTargetId(id);
 		return this;
 	}
 
-	public PacketResponseBuilder commandId(String id) {
-		getEnvelope().setCommandId(id);
-		return this;
-	}
+	//public PacketResponseBuilder commandId(String id) {
+	//	getEnvelope().setCommandId(id);
+	//	return this;
+	//}
 
 	public void send() {
 		TxPacket p = new TxPacket(m_envelope.build(), m_connection);

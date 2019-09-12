@@ -96,6 +96,10 @@ final public class HubServer extends HubConnectorBase {
 		return m_serverEventSubject;
 	}
 
+	@Override protected void onErrorPacket(Envelope env) {
+		// IMPLEMENT
+	}
+
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Authentication.												*/
 	/*----------------------------------------------------------------------*/

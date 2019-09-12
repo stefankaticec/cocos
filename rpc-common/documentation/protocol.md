@@ -2,6 +2,8 @@
 
 ## Basic package format
 
+OLD AND WRONG, keeping for historic purposes.
+
 All packets between hub and client have the same format. The general format is as follows:
 
 |Size|Type|Value|Description|

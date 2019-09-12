@@ -8,6 +8,7 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -90,6 +91,10 @@ final public class HubClient extends HubConnectorBase {
 	 */
 	public void handleJCMD(CommandContext cc, JsonPacket packet) throws Exception {
 		m_clientHandler.executeCommand(cc, packet);
+	}
+
+	@Override protected void onErrorPacket(Envelope env) {
+		// IMPLEMENT
 	}
 
 	private byte[] encodeChallenge(byte[] challenge) {
