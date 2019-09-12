@@ -445,6 +445,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			throw new ProtocolViolationException("The inventory packet data format is missing");
 
 		getClientConnection().updateInventory(dataFormat, Objects.requireNonNull(payload), length);
+
+		//-- Now enter passthrough mode.
+		setPacketState(getClientConnection()::packetReceived);
 	}
 
 	private synchronized void registerClient(BeforeClientData data) {

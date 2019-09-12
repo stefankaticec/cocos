@@ -2,10 +2,13 @@ package to.etc.cocos.hub.parties;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
+import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.ByteBufPacketSender;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.TxPacket;
+import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ByteBufferOutputStream;
 import to.etc.util.ConsoleUtil;
@@ -55,5 +58,71 @@ final public class Client extends AbstractConnection {
 			String fullId = getFullId();
 			server.sendEventClientInventory(fullId, p);
 		});
+	}
+
+	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) {
+		if(!isUsable())
+			throw new IllegalStateException("Received data from a defunct client??");
+		log("Packet received: " + envelope.getPayloadCase());
+
+		String targetId = envelope.getTargetId();
+		if(targetId.length() == 0) {
+			handleHubCommand(envelope);
+		} else {
+			Server server = decodeServerTargetID(envelope.getTargetId());
+			server.packetFromClient(this, envelope, payload, length);
+		}
+	}
+
+	/**
+	 * Format is either clusterid, resource#clusterid, server@clusterid.
+	 */
+	private Server decodeServerTargetID(String targetId) {
+		String[] split = targetId.split("#");
+		Server server;
+		Cluster cluster;
+		String orgId;
+		switch(split.length) {
+			default:
+				throw new FatalHubException(ErrorCode.targetNotFound, targetId);
+
+			case 1:
+				//-- Can be server@clusterid
+				split = targetId.split("@");
+				switch(split.length) {
+					default:
+						throw new FatalHubException(ErrorCode.targetNotFound, targetId);
+
+					case 1:
+						//-- Cluster ID only
+						cluster = getDirectory().getCluster(split[0]);
+						server = cluster.getRandomServer();
+						if(null == server)
+							throw new FatalHubException(ErrorCode.clusterNotFound, split[0]);
+						return server;
+
+					case 2:
+						cluster = getDirectory().getCluster(split[1]);
+						server = cluster.findServer(split[0]);
+						if(null == server)
+							throw new FatalHubException(ErrorCode.targetNotFound, targetId);
+						return server;
+				}
+
+			case 2:
+				cluster = getDirectory().getCluster(split[1]);
+				orgId = split[0];
+				server = cluster.findServiceServer(orgId);
+				if(null == server)
+					throw new FatalHubException(ErrorCode.targetNotFound, split[0]);
+				return server;
+		}
+	}
+
+
+
+	private void handleHubCommand(Envelope envelope) {
+
+
 	}
 }

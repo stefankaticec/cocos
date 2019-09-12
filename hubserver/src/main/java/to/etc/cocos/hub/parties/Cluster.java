@@ -111,6 +111,13 @@ final public class Cluster {
 		}
 	}
 
+	@Nullable
+	public Server findServer(String s) {
+		synchronized(this) {
+			return m_serverMap.get(s);
+		}
+	}
+
 	public synchronized void unregister(AbstractConnection abstractConnection) {
 		if(abstractConnection instanceof Client) {
 			m_clientMap.remove(abstractConnection.getFullId());

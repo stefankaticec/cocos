@@ -1,11 +1,14 @@
 package to.etc.cocos.hub.parties;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCountUtil;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.AbstractConnection;
+import to.etc.cocos.hub.ByteBufPacketSender;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.PacketResponseBuilder;
+import to.etc.cocos.hub.TxPacket;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
@@ -100,5 +103,12 @@ public class Server extends AbstractConnection {
 				.setDataFormat(packet.getDataFormat())
 		);
 		b.send(buffer);
+	}
+
+	public void packetFromClient(Client client, Envelope envelope, ByteBuf payload, int length) {
+		log("RX from client " + client.getFullId() + ": " + envelope.getPayloadCase());
+		TxPacket p = new TxPacket(envelope, client, new ByteBufPacketSender(payload));
+		ReferenceCountUtil.retain(payload);
+		sendPacket(p);
 	}
 }
