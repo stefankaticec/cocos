@@ -4,7 +4,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.hubserver.protocol.ErrorCode;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 
 import java.util.concurrent.TimeUnit;
 
@@ -39,7 +39,7 @@ public class TestServerConnections extends TestAllBase {
 			.timeout(5, TimeUnit.SECONDS)
 			.blockingFirst();
 		Assert.assertEquals("Connector must have gotten to RECONNECT_WAIT status", ConnectorState.RECONNECT_WAIT, connectorState);
-		ErrorResponse lastError = server().getLastError();
+		HubErrorResponse lastError = server().getLastError();
 		Assert.assertNotNull("There must be a HUB error that is returned", lastError);
 		Assert.assertNotNull("The hub error must have code " + ErrorCode.authenticationFailure.name(), lastError.getCode());
 	}

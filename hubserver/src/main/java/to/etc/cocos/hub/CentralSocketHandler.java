@@ -421,7 +421,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 			//-- REMOVE CLIENT
 			getDirectory().unregisterTmpClient(this);
-		} else if(envelope.getCommand().equals(CommandNames.AUTH_CMD)) {
+		} else if(envelope.hasAuth()) {
 			//-- We're authenticated! Yay!
 			log("CLIENT authenticated!!");
 			immediateSendEnvelopeAndEmptyBody(envelope);							// Forward AUTH to client

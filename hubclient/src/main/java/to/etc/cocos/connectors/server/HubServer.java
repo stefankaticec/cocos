@@ -15,6 +15,7 @@ import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.AuthResponse;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.ClientAuthRequest;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
@@ -150,13 +151,13 @@ final public class HubServer extends HubConnectorBase {
 		ClientAuthRequest clau = cc.getSourceEnvelope().getClientAuth();
 		cc.log("Client authentication request from " + clau.getClientId());
 		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion())) {
-			cc.respondErrorPacket(ErrorCode.authenticationFailure, "");
+			cc.respondWithHubErrorPacket(ErrorCode.authenticationFailure, "");
 			return;
 		}
 
 		//-- Respond with an AUTH packet.
 		cc.getResponseEnvelope()
-			.setCommand(CommandNames.AUTH_CMD)
+			.setAuth(AuthResponse.newBuilder().build())
 			;
 		cc.respond();
 	}
@@ -247,12 +248,14 @@ final public class HubServer extends HubConnectorBase {
 		}
 
 		Envelope jcmd = Envelope.newBuilder()
-			.setDataFormat("JSON:" + packet.getClass().getName())
 			.setSourceId(getMyId())
 			.setTargetId(command.getClientKey())
 			.setVersion(1)
-			.setCommand("JCMD")
-			.setCommandId(command.getCommandId())
+			.setCommand(Hubcore.Command.newBuilder()
+				.setDataFormat(CommandNames.getJsonDataFormat(packet))
+				.setId(command.getCommandId())
+				.setName(packet.getClass().getName())
+			)
 			.build();
 		sendPacket(new ISendPacket() {
 			@Override public void send(PacketWriter os) throws Exception {

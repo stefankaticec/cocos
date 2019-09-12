@@ -80,7 +80,9 @@ final public class HubClient extends HubConnectorBase {
 		//-- Immediately send the inventory packet
 		JsonPacket inventory = m_clientHandler.getInventory();
 		cc.getResponseEnvelope()
-			.setCommand(CommandNames.INVENTORY_CMD)
+			.setInventory(Hubcore.ClientInventory.newBuilder()
+				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
+			)
 			;
 		cc.respondJson(inventory);
 	}

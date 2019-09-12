@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
@@ -129,7 +129,7 @@ public abstract class HubConnectorBase {
 	private ExecutorService m_eventExecutor;
 
 	@Nullable
-	private ErrorResponse m_lastError;
+	private HubErrorResponse m_lastError;
 
 	protected abstract void onErrorPacket(Envelope env);
 
@@ -473,8 +473,8 @@ public abstract class HubConnectorBase {
 
 	private void executePacket() {
 		Envelope env = m_packetReader.getEnvelope();
-		if(env.hasError()) {
-			ErrorResponse error = env.getError();
+		if(env.hasHubError()) {
+			HubErrorResponse error = env.getHubError();
 
 			log("Received HUB ERROR packet: " + env.getCommand() + " " + error.getCode() + " " + error.getText());
 			synchronized(this) {
@@ -509,7 +509,7 @@ public abstract class HubConnectorBase {
 
 	private void sendErrorPacket(CommandContext ctx, CommandFailedException cfx) {
 
-		ctx.getResponseEnvelope().getErrorBuilder()
+		ctx.getResponseEnvelope().getHubErrorBuilder()
 			.setText(cfx.getMessage())
 			.setCode("command.exception")
 			.setDetails(StringTool.strStacktrace(cfx))
@@ -644,7 +644,7 @@ public abstract class HubConnectorBase {
 	}
 
 	@Nullable
-	public synchronized ErrorResponse getLastError() {
+	public synchronized HubErrorResponse getLastError() {
 		return m_lastError;
 	}
 
@@ -730,7 +730,7 @@ public abstract class HubConnectorBase {
 		}
 
 		if(t instanceof HubException) {
-			cc.respondHubException((HubException) t);
+			cc.respondWithHubErrorPacket((HubException) t);
 		}  if(t instanceof RuntimeException) {
 			throw (RuntimeException) t;
 		} else if(t instanceof Error) {

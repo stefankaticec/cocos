@@ -2,13 +2,12 @@ package to.etc.cocos.connectors.common;
 
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope.Builder;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.ErrorResponse;
+import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 import to.etc.util.StringTool;
 
 /**
@@ -30,24 +29,17 @@ final public class CommandContext {
 		// Create a response envelope with defaults.
 		m_responseEnvelope = Hubcore.Envelope.newBuilder()
 			.setVersion(envelope.getVersion())
-			.setCommand(envelope.getCommand())
-			.setCommandId(envelope.getCommandId())
 			.setSourceId(envelope.getTargetId())			// Swap src and dest
 			.setTargetId(envelope.getSourceId())
 			;
 	}
 
 	public void respondJson(@NonNull Object jsonPacket) {
-		if(jsonPacket == null)
-			m_responseEnvelope.setDataFormat("");
-		else
-			m_responseEnvelope.setDataFormat(CommandNames.BODY_JSON + ":" + jsonPacket.getClass().getName());
 		final Envelope envelope = m_responseEnvelope.build();
 		m_connector.sendPacket(os -> os.send(envelope, jsonPacket));
 	}
 
 	public void respond() {
-		m_responseEnvelope.setDataFormat("");
 		final Envelope envelope = m_responseEnvelope.build();
 		m_connector.sendPacket(os -> os.send(envelope, null));
 	}
@@ -72,8 +64,8 @@ final public class CommandContext {
 		m_connector.error(s);
 	}
 
-	public void respondErrorPacket(ErrorCode code, String details) {
-		getResponseEnvelope().setError(ErrorResponse.newBuilder()
+	public void respondWithHubErrorPacket(ErrorCode code, String details) {
+		getResponseEnvelope().setHubError(HubErrorResponse.newBuilder()
 			.setCode(code.name())
 			.setText(code.getText())
 			.setDetails(details)
@@ -82,8 +74,8 @@ final public class CommandContext {
 		respond();
 	}
 
-	public void respondHubException(HubException t) {
-		getResponseEnvelope().setError(ErrorResponse.newBuilder()
+	public void respondWithHubErrorPacket(HubException t) {
+		getResponseEnvelope().setHubError(HubErrorResponse.newBuilder()
 			.setCode(t.getCode().name())
 			.setText(t.getMessage())
 			.setDetails(StringTool.strStacktrace(t))

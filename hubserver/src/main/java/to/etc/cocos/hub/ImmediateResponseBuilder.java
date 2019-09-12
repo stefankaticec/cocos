@@ -22,8 +22,6 @@ final public class ImmediateResponseBuilder {
 	public ImmediateResponseBuilder fromEnvelope(Envelope envelope) {
 		m_envelope
 			.setVersion(envelope.getVersion())
-			.setCommand(envelope.getCommand())
-			.setCommandId(envelope.getCommandId())
 			.setSourceId(envelope.getTargetId())			// Swap src and dest
 			.setTargetId(envelope.getSourceId())
 			;
@@ -41,11 +39,6 @@ final public class ImmediateResponseBuilder {
 
 	public ImmediateResponseBuilder targetId(String id) {
 		getEnvelope().setTargetId(id);
-		return this;
-	}
-
-	public ImmediateResponseBuilder commandId(String id) {
-		getEnvelope().setCommandId(id);
 		return this;
 	}
 

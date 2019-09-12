@@ -28,4 +28,11 @@ final public class CommandNames {
 	//
 	//public static final String INVENTORY_CMD = "CLINVE";
 
+	static public final String getJsonDataFormat(Class<?> clz) {
+		return "JSON:" + clz.getName();
+	}
+	static public final String getJsonDataFormat(Object obj) {
+		return "JSON:" + obj.getClass().getName();
+	}
+
 }
