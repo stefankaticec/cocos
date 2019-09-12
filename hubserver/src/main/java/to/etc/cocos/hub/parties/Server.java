@@ -2,6 +2,7 @@ package to.etc.cocos.hub.parties;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.ByteBufPacketSender;
@@ -20,6 +21,7 @@ import to.etc.util.ConsoleUtil;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 13-1-19.
  */
+@NonNullByDefault
 public class Server extends AbstractConnection {
 	public Server(Cluster cluster, Hub systemContext, String id) {
 		super(cluster, systemContext, id);
@@ -105,9 +107,9 @@ public class Server extends AbstractConnection {
 		b.send(buffer);
 	}
 
-	public void packetFromClient(Client client, Envelope envelope, ByteBuf payload, int length) {
+	public void packetFromClient(Client client, Envelope envelope, @Nullable ByteBuf payload, int length) {
 		log("RX from client " + client.getFullId() + ": " + envelope.getPayloadCase());
-		TxPacket p = new TxPacket(envelope, client, new ByteBufPacketSender(payload));
+		TxPacket p = new TxPacket(envelope, client, null == payload ? null : new ByteBufPacketSender(payload));
 		ReferenceCountUtil.retain(payload);
 		sendPacket(p);
 	}

@@ -2,6 +2,7 @@ package to.etc.cocos.hub.parties;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.ByteBufPacketSender;
@@ -22,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 13-1-19.
  */
+@NonNullByDefault
 final public class Client extends AbstractConnection {
 	private ConcurrentHashMap<String, ByteBufferPacket> m_inventory = new ConcurrentHashMap<>();
 
@@ -37,9 +39,9 @@ final public class Client extends AbstractConnection {
 	/**
 	 * Called when a server has a packet for a client. This sends the packet to the client.
 	 */
-	public void packetFromServer(Server server, Envelope envelope, ByteBuf payload, int length) {
+	public void packetFromServer(Server server, Envelope envelope, @Nullable ByteBuf payload, int length) {
 		log("RX from server " + server.getFullId() + ": " + envelope.getPayloadCase());
-		TxPacket p = new TxPacket(envelope, server, new ByteBufPacketSender(payload));
+		TxPacket p = new TxPacket(envelope, server, null == payload ? null : new ByteBufPacketSender(payload));
 		ReferenceCountUtil.retain(payload);
 		sendPacket(p);
 	}

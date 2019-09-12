@@ -1,6 +1,7 @@
 package to.etc.cocos.hub;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 import java.util.concurrent.CompletableFuture;
@@ -23,19 +24,17 @@ final public class TxPacket {
 
 	private final CompletableFuture<TxPacket> m_sendFuture = new CompletableFuture<>();
 
-	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf, IPacketBodySender bodySender) {
+	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf, @Nullable IPacketBodySender bodySender) {
 		m_envelope = envelope;
 		m_onBehalfOf = onBehalfOf;
-		m_bodySender = bodySender;
-	}
-
-	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf) {
-		m_envelope = envelope;
-		m_onBehalfOf = onBehalfOf;
-		m_bodySender = a -> {
+		m_bodySender = bodySender != null ? bodySender : a -> {
 			//-- Send a null body
 			a.getHeaderBuf().writeInt(0);
 		};
+	}
+
+	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf) {
+		this(envelope, onBehalfOf, null);
 	}
 
 	public Envelope getEnvelope() {
