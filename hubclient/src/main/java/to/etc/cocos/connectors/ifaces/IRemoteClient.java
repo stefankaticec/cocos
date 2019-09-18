@@ -12,6 +12,9 @@ import to.etc.cocos.connectors.common.JsonPacket;
 public interface IRemoteClient {
 	String getClientID();
 
+	@Nullable
+	<T extends JsonPacket> T getInventory(Class<T> clz);
+
 	//@NonNull
 	//InventoryPacket getInventory();
 

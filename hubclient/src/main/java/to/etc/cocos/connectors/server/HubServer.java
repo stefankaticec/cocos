@@ -64,7 +64,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		m_authenticator = authenticator;
 		m_serverEventSubject = PublishSubject.create();
 
-		addClientListener(new IRemoteClientListener() {
+		addListener(new IRemoteClientListener() {
 			@Override public void clientConnected(IRemoteClient client) throws Exception {
 				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientConnected, client));
 			}
@@ -268,11 +268,13 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		}
 	}
 
-	public void addClientListener(IRemoteClientListener c) {
+	@Override
+	public void addListener(IRemoteClientListener c) {
 		m_clientListeners.add(c);
 	}
 
-	public void removeClientListener(IRemoteClientListener l) {
+	@Override
+	public void removeListener(IRemoteClientListener l) {
 		m_clientListeners.remove(l);
 	}
 
@@ -334,16 +336,6 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	@Override
 	public void close() throws Exception {
 		terminateAndWait();
-	}
-
-	@Override
-	public void addListener(IRemoteClientListener l) {
-
-	}
-
-	@Override
-	public void removeListener(IRemoteClientListener l) {
-
 	}
 
 	@Nullable

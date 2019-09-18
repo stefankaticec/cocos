@@ -46,6 +46,7 @@ final public class RemoteClient implements IRemoteClient {
 	/**
 	 * Retrieve the specified inventory type from the client.
 	 */
+	@Override
 	@Nullable
 	public <I extends JsonPacket> I getInventory(Class<I> packetClass) {
 		JsonPacket jsonPacket = m_inventoryMap.get(packetClass);
