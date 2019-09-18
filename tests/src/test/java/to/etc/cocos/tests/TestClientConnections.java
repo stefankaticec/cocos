@@ -6,8 +6,8 @@ import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.server.IServerEvent;
 import to.etc.cocos.connectors.server.RemoteClient;
 import to.etc.cocos.connectors.server.ServerEventType;
+import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.ErrorCode;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 
 import java.util.concurrent.TimeUnit;
 

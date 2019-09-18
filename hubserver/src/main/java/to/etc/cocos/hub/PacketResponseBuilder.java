@@ -1,8 +1,8 @@
 package to.etc.cocos.hub;
 
 import io.netty.buffer.ByteBuf;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope.Builder;
+import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.Builder;
 
 /**
  * This is the normal packet builder, sending packets after

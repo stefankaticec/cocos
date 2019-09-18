@@ -10,11 +10,11 @@ import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.PacketResponseBuilder;
 import to.etc.cocos.hub.TxPacket;
+import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ConsoleUtil;
 
 /**

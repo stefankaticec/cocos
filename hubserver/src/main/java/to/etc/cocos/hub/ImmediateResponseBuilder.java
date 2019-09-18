@@ -1,7 +1,7 @@
 package to.etc.cocos.hub;
 
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope.Builder;
+import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.Builder;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>

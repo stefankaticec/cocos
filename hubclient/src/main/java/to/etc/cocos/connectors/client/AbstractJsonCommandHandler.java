@@ -6,8 +6,8 @@ import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
+import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.hubserver.protocol.HubException;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Command;
 
 import java.util.List;
 

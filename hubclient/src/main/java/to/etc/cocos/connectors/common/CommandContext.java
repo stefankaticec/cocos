@@ -2,12 +2,12 @@ package to.etc.cocos.connectors.common;
 
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.Builder;
+import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.HubException;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope.Builder;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 import to.etc.util.StringTool;
 
 /**

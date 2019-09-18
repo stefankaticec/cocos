@@ -2,9 +2,8 @@ package to.etc.cocos.connectors.common;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eclipse.jdt.annotation.NonNull;
+import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.CommandNames;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ByteBufferOutputStream;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ final public class PacketWriter {
 		m_os = os;
 	}
 
-	public void send(Hubcore.Envelope envelope, Object jsonBody) throws Exception {
+	public void send(Envelope envelope, Object jsonBody) throws Exception {
 		sendEnvelope(envelope);
 		if(null == jsonBody) {
 			writeInt(0);								// Send an empty body.
@@ -58,7 +57,7 @@ final public class PacketWriter {
 		}
 	}
 
-	public void exception(@NonNull Hubcore.Envelope envelope, @NonNull Throwable exception) throws Exception {
+	public void exception(@NonNull Envelope envelope, @NonNull Throwable exception) throws Exception {
 	}
 
 	private void writeInt(int len) throws IOException {

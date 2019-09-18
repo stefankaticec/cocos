@@ -2,7 +2,7 @@ package to.etc.cocos.hub;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope;
 
 import java.util.concurrent.CompletableFuture;
 

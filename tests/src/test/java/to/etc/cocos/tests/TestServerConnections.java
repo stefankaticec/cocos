@@ -3,8 +3,8 @@ package to.etc.cocos.tests;
 import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.common.ConnectorState;
+import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.ErrorCode;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 
 import java.util.concurrent.TimeUnit;
 

@@ -7,7 +7,7 @@ import to.etc.cocos.hub.parties.Cluster;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.ConnectionState;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope;
 
 import java.util.LinkedList;
 import java.util.List;

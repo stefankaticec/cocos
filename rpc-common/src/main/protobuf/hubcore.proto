@@ -1,5 +1,5 @@
 syntax = "proto3";
-package to.etc.puzzler.daemon.rpc.messages;
+package to.etc.cocos.messages;
 
 // The challenge format sent by the hub to a client or server connecting (the first packet)
 message HelloChallenge {

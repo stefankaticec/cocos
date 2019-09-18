@@ -7,11 +7,11 @@ import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
+import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.Command;
+import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Command;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

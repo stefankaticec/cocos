@@ -8,9 +8,9 @@ import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.ByteBufPacketSender;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.TxPacket;
+import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
 import to.etc.util.ByteBufferOutputStream;
 import to.etc.util.ConsoleUtil;
 

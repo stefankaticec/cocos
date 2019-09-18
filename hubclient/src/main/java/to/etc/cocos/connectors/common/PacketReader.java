@@ -2,8 +2,8 @@ package to.etc.cocos.connectors.common;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.CommandNames;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore;
 import to.etc.util.ByteArrayUtil;
 import to.etc.util.StringTool;
 
@@ -30,7 +30,7 @@ final class PacketReader {
 	private byte[] m_lenBuffer = new byte[4];
 
 	@Nullable
-	private Hubcore.Envelope m_envelope;
+	private Envelope m_envelope;
 
 	@Nullable
 	private Object m_body;
@@ -80,7 +80,7 @@ final class PacketReader {
 		}
 		byte[] data = new byte[len];
 		readFully(is, data);
-		Hubcore.Envelope c = Hubcore.Envelope.parseFrom(data);
+		Envelope c = Envelope.parseFrom(data);
 		if(c.getVersion() != 1)
 			throw new IllegalStateException("Cannot accept envelope version " + c.getVersion());
 
@@ -134,8 +134,8 @@ final class PacketReader {
 		}
 	}
 
-	public Hubcore.Envelope getEnvelope() {
-		Hubcore.Envelope envelope = m_envelope;
+	public Envelope getEnvelope() {
+		Envelope envelope = m_envelope;
 		if(null == envelope)
 			throw new IllegalStateException("No packet envelope current");
 		return envelope;
