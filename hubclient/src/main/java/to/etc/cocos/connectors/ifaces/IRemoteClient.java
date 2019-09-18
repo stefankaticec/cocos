@@ -9,8 +9,8 @@ import to.etc.cocos.connectors.common.JsonPacket;
  * Created on 25-6-19.
  */
 @NonNullByDefault
-public interface IDaemon {
-	DaemonKey getDaemonKey();
+public interface IRemoteClient {
+	String getClientID();
 
 	//@NonNull
 	//InventoryPacket getInventory();

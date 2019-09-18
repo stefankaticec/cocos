@@ -3,8 +3,8 @@ package to.etc.cocos.connectors.server;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.ifaces.DaemonKey;
-import to.etc.cocos.connectors.ifaces.IDaemon;
+import to.etc.cocos.connectors.ifaces.IDaemonCommandListener;
+import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.util.StringTool;
 
 import java.util.HashMap;
@@ -17,7 +17,7 @@ import java.util.Map;
  * Created on 18-07-19.
  */
 @NonNullByDefault
-final public class RemoteClient implements IDaemon {
+final public class RemoteClient implements IRemoteClient {
 	final private String m_clientId;
 
 	private final HubServer m_hubServer;
@@ -38,13 +38,9 @@ final public class RemoteClient implements IDaemon {
 		}
 	}
 
-	public String getClientKey() {
-		return m_clientId;
-	}
-
 	@Override
-	public DaemonKey getDaemonKey() {
-		return null;
+	public String getClientID() {
+		return m_clientId;
 	}
 
 	/**
@@ -61,7 +57,7 @@ final public class RemoteClient implements IDaemon {
 	 */
 	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
 		String commandId = StringTool.generateGUID();
-		RemoteCommand command = new RemoteCommand(commandId, getClientKey(), commandTimeout, commandKey, description);
+		RemoteCommand command = new RemoteCommand(commandId, getClientID(), commandTimeout, commandKey, description);
 		if(null != l)
 			command.addListener(l);
 		synchronized(m_hubServer) {
@@ -74,5 +70,10 @@ final public class RemoteClient implements IDaemon {
 		}
 		m_hubServer.sendJsonCommand(command, packet);
 		return commandId;
+	}
+
+	@Override
+	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, IDaemonCommandListener l) throws Exception {
+		throw new IllegalStateException();
 	}
 }

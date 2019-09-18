@@ -13,25 +13,25 @@ import java.util.List;
  * Created on 25-6-19.
  */
 @NonNullByDefault
-public interface IDaemonHub extends AutoCloseable {
+public interface IRemoteClientHub extends AutoCloseable {
 	/**
 	 * List all remotely reachable targets.
 	 */
-	List<DaemonKey> getClientKeyList();
+	List<String> getClientIdList();
 
-	List<IDaemon> getClientList();
+	List<IRemoteClient> getClientList();
 
-	void addListener(IDaemonListener l);
+	void addListener(IRemoteClientListener l);
 
-	void removeListener(IDaemonListener l);
+	void removeListener(IRemoteClientListener l);
 
 	@Nullable
-	IDaemon findClient(DaemonKey key);
+	IRemoteClient findClient(String id);
 
-	default IDaemon getClient(DaemonKey key) throws DaemonNotPresentException {
-		IDaemon client = findClient(key);
+	default IRemoteClient getClient(String id) throws DaemonNotPresentException {
+		IRemoteClient client = findClient(id);
 		if(null == client)
-			throw new DaemonNotPresentException("Client " + key + " is not available");
+			throw new DaemonNotPresentException("Client " + id + " is not available");
 		return client;
 	}
 
@@ -39,5 +39,5 @@ public interface IDaemonHub extends AutoCloseable {
 	IDaemonCommand findCommand(String code);
 
 	@Nullable
-	IDaemonCommand findCommand(DaemonKey server, String commandKey);
+	IDaemonCommand findCommand(String clientId, String commandKey);
 }

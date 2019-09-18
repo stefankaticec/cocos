@@ -7,10 +7,10 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  * Created on 15-5-19.
  */
 @NonNullByDefault
-public interface IDaemonListener {
-	void clientRegistered(IDaemon handle);
+public interface IRemoteClientListener {
+	void clientRegistered(IRemoteClient handle);
 
-	void clientDisconnected(IDaemon handle);
+	void clientDisconnected(IRemoteClient handle);
 
 	//void inventoryReceived(IRemoteClient handle, InventoryPacket inv);
 }
