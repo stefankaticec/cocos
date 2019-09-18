@@ -12,6 +12,7 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.PacketWriter;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
+import to.etc.cocos.connectors.ifaces.IDaemonHub;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AuthResponse;
 import to.etc.cocos.messages.Hubcore.ClientAuthRequest;
@@ -34,7 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Created on 13-1-19.
  */
 @NonNullByDefault
-final public class HubServer extends HubConnectorBase {
+final public class HubServer extends HubConnectorBase implements IDaemonHub {
 	private final String m_serverVersion = "1.0";
 
 	private final String m_clusterPassword;
@@ -282,6 +283,7 @@ final public class HubServer extends HubConnectorBase {
 	/*	CODING:	Interface.													*/
 	/*----------------------------------------------------------------------*/
 
+	@Override
 	public synchronized List<RemoteClient> getClientList() {
 		return new ArrayList<>(m_remoteClientMap.values());
 	}

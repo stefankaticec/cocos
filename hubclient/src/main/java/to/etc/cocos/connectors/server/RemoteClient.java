@@ -3,6 +3,8 @@ package to.etc.cocos.connectors.server;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.ifaces.DaemonKey;
+import to.etc.cocos.connectors.ifaces.IDaemon;
 import to.etc.util.StringTool;
 
 import java.util.HashMap;
@@ -15,7 +17,7 @@ import java.util.Map;
  * Created on 18-07-19.
  */
 @NonNullByDefault
-final public class RemoteClient {
+final public class RemoteClient implements IDaemon {
 	final private String m_clientId;
 
 	private final HubServer m_hubServer;
@@ -38,6 +40,11 @@ final public class RemoteClient {
 
 	public String getClientKey() {
 		return m_clientId;
+	}
+
+	@Override
+	public DaemonKey getDaemonKey() {
+		return null;
 	}
 
 	/**
