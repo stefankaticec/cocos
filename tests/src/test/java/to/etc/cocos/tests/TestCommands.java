@@ -1,7 +1,7 @@
 package to.etc.cocos.tests;
 
 import org.junit.Test;
-import to.etc.cocos.connectors.server.RemoteClient;
+import to.etc.cocos.connectors.ifaces.IRemoteClient;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -11,7 +11,7 @@ public class TestCommands extends TestAllBase {
 	@Test
 	public void testSendClientCommand() throws Exception {
 		waitConnected();
-		RemoteClient remote = server().getClientList().get(0);
+		IRemoteClient remote = server().getClientList().get(0);
 
 		CommandTestPacket p = new CommandTestPacket();
 		p.setParameters("This is a test command packet");

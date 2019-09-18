@@ -43,7 +43,7 @@ public class TestClientConnections extends TestAllBase {
 
 		RemoteClient client = event.getClient();
 		Assert.assertNotNull(client);
-		Assert.assertEquals("Connector must have gotten client connected event", CLIENTID, client.getClientKey());
+		Assert.assertEquals("Connector must have gotten client connected event", CLIENTID, client.getClientID());
 	}
 
 	@Test
@@ -60,7 +60,7 @@ public class TestClientConnections extends TestAllBase {
 
 		RemoteClient client = event.getClient();
 		Assert.assertNotNull(client);
-		Assert.assertEquals("Connector must have gotten client inventory event", CLIENTID, client.getClientKey());
+		Assert.assertEquals("Connector must have gotten client inventory event", CLIENTID, client.getClientID());
 	}
 
 	/**

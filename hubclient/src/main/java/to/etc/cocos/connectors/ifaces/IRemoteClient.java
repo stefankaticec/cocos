@@ -15,5 +15,5 @@ public interface IRemoteClient {
 	//@NonNull
 	//InventoryPacket getInventory();
 
-	String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, IDaemonCommandListener l) throws Exception;
+	String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IDaemonCommandListener l) throws Exception;
 }

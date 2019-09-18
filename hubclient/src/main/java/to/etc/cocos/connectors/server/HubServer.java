@@ -290,6 +290,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		return new ArrayList<>(m_remoteClientMap.values());
 	}
 
+	@Override
 	@Nullable
 	public synchronized RemoteClient findClient(String clientId) {
 		return m_remoteClientMap.get(clientId);

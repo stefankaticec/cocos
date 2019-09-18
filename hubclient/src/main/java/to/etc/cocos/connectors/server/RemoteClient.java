@@ -73,7 +73,7 @@ final public class RemoteClient implements IRemoteClient {
 	}
 
 	@Override
-	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, IDaemonCommandListener l) throws Exception {
+	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IDaemonCommandListener l) throws Exception {
 		throw new IllegalStateException();
 	}
 }
