@@ -12,8 +12,12 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.PacketWriter;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
+import to.etc.cocos.connectors.ifaces.IClientAuthenticator;
+import to.etc.cocos.connectors.ifaces.IDaemonCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteClientHub;
+import to.etc.cocos.connectors.ifaces.IRemoteClientListener;
+import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AuthResponse;
 import to.etc.cocos.messages.Hubcore.ClientAuthRequest;
@@ -30,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -43,7 +48,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 
 	private final IClientAuthenticator m_authenticator;
 
-	private CopyOnWriteArrayList<IClientListener> m_clientListeners = new CopyOnWriteArrayList<>();
+	private CopyOnWriteArrayList<IRemoteClientListener> m_clientListeners = new CopyOnWriteArrayList<>();
 
 	private Map<String, RemoteClient> m_remoteClientMap = new HashMap<>();
 
@@ -59,12 +64,12 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		m_authenticator = authenticator;
 		m_serverEventSubject = PublishSubject.create();
 
-		addClientListener(new IClientListener() {
-			@Override public void clientConnected(RemoteClient client) throws Exception {
+		addClientListener(new IRemoteClientListener() {
+			@Override public void clientConnected(IRemoteClient client) throws Exception {
 				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientConnected, client));
 			}
 
-			@Override public void clientDisconnected(RemoteClient client) throws Exception {
+			@Override public void clientDisconnected(IRemoteClient client) throws Exception {
 				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientDisconnected, client));
 			}
 
@@ -263,16 +268,16 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		}
 	}
 
-	public void addClientListener(IClientListener c) {
+	public void addClientListener(IRemoteClientListener c) {
 		m_clientListeners.add(c);
 	}
 
-	public void removeClientListener(IClientListener l) {
+	public void removeClientListener(IRemoteClientListener l) {
 		m_clientListeners.remove(l);
 	}
 
-	private void callListeners(ConsumerEx<IClientListener> what) {
-		for(IClientListener l : m_clientListeners) {
+	private void callListeners(ConsumerEx<IRemoteClientListener> what) {
+		for(IRemoteClientListener l : m_clientListeners) {
 			try {
 				what.accept(l);
 			} catch(Exception x) {
@@ -296,6 +301,12 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		return m_remoteClientMap.get(clientId);
 	}
 
+	@Override
+	public List<String> getClientIdList() {
+		return getClientList().stream()
+			.map(a -> a.getClientID())
+			.collect(Collectors.toList());
+	}
 
 	public void sendJsonCommand(RemoteCommand command, JsonPacket packet) {
 		synchronized(this) {
@@ -324,4 +335,27 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	public void close() throws Exception {
 		terminateAndWait();
 	}
+
+	@Override
+	public void addListener(IRemoteClientListener l) {
+
+	}
+
+	@Override
+	public void removeListener(IRemoteClientListener l) {
+
+	}
+
+	@Nullable
+	@Override
+	public IDaemonCommand findCommand(String code) {
+		return null;
+	}
+
+	@Nullable
+	@Override
+	public IDaemonCommand findCommand(String clientId, String commandKey) {
+		return null;
+	}
+
 }

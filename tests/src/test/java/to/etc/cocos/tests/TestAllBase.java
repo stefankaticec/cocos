@@ -7,8 +7,8 @@ import to.etc.cocos.connectors.client.HubClient;
 import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.client.IClientPacketHandler;
-import to.etc.cocos.connectors.server.IClientAuthenticator;
-import to.etc.cocos.connectors.server.IServerEvent;
+import to.etc.cocos.connectors.ifaces.IClientAuthenticator;
+import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.Hub;
 

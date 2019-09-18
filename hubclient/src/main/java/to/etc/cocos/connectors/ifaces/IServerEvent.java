@@ -1,4 +1,4 @@
-package to.etc.cocos.connectors.server;
+package to.etc.cocos.connectors.ifaces;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -12,5 +12,5 @@ public interface IServerEvent {
 	IServerEventType getType();
 
 	@Nullable
-	RemoteClient getClient();
+	IRemoteClient getClient();
 }

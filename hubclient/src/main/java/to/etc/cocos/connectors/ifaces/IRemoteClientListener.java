@@ -1,6 +1,8 @@
 package to.etc.cocos.connectors.ifaces;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.server.RemoteClient;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -8,9 +10,10 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault
 public interface IRemoteClientListener {
-	void clientRegistered(IRemoteClient handle);
+	void clientConnected(IRemoteClient handle) throws Exception;
 
-	void clientDisconnected(IRemoteClient handle);
+	void clientDisconnected(IRemoteClient handle) throws Exception;
 
-	//void inventoryReceived(IRemoteClient handle, InventoryPacket inv);
+	void clientInventoryPacketReceived(RemoteClient client, JsonPacket packet) throws Exception;
+	//void inventoryReceived(IRemoteClient handle, JsonPacket inv);
 }

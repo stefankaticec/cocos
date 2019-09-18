@@ -5,6 +5,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.ifaces.IDaemonCommandListener;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
+import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.util.StringTool;
 
 import java.util.HashMap;
