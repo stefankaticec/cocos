@@ -28,10 +28,10 @@ public interface IRemoteClientHub extends AutoCloseable {
 	@Nullable
 	IRemoteClient findClient(String id);
 
-	default IRemoteClient getClient(String id) throws DaemonNotPresentException {
+	default IRemoteClient getClient(String id) throws RemoteClientNotPresentException {
 		IRemoteClient client = findClient(id);
 		if(null == client)
-			throw new DaemonNotPresentException("Client " + id + " is not available");
+			throw new RemoteClientNotPresentException("Client " + id + " is not available");
 		return client;
 	}
 

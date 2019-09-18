@@ -8,8 +8,8 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault
 public interface IDaemonCommand {
-	void addListener(IDaemonCommandListener listener);
+	void addListener(IRemoteCommandListener listener);
 
-	void removeListener(IDaemonCommandListener listener);
+	void removeListener(IRemoteCommandListener listener);
 
 }

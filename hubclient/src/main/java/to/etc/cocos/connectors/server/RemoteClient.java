@@ -3,9 +3,8 @@ package to.etc.cocos.connectors.server;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.ifaces.IDaemonCommandListener;
-import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
+import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.util.StringTool;
 
 import java.util.HashMap;
@@ -56,6 +55,7 @@ final public class RemoteClient implements IRemoteClient {
 	/**
 	 * Send a command to the client.
 	 */
+	@Override
 	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
 		String commandId = StringTool.generateGUID();
 		RemoteCommand command = new RemoteCommand(commandId, getClientID(), commandTimeout, commandKey, description);
@@ -71,10 +71,5 @@ final public class RemoteClient implements IRemoteClient {
 		}
 		m_hubServer.sendJsonCommand(command, packet);
 		return commandId;
-	}
-
-	@Override
-	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IDaemonCommandListener l) throws Exception {
-		throw new IllegalStateException();
 	}
 }
