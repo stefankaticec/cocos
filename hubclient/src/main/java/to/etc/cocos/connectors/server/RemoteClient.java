@@ -24,7 +24,8 @@ final public class RemoteClient implements IRemoteClient {
 
 	private Map<Class<?>, JsonPacket> m_inventoryMap = new HashMap<>();
 
-	private Map<String, RemoteCommand> m_commandMap = new HashMap<>();
+	//private Map<String, RemoteCommand> m_commandMap = new HashMap<>();
+
 	private Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
 
 	public RemoteClient(HubServer server, String clientId) {
@@ -68,9 +69,16 @@ final public class RemoteClient implements IRemoteClient {
 					throw new IllegalStateException("The command with key=" + commandKey + " is already pending for client " + this);
 			}
 
-			m_commandMap.put(commandId, command);
+			//m_commandMap.put(commandId, command);
 		}
 		m_hubServer.sendJsonCommand(command, packet);
 		return commandId;
+	}
+
+	@Nullable
+	public RemoteCommand findCommandByKey(String key) {
+		synchronized(m_hubServer) {
+			return m_commandByKeyMap.get(key);
+		}
 	}
 }

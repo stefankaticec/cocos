@@ -36,8 +36,8 @@ public interface IRemoteClientHub extends AutoCloseable {
 	}
 
 	@Nullable
-	IDaemonCommand findCommand(String code);
+	IRemoteCommand findCommand(String code);
 
 	@Nullable
-	IDaemonCommand findCommand(String clientId, String commandKey);
+	IRemoteCommand findCommand(String clientId, String commandKey);
 }

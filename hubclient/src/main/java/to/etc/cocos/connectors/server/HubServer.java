@@ -12,21 +12,27 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.PacketWriter;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
+import to.etc.cocos.connectors.ifaces.EventCommandError;
+import to.etc.cocos.connectors.ifaces.EventCommandFinished;
 import to.etc.cocos.connectors.ifaces.IClientAuthenticator;
-import to.etc.cocos.connectors.ifaces.IDaemonCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteClientHub;
 import to.etc.cocos.connectors.ifaces.IRemoteClientListener;
+import to.etc.cocos.connectors.ifaces.IRemoteCommand;
+import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
+import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AuthResponse;
 import to.etc.cocos.messages.Hubcore.ClientAuthRequest;
 import to.etc.cocos.messages.Hubcore.CommandError;
+import to.etc.cocos.messages.Hubcore.CommandResponse;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -143,12 +149,11 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 			case COMMANDERROR:
 				handleCommandError(ctx);
 				break;
-		}
-	}
 
-	private void handleCommandError(CommandContext ctx) {
-		CommandError err = ctx.getSourceEnvelope().getCommandError();
-		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command error: " + err.getCode() + " " + err.getMessage());
+			case RESPONSE:
+				handleCommandFinished(ctx, data);
+				break;
+		}
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -310,7 +315,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 			.collect(Collectors.toList());
 	}
 
-	public void sendJsonCommand(RemoteCommand command, JsonPacket packet) {
+	void sendJsonCommand(RemoteCommand command, JsonPacket packet) {
 		synchronized(this) {
 			m_commandMap.put(command.getCommandId(), command);
 		}
@@ -332,22 +337,85 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		});
 	}
 
+	private RemoteCommand getCommandFromID(String clientId, String commandId, String commandName) {
+		synchronized(this) {
+			RemoteCommand cmd = m_commandMap.get(commandId);
+			if(null != cmd)
+				return cmd;
+
+			cmd = new RemoteCommand(commandId, clientId, 60*1000, null, "Recovered command");
+			m_commandMap.put(commandId, cmd);
+			return cmd;
+		}
+	}
+
 
 	@Override
 	public void close() throws Exception {
 		terminateAndWait();
 	}
 
-	@Nullable
-	@Override
-	public IDaemonCommand findCommand(String code) {
-		return null;
+	private void callCommandListeners(RemoteCommand command, ConsumerEx<IRemoteCommandListener> l) {
+		for(IRemoteCommandListener listener : command.getListeners()) {
+			try {
+				l.accept(listener);
+			} catch(Exception x) {
+				System.err.println("Command " + command + " listener failed: " + x);
+				x.printStackTrace();
+			}
+		}
 	}
 
 	@Nullable
 	@Override
-	public IDaemonCommand findCommand(String clientId, String commandKey) {
-		return null;
+	public IRemoteCommand findCommand(String id) {
+		return m_commandMap.get(id);
 	}
 
+	@Nullable
+	@Override
+	public IRemoteCommand findCommand(String clientId, String commandKey) {
+		synchronized(this) {
+			RemoteClient remoteClient = m_remoteClientMap.get(clientId);
+			if(null == remoteClient)
+				return null;
+			RemoteCommand command = remoteClient.findCommandByKey(commandKey);
+			return command;
+		}
+	}
+
+	private void handleCommandError(CommandContext ctx) {
+		CommandError err = ctx.getSourceEnvelope().getCommandError();
+		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command error: " + err.getCode() + " " + err.getMessage());
+
+		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), err.getId(), err.getName());
+		synchronized(this) {
+			command.setStatus(RemoteCommandStatus.FAILED);
+			EventCommandError ev = new EventCommandError(command, err);
+			callCommandListeners(command, l -> l.errorEvent(ev));
+			command.setFinishedAt(System.currentTimeMillis());
+		}
+	}
+
+	private void handleCommandFinished(CommandContext ctx, List<byte[]> data) throws IOException {
+		CommandResponse cr = ctx.getSourceEnvelope().getResponse();
+		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command result: " + cr.getName());
+
+		//-- Decode any body
+		JsonPacket packet = null;
+		String dataFormat = cr.getDataFormat();
+		if(null != dataFormat && ! dataFormat.isBlank()) {
+			if(! CommandNames.isJsonDataFormat(dataFormat))
+				throw new IllegalStateException("Unsupported response data type: " + dataFormat);
+			packet = (JsonPacket) decodeBody(dataFormat, data);
+		}
+
+		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), cr.getId(), cr.getName());
+		synchronized(this) {
+			command.setStatus(RemoteCommandStatus.FINISHED);
+			EventCommandFinished ev = new EventCommandFinished(command, dataFormat, packet);
+			callCommandListeners(command, l -> l.completedEvent(ev));
+			command.setFinishedAt(System.currentTimeMillis());
+		}
+	}
 }
