@@ -165,7 +165,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	 * HELO response, and encode the challenge with the password.
 	 */
 	@Synchronous
-	public void handleHELO(CommandContext cc) throws Exception {
+	private void handleHELO(CommandContext cc) throws Exception {
 		System.out.println("Got HELO request");
 
 		ByteString ba = cc.getSourceEnvelope().getChallenge().getChallenge();
@@ -193,7 +193,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	 * If the server's authorization was successful we receive this; move to AUTHORIZED status.
 	 */
 	@Synchronous
-	public void handleAUTH(CommandContext cc) throws Exception {
+	private void handleAUTH(CommandContext cc) throws Exception {
 		cc.getConnector().authorized();
 		cc.log("Authenticated successfully");
 	}
@@ -202,7 +202,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	 * Client authentication request.
 	 */
 	@Synchronous
-	public void handleCLAUTH(CommandContext cc) throws Exception {
+	private void handleCLAUTH(CommandContext cc) throws Exception {
 		ClientAuthRequest clau = cc.getSourceEnvelope().getClientAuth();
 		cc.log("Client authentication request from " + clau.getClientId());
 		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion())) {
@@ -221,7 +221,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	 * Client connected event. Add the client, then start sending events.
 	 */
 	@Synchronous
-	public void handleCLCONN(CommandContext cc) throws Exception {
+	private void handleCLCONN(CommandContext cc) throws Exception {
 		String id = cc.getSourceEnvelope().getSourceId();
 		synchronized(this) {
 			RemoteClient rc = m_remoteClientMap.computeIfAbsent(id, a -> new RemoteClient(this, id));
@@ -234,7 +234,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	 * Client disconnected event. Remove the client, then start sending events.
 	 */
 	@Synchronous
-	public void handleCLDISC(CommandContext cc) throws Exception {
+	private void handleCLDISC(CommandContext cc) throws Exception {
 		String id = cc.getSourceEnvelope().getSourceId();
 		synchronized(this) {
 			RemoteClient rc = m_remoteClientMap.remove(id);
@@ -251,7 +251,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	 * Client Inventory: a client has updated its inventory.
 	 */
 	@Synchronous
-	public void handleCLINVE(CommandContext cc, List<byte[]> data) throws Exception {
+	private void handleCLINVE(CommandContext cc, List<byte[]> data) throws Exception {
 		String dataFormat = cc.getSourceEnvelope().getInventory().getDataFormat();
 		if(! CommandNames.isJsonDataFormat(dataFormat))
 			throw new ProtocolViolationException("Inventory packet must be in JSON format");
