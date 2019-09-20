@@ -2,6 +2,7 @@ package to.etc.cocos.connectors.common;
 
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.Builder;
@@ -22,6 +23,8 @@ final public class CommandContext {
 
 	private final Builder m_responseEnvelope;
 
+	private RemoteCommandStatus m_status = RemoteCommandStatus.SCHEDULED;
+
 	public CommandContext(HubConnectorBase connector, Envelope envelope) {
 		m_connector = connector;
 		m_envelope = envelope;
@@ -32,6 +35,12 @@ final public class CommandContext {
 			.setSourceId(envelope.getTargetId())			// Swap src and dest
 			.setTargetId(envelope.getSourceId())
 			;
+	}
+
+	public String getId() {
+		if(! m_envelope.hasCmd())
+			throw new IllegalStateException("This is not a command");
+		return m_envelope.getCmd().getId();
 	}
 
 	public void respondJson(@NonNull Object jsonPacket) {
@@ -82,6 +91,18 @@ final public class CommandContext {
 			.build()
 		);
 		respond();
+	}
+
+	public RemoteCommandStatus getStatus() {
+		synchronized(m_connector) {
+			return m_status;
+		}
+	}
+
+	public void setStatus(RemoteCommandStatus status) {
+		synchronized(m_connector) {
+			m_status = status;
+		}
 	}
 
 	public void respondCommandErrorPacket(Exception x) {

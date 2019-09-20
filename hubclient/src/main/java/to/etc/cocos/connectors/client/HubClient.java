@@ -7,6 +7,7 @@ import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
+import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.Envelope;
@@ -31,20 +32,22 @@ final public class HubClient extends HubConnectorBase {
 
 	private final String m_targetCluster;
 
-	private final IClientPacketHandler m_clientHandler;
+	private final IClientAuthenticationHandler m_authHandler;
 
-	private final Map<String, IClientCommandHandler> m_commandMap = new HashMap<>();
+	private final Map<String, IClientCommandHandler> m_commandHandlerMap = new HashMap<>();
 
-	private HubClient(String hubServer, int hubServerPort, IClientPacketHandler clientHandler, String clientPassword, String targetClusterAndOrg, String myId) {
+	private final Map<String, CommandContext> m_commandMap = new HashMap<>();
+
+	private HubClient(String hubServer, int hubServerPort, IClientAuthenticationHandler authHandler, String clientPassword, String targetClusterAndOrg, String myId) {
 		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
-		m_clientHandler = clientHandler;
+		m_authHandler = authHandler;
 		if(targetClusterAndOrg.indexOf('@') != -1)
 			throw new IllegalStateException("The target for a client must be in the format 'organisation#cluster' or just a cluster name");
 		m_clientPassword = clientPassword;
 		m_targetCluster = targetClusterAndOrg;
 	}
 
-	static public HubClient create(IClientPacketHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId, String myPassword) {
+	static public HubClient create(IClientAuthenticationHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId, String myPassword) {
 		HubClient responder = new HubClient(hubServer, hubServerPort, handler, myPassword, targetClusterAndOrg, myId);
 		return responder;
 	}
@@ -74,12 +77,12 @@ final public class HubClient extends HubConnectorBase {
 	}
 
 	public synchronized void registerCommand(String commandName, IClientCommandHandler handler) {
-		if(null != m_commandMap.put(commandName, handler))
+		if(null != m_commandHandlerMap.put(commandName, handler))
 			throw new IllegalStateException("Duplicate command name registered: " + commandName);
 	}
 
 	private synchronized IClientCommandHandler findCommandHandler(String commandName) {
-		return m_commandMap.get(commandName);
+		return m_commandHandlerMap.get(commandName);
 	}
 
 	private void handleCommand(CommandContext ctx, List<byte[]> data) throws Exception {
@@ -90,8 +93,15 @@ final public class HubClient extends HubConnectorBase {
 			sendCommandErrorPacket(ctx, ErrorCode.commandNotFound, cmd.getName());
 			return;
 		}
+
+		m_commandMap.put(ctx.getId(), ctx);
 		try {
-			commandHandler.execute(ctx, data);
+			commandHandler.execute(ctx, data, throwable -> {
+				synchronized(this) {
+					ctx.setStatus(throwable == null ? RemoteCommandStatus.FINISHED : RemoteCommandStatus.FAILED);
+					m_commandMap.remove(ctx.getId());
+				}
+			});
 		} catch(Exception x) {
 			ctx.log("Command " + cmd.getName() + " failed: " + x);
 			sendCommandErrorPacket(ctx, x);
@@ -124,7 +134,6 @@ final public class HubClient extends HubConnectorBase {
 				.build()
 			);
 		cc.respond();
-		//cc.respondJson(m_clientHandler.getInventory());
 	}
 
 	/**
@@ -136,7 +145,7 @@ final public class HubClient extends HubConnectorBase {
 		cc.log("Authenticated successfully");
 
 		//-- Immediately send the inventory packet
-		JsonPacket inventory = m_clientHandler.getInventory();
+		JsonPacket inventory = m_authHandler.getInventory();
 		cc.getResponseEnvelope()
 			.setInventory(Hubcore.ClientInventory.newBuilder()
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
@@ -145,19 +154,10 @@ final public class HubClient extends HubConnectorBase {
 		cc.respondJson(inventory);
 	}
 
-	/**
-	 * Received a JSON command. The command gets executed asynchronously, and is delegated
-	 * to the client command handler.
-	 */
-	public void handleJCMD(CommandContext cc, JsonPacket packet) throws Exception {
-		m_clientHandler.executeCommand(cc, packet);
-	}
-
 	@Override protected void onErrorPacket(Envelope env) {
 		// IMPLEMENT
 	}
 
-	private byte[] encodeChallenge(byte[] challenge) {
-		return challenge;
-	}
+
+
 }

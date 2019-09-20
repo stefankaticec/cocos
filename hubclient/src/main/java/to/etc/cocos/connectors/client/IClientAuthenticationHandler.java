@@ -1,7 +1,6 @@
 package to.etc.cocos.connectors.client;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.JsonPacket;
 
 /**
@@ -9,8 +8,6 @@ import to.etc.cocos.connectors.common.JsonPacket;
  * Created on 07-07-19.
  */
 @NonNullByDefault
-public interface IClientPacketHandler {
+public interface IClientAuthenticationHandler {
 	JsonPacket getInventory();
-
-	void executeCommand(CommandContext cc, JsonPacket packet) throws Exception;
 }
