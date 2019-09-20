@@ -113,4 +113,18 @@ public class Server extends AbstractConnection {
 		ReferenceCountUtil.retain(payload);
 		sendPacket(p);
 	}
+
+	/**
+	 * When a new server has connected this will send the current client
+	 * set to it.
+	 */
+	public void startInventorySend() throws Exception {
+		new InventorySender(this, this::inventorySendCompleted).start();
+	}
+
+	private void inventorySendCompleted() {
+
+
+
+	}
 }

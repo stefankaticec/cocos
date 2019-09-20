@@ -42,7 +42,7 @@ final public class ImmediateResponseBuilder {
 		return this;
 	}
 
-	public void send() {
-		m_handler.immediateSendResponse(this);
+	public void send(IExecute onAfter) {
+		m_handler.immediateSendResponse(this, onAfter);
 	}
 }

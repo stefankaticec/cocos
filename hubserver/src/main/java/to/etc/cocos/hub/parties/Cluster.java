@@ -63,6 +63,12 @@ final public class Cluster {
 		return client;
 	}
 
+	public List<Client> getAllClients() {
+		synchronized(this) {
+			return new ArrayList<>(m_clientMap.values());
+		}
+	}
+
 	@Nullable
 	public synchronized Server getRandomServer() {
 		for(Server server : m_serverMap.values()) {

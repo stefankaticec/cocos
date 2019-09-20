@@ -145,7 +145,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			)
 		;
 		setPacketState(this::psExpectHeloResponse);
-		response.send();
+		response.send(null);
 	}
 
 	@Override public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
@@ -342,7 +342,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			;
 		rb.getEnvelope().getAuthBuilder()
 			.build();
-		rb.send();
+		rb.send(server::startInventorySend);
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -402,7 +402,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			)
 			.build();
 		setPacketState(this::waitForServerAuth, new BeforeClientData(cluster, orgId, m_envelope.getSourceId()));
-		server.getHandler().immediateSendEnvelopeAndEmptyBody(tgtEnvelope);
+		server.getHandler().immediateSendEnvelopeAndEmptyBody(tgtEnvelope, null);
 	}
 
 	private void waitForServerAuth(Envelope envelope, @Nullable ByteBuf payload, int length) {
@@ -417,14 +417,14 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		//-- Expecting an AUTH or ERROR response.
 		if(envelope.hasHubError()) {
 			HubErrorResponse error = envelope.getHubError();
-			immediateSendEnvelopeAndEmptyBody(envelope, true);		// Return the error verbatim
+			immediateSendEnvelopeAndEmptyBody(envelope, true, null);		// Return the error verbatim
 
 			//-- REMOVE CLIENT
 			getDirectory().unregisterTmpClient(this);
 		} else if(envelope.hasAuth()) {
 			//-- We're authenticated! Yay!
 			log("CLIENT authenticated!!");
-			immediateSendEnvelopeAndEmptyBody(envelope);							// Forward AUTH to client
+			immediateSendEnvelopeAndEmptyBody(envelope, null);							// Forward AUTH to client
 			registerClient(getPacketStateData(BeforeClientData.class));
 			setPacketState(this::psExpectClientInventory);
 		} else {
@@ -720,16 +720,16 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 *
 	 */
-	void immediateSendResponse(ImmediateResponseBuilder r) {
+	void immediateSendResponse(ImmediateResponseBuilder r, IExecute onAfter) {
 		log("Sending response packet: " + r.getEnvelope().getPayloadCase());
-		immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build());
+		immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build(), onAfter);
 	}
 
-	private void immediateSendEnvelopeAndEmptyBody(Hubcore.Envelope envelope) {
-		immediateSendEnvelopeAndEmptyBody(envelope, false);
+	private void immediateSendEnvelopeAndEmptyBody(Hubcore.Envelope envelope, @Nullable IExecute onAfter) {
+		immediateSendEnvelopeAndEmptyBody(envelope, false, onAfter);
 	}
 
-	private void immediateSendEnvelopeAndEmptyBody(Envelope envelope, boolean andDisconnect) {
+	private void immediateSendEnvelopeAndEmptyBody(Envelope envelope, boolean andDisconnect, @Nullable IExecute onAfter) {
 		ByteBuf buf = new PacketBuilder(m_channel.alloc())
 			.appendMessage(envelope)
 			.emptyBody()
@@ -737,9 +737,14 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			;
 		ChannelFuture future = m_channel.writeAndFlush(buf);
 		future.addListener((ChannelFutureListener) f -> {
-			if(! f.isSuccess() || andDisconnect)
+			if(! f.isSuccess() || andDisconnect) {
 				m_channel.disconnect();
+			} else if(null != onAfter) {
+				onAfter.execute();
+
+			}
 		});
+
 	}
 
 	private void immediateSendHubException(HubException x) {
@@ -778,7 +783,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			.setVersion(1)
 			.setPing(Hubcore.Ping.newBuilder().build())
 		;
-		response.send();
+		response.send(null);
 		log("sent ping");
 	}
 
