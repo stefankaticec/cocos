@@ -2,6 +2,7 @@ package to.etc.cocos.connectors.client;
 
 import com.google.protobuf.ByteString;
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
@@ -19,6 +20,7 @@ import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -34,7 +36,7 @@ final public class HubClient extends HubConnectorBase {
 
 	private final IClientAuthenticationHandler m_authHandler;
 
-	private final Map<String, IClientCommandHandler> m_commandHandlerMap = new HashMap<>();
+	private final Map<String, Supplier<IClientCommandHandler>> m_commandHandlerMap = new HashMap<>();
 
 	private final Map<String, CommandContext> m_commandMap = new HashMap<>();
 
@@ -76,13 +78,17 @@ final public class HubClient extends HubConnectorBase {
 		}
 	}
 
-	public synchronized void registerCommand(String commandName, IClientCommandHandler handler) {
+	public synchronized void registerCommand(String commandName, Supplier<IClientCommandHandler> handler) {
 		if(null != m_commandHandlerMap.put(commandName, handler))
 			throw new IllegalStateException("Duplicate command name registered: " + commandName);
 	}
 
+	@Nullable
 	private synchronized IClientCommandHandler findCommandHandler(String commandName) {
-		return m_commandHandlerMap.get(commandName);
+		Supplier<IClientCommandHandler> factory = m_commandHandlerMap.get(commandName);
+		if(null == factory)
+			return null;
+		return factory.get();
 	}
 
 	private void handleCommand(CommandContext ctx, List<byte[]> data) throws Exception {
