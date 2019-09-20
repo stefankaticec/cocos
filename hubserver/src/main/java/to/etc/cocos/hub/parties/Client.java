@@ -41,7 +41,7 @@ final public class Client extends AbstractConnection {
 	 */
 	public void packetFromServer(Server server, Envelope envelope, @Nullable ByteBuf payload, int length) {
 		log("RX from server " + server.getFullId() + ": " + envelope.getPayloadCase());
-		TxPacket p = new TxPacket(envelope, server, null == payload ? null : new ByteBufPacketSender(payload));
+		TxPacket p = new TxPacket(envelope, server, null == payload ? null : new ByteBufPacketSender(payload), null);
 		ReferenceCountUtil.retain(payload);
 		sendPacket(p);
 	}

@@ -133,7 +133,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 		//-- Send HELO with challenge
 		byte[] challenge = m_challenge = m_central.getChallenge();
-		ImmediateResponseBuilder response = new ImmediateResponseBuilder(this);
+		PacketResponseBuilder response = new PacketResponseBuilder(this);
 		response.getEnvelope()
 			.setSourceId("")							// from HUB
 			.setTargetId("unknown-client")				// We have no client ID yet
@@ -145,7 +145,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			)
 		;
 		setPacketState(this::psExpectHeloResponse);
-		response.send(null);
+		response.send();
 	}
 
 	@Override public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
@@ -337,12 +337,12 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		setPacketState(server::packetReceived);
 
 		//-- send back AUTH packet
-		ImmediateResponseBuilder rb = new ImmediateResponseBuilder(this)
+		PacketResponseBuilder rb = new PacketResponseBuilder(this)
 			.fromEnvelope(envelope)
 			;
 		rb.getEnvelope().getAuthBuilder()
 			.build();
-		rb.send(server::startInventorySend);
+		rb.after(server::startInventorySend).send();
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -545,8 +545,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/*	CODING:	Sending data to this channel's remote.						*/
 	/*----------------------------------------------------------------------*/
 
-	private ImmediateResponseBuilder packetBuilder(String command) {
-		ImmediateResponseBuilder responseBuilder = new ImmediateResponseBuilder(this);
+	private PacketResponseBuilder packetBuilder(String command) {
+		PacketResponseBuilder responseBuilder = new PacketResponseBuilder(this);
 		responseBuilder.getEnvelope()
 			.setVersion(1)
 			.setTargetId(getMyID())
@@ -720,7 +720,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 *
 	 */
-	void immediateSendResponse(ImmediateResponseBuilder r, IExecute onAfter) {
+	void immediateSendResponse(PacketResponseBuilder r, IExecute onAfter) {
 		log("Sending response packet: " + r.getEnvelope().getPayloadCase());
 		immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build(), onAfter);
 	}
@@ -750,7 +750,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private void immediateSendHubException(HubException x) {
 		log("sending hub exception " + x);
 
-		ImmediateResponseBuilder rb = new ImmediateResponseBuilder(this)
+		PacketResponseBuilder rb = new PacketResponseBuilder(this)
 			.fromEnvelope(m_envelope)
 			;
 		rb.getEnvelope()
@@ -776,14 +776,14 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	public void sendPing() {
-		ImmediateResponseBuilder response = new ImmediateResponseBuilder(this);
+		PacketResponseBuilder response = new PacketResponseBuilder(this);
 		response.getEnvelope()
 			.setSourceId("")							// from HUB
 			.setTargetId(getMyID())						// Whatever is known
 			.setVersion(1)
 			.setPing(Hubcore.Ping.newBuilder().build())
 		;
-		response.send(null);
+		response.send();
 		log("sent ping");
 	}
 

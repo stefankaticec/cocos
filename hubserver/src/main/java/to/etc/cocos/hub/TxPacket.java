@@ -22,20 +22,24 @@ final public class TxPacket {
 
 	private final IPacketBodySender m_bodySender;
 
+	@Nullable
+	private final IExecute m_onAfter;
+
 	private final CompletableFuture<TxPacket> m_sendFuture = new CompletableFuture<>();
 
-	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf, @Nullable IPacketBodySender bodySender) {
+	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf, @Nullable IPacketBodySender bodySender, @Nullable IExecute onAfter) {
 		m_envelope = envelope;
 		m_onBehalfOf = onBehalfOf;
 		m_bodySender = bodySender != null ? bodySender : a -> {
 			//-- Send a null body
 			a.getHeaderBuf().writeInt(0);
 		};
+		m_onAfter = onAfter;
 	}
 
-	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf) {
-		this(envelope, onBehalfOf, null);
-	}
+	//public TxPacket(Envelope envelope, AbstractConnection onBehalfOf) {
+	//	this(envelope, onBehalfOf, null);
+	//}
 
 	public Envelope getEnvelope() {
 		return m_envelope;

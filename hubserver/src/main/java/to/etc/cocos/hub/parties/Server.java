@@ -74,7 +74,6 @@ public class Server extends AbstractConnection {
 		return b;
 	}
 
-
 	/**
 	 * Send a "client unregistered" packet to the remote.
 	 */
@@ -104,12 +103,12 @@ public class Server extends AbstractConnection {
 			Hubcore.ClientInventory.newBuilder()
 				.setDataFormat(packet.getDataFormat())
 		);
-		b.send(buffer);
+		b.body(buffer).send();
 	}
 
 	public void packetFromClient(Client client, Envelope envelope, @Nullable ByteBuf payload, int length) {
 		log("RX from client " + client.getFullId() + ": " + envelope.getPayloadCase());
-		TxPacket p = new TxPacket(envelope, client, null == payload ? null : new ByteBufPacketSender(payload));
+		TxPacket p = new TxPacket(envelope, client, null == payload ? null : new ByteBufPacketSender(payload), null);
 		ReferenceCountUtil.retain(payload);
 		sendPacket(p);
 	}
