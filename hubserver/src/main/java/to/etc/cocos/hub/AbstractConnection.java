@@ -80,7 +80,7 @@ abstract public class AbstractConnection {
 				m_state = ConnectionState.CONNECTED;
 			} else {
 				//-- Most certainly disconnect the old, existing connection
-				disconnectOnly();
+				disconnectOnly("New connection came in");
 
 				//-- Duplicate detection...
 				long ts = System.currentTimeMillis();
@@ -114,7 +114,7 @@ abstract public class AbstractConnection {
 	/**
 	 * Called to disconnect an attached handler without changing any other state; the server or client is not deregistered.
 	 */
-	public void disconnectOnly() {
+	public void disconnectOnly(String why) {
 		CentralSocketHandler handler;
 		synchronized(this) {
 			handler = m_handler;
@@ -122,7 +122,7 @@ abstract public class AbstractConnection {
 			m_state = ConnectionState.DISCONNECTED;
 		}
 		if(null != handler) {
-			handler.disconnectOnly();
+			handler.disconnectOnly(why);
 		}
 	}
 
@@ -159,6 +159,11 @@ abstract public class AbstractConnection {
 		synchronized(this) {
 			m_txPacketQueue.add(packet);					// Will be picked up when current packet tx finishes.
 			handler = m_handler;
+			packet.setPacketRemoveFromQueue(() -> {
+				synchronized(this) {
+					m_txPacketQueue.remove(packet);
+				}
+			}, TxPacketType.CON);
 		}
 		if(null != handler) {
 			handler.tryScheduleSend(this, packet);			// If the transmitter is empty start it
@@ -170,6 +175,11 @@ abstract public class AbstractConnection {
 		synchronized(this) {
 			m_txPacketQueuePrio.add(packet);
 			handler = m_handler;
+			packet.setPacketRemoveFromQueue(() -> {
+				synchronized(this) {
+					m_txPacketQueuePrio.remove(packet);
+				}
+			}, TxPacketType.CON);
 		}
 		if(null != handler) {
 			handler.tryScheduleSend(this, packet);				// If the transmitter is empty start it
@@ -183,15 +193,9 @@ abstract public class AbstractConnection {
 	synchronized TxPacket getNextPacketToTransmit() {
 		if(m_txPacketQueuePrio.size() > 0) {
 			TxPacket txPacket = m_txPacketQueuePrio.get(0);
-			synchronized(this) {
-				m_txPacketQueuePrio.remove(txPacket);
-			}
 			return txPacket;
 		} else if(m_txPacketQueue.size() > 0) {
 			TxPacket txPacket = m_txPacketQueue.get(0);
-			synchronized(this) {
-				m_txPacketQueue.remove(txPacket);
-			}
 			return txPacket;
 		} else {
 			return null;

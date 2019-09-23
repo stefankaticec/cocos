@@ -23,7 +23,7 @@ public class TestServerConnections extends TestAllBase {
 		ConnectorState connectorState = server().observeConnectionState()
 			.doOnNext(a -> System.out.println(">> got state " + a))
 			.filter(a -> a == ConnectorState.AUTHENTICATED)
-			.timeout(5, TimeUnit.SECONDS)
+			.timeout(5000, TimeUnit.SECONDS)
 			.blockingFirst();
 
 		Assert.assertEquals("Connector must have gotten to connected status", ConnectorState.AUTHENTICATED, connectorState);

@@ -16,6 +16,10 @@ import java.util.concurrent.CompletableFuture;
  */
 @NonNullByDefault
 final public class TxPacket {
+	private final int m_id;
+
+	private TxPacketType m_type = TxPacketType.UNK;
+
 	private final Envelope m_envelope;
 
 	/** The party to tell when sending failed. */
@@ -29,7 +33,10 @@ final public class TxPacket {
 	@Nullable
 	private Runnable m_packetRemoveFromQueue;
 
+	private static int m_nextId;
+
 	public TxPacket(Envelope envelope, @Nullable AbstractConnection onBehalfOf, @Nullable IPacketBodySender bodySender, @Nullable IExecute onAfter) {
+		m_id = nextId();
 		m_envelope = envelope;
 		m_onBehalfOf = onBehalfOf;
 		m_bodySender = bodySender != null ? bodySender : a -> {
@@ -47,6 +54,11 @@ final public class TxPacket {
 			});
 		}
 	}
+
+	static private synchronized int nextId() {
+		return ++m_nextId;
+	}
+
 
 	//public TxPacket(Envelope envelope, AbstractConnection onBehalfOf) {
 	//	this(envelope, onBehalfOf, null);
@@ -74,7 +86,13 @@ final public class TxPacket {
 		return m_packetRemoveFromQueue;
 	}
 
-	public synchronized void setPacketRemoveFromQueue(@Nullable Runnable packetRemoveFromQueue) {
+	public synchronized void setPacketRemoveFromQueue(@Nullable Runnable packetRemoveFromQueue, TxPacketType pt) {
 		m_packetRemoveFromQueue = packetRemoveFromQueue;
+		m_type = pt;
+	}
+
+	@Override
+	public String toString() {
+		return m_type.name() + m_id + ": " + m_envelope.getSourceId() + " -> " + m_envelope.getTargetId() + " " + m_envelope.getPayloadCase();
 	}
 }

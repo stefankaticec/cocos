@@ -517,11 +517,18 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * Just disconnects the channel and make sure it is unusable.
 	 */
-	public synchronized void disconnectOnly() {
-		log("internal disconnect requested");
+	public synchronized void disconnectOnly(String why) {
+		log("internal disconnect requested: " + why);
 		synchronized(this) {
 			m_connection = null;
 			m_cluster = null;
+			m_txPacketQueue.clear();
+			m_txPacketQueuePrio.clear();
+			m_txCurrentPacket = null;
+			for(ByteBuf byteBuf : m_txBufferList) {
+				byteBuf.release();
+			}
+			m_txBufferList.clear();
 		}
 		m_channel.disconnect();
 	}
@@ -572,10 +579,12 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * of send buffers and starting the transmit.
 	 */
 	private void initiatePacketSending(@Nullable TxPacket packet) {
+		//ConsoleUtil.consoleLog("XX", ">> initiatePacketSending entry packet " + packet);
 		int txfailCount = 0;
 		for(;;) {
-			if(null == packet)
+			if(null == packet) {
 				return;
+			}
 			synchronized(this) {
 				if(m_txCurrentPacket != null)				// Transmitter busy?
 					return;
@@ -596,11 +605,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 				//-- Start the transmitter.
 				startSendingBuffers(bufferList);
-
+				return;
 			} catch(Exception x) {
 				log("prepare transmit failed: " + x);
 				if(txfailCount++ > 20) {
-					disconnectOnly();
+					disconnectOnly("TX failed after " + txfailCount + " retries");
 					x.printStackTrace();
 					throw new IllegalStateException("TOO MANY RETRIES INITIATING SEND");
 				}
@@ -639,19 +648,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		synchronized(this) {
 			if(m_txPacketQueuePrio.size() > 0) {
 				TxPacket txPacket = m_txPacketQueuePrio.get(0);
-				txPacket.setPacketRemoveFromQueue(() -> {
-					synchronized(this) {
-						m_txPacketQueuePrio.remove(txPacket);
-					}
-				});
 				return txPacket;
 			} else if(m_txPacketQueue.size() > 0) {
 				TxPacket txPacket = m_txPacketQueue.get(0);
-				txPacket.setPacketRemoveFromQueue(() -> {
-					synchronized(this) {
-						m_txPacketQueue.remove(txPacket);
-					}
-				});
 				return txPacket;
 			} else {
 				connection = m_connection;
@@ -679,11 +678,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	private void txBuffer(ByteBuf buf) {
+		System.out.println("> txbuffer " + buf);
 		ChannelFuture future = m_channel.writeAndFlush(buf);
 		future.addListener((ChannelFutureListener) f -> {
 			if(f.isSuccess()) {
 				txHandleSuccessfulSend();
 			} else {
+				Throwable cause = f.cause();
+				if(null != cause)
+					cause.printStackTrace();
 				txHandleFailedSend();
 			}
 		});
@@ -697,14 +700,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		ByteBuf byteBuf;
 		TxPacket packetToFinish;
 		TxPacket packet = null;
-		AbstractConnection conn;
 		synchronized(this) {
-			conn = m_connection;
-			if(null == conn) {
-				log("? send completed but Party has left");
-				releaseTxBuffers();
-				return;
-			}
+			//System.out.println(">> txHandleSuccessful: " + m_txBufferList.size() + " buffers " + m_txCurrentPacket);
 			if(m_txBufferList.size() > 0) {
 				byteBuf = m_txBufferList.remove(0);
 				packetToFinish = null;
@@ -717,6 +714,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 					throw new IllegalStateException("Null current txpacket at end of send");
 				m_txCurrentPacket = null;
 			}
+			//System.out.println(">>> packetToFinish "+ packetToFinish + ", bytebuf=" + byteBuf + " currentpacket=" + m_txCurrentPacket);
 		}
 
 		if(packetToFinish != null) {
@@ -733,7 +731,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			txBuffer(byteBuf);
 			return;
 		}
-		initiatePacketSending(conn.getNextPacketToTransmit());
+		initiatePacketSending(getNextPacketToTransmit());
 	}
 
 	/**
@@ -741,8 +739,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * the packet is retried (unless we have a tx timeout).
 	 */
 	private void txHandleFailedSend() {
+		TxPacket packet;
 		synchronized(this) {
-			TxPacket packet = m_txCurrentPacket;
+			packet = m_txCurrentPacket;
 			if(null == packet) {
 				throw new IllegalStateException("current packet is null while transmitting");
 			}
@@ -751,7 +750,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			m_txCurrentPacket = null;
 			releaseTxBuffers();
 		}
-		disconnectOnly();
+		disconnectOnly("failed send " + packet);
 	}
 
 	private synchronized void releaseTxBuffers() {
@@ -767,8 +766,14 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	public void immediateSendPacket(TxPacket packet) {
 		synchronized(this) {
 			m_txPacketQueue.add(packet);					// Will be picked up when current packet tx finishes.
+			packet.setPacketRemoveFromQueue(() -> {
+				synchronized(this) {
+					m_txPacketQueue.remove(packet);
+				}
+			}, TxPacketType.HUB);
 		}
 		initiatePacketSending(packet);
+		System.out.println(">> immediateSendPacket " + packet);
 	}
 
 	///**
