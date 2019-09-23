@@ -678,7 +678,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	private void txBuffer(ByteBuf buf) {
-		System.out.println("> txbuffer " + buf);
+		//System.out.println("> txbuffer " + buf);
 		ChannelFuture future = m_channel.writeAndFlush(buf);
 		future.addListener((ChannelFutureListener) f -> {
 			if(f.isSuccess()) {
@@ -773,40 +773,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			}, TxPacketType.HUB);
 		}
 		initiatePacketSending(packet);
-		System.out.println(">> immediateSendPacket " + packet);
 	}
 
-	///**
-	// *
-	// */
-	//void immediateSendResponse(PacketResponseBuilder r /*, IExecute onAfter */) {
-	//	log("Sending response packet: " + r.getEnvelope().getPayloadCase());
-	//	r.send();
-	//	//immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build(), onAfter);
-	//}
-	//
-	//private void immediateSendEnvelopeAndEmptyBody(Hubcore.Envelope envelope, @Nullable IExecute onAfter) {
-	//	immediateSendEnvelopeAndEmptyBody(envelope, false, onAfter);
-	//}
-	//
-	//private void immediateSendEnvelopeAndEmptyBody(Envelope envelope, boolean andDisconnect, @Nullable IExecute onAfter) {
-	//	ByteBuf buf = new PacketBuilder(m_channel.alloc())
-	//		.appendMessage(envelope)
-	//		.emptyBody()
-	//		.getCompleted()
-	//		;
-	//	ChannelFuture future = m_channel.writeAndFlush(buf);
-	//	future.addListener((ChannelFutureListener) f -> {
-	//		if(! f.isSuccess() || andDisconnect) {
-	//			m_channel.disconnect();
-	//		} else if(null != onAfter) {
-	//			onAfter.execute();
-	//
-	//		}
-	//	});
-	//
-	//}
-	//
 	private void immediateSendHubException(HubException x) {
 		log("sending hub exception " + x);
 

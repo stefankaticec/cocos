@@ -8,8 +8,6 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault
 public interface IRemoteCommandListener {
-	void commandEvent(JsonCommandEvent event) throws Exception;
-
 	default void errorEvent(EventCommandError errorEvent) throws Exception {}
 
 	default void completedEvent(EventCommandFinished ev) throws Exception {}

@@ -1,14 +1,20 @@
 package to.etc.cocos.connectors.server;
 
+import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
+import to.etc.cocos.connectors.ifaces.EventCommandBase;
+import to.etc.cocos.connectors.ifaces.EventCommandError;
+import to.etc.cocos.connectors.ifaces.EventCommandFinished;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
+import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.util.StringTool;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * This is the server-side proxy of a remote client.
@@ -28,9 +34,24 @@ final public class RemoteClient implements IRemoteClient {
 
 	private Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
 
+	private final PublishSubject<EventCommandBase> m_eventPublisher = PublishSubject.<EventCommandBase>create();
+
+	private CopyOnWriteArrayList<IRemoteCommandListener> m_listeners = new CopyOnWriteArrayList<>();
+
 	public RemoteClient(HubServer server, String clientId) {
 		m_hubServer= server;
 		m_clientId = clientId;
+		addListener(new IRemoteCommandListener() {
+			@Override
+			public void errorEvent(EventCommandError errorEvent) throws Exception {
+				m_eventPublisher.onNext(errorEvent);
+			}
+
+			@Override
+			public void completedEvent(EventCommandFinished ev) throws Exception {
+				m_eventPublisher.onNext(ev);
+			}
+		});
 	}
 
 	void inventoryReceived(JsonPacket inventoryPacket) {
@@ -60,7 +81,7 @@ final public class RemoteClient implements IRemoteClient {
 	@Override
 	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
 		String commandId = StringTool.generateGUID();
-		RemoteCommand command = new RemoteCommand(commandId, getClientID(), commandTimeout, commandKey, description);
+		RemoteCommand command = new RemoteCommand(this, commandId, commandTimeout, commandKey, description);
 		if(null != l)
 			command.addListener(l);
 		synchronized(m_hubServer) {
@@ -80,5 +101,22 @@ final public class RemoteClient implements IRemoteClient {
 		synchronized(m_hubServer) {
 			return m_commandByKeyMap.get(key);
 		}
+	}
+
+	public void addListener(IRemoteCommandListener l) {
+		m_listeners.add(l);
+	}
+
+	public void removeListener(IRemoteCommandListener l) {
+		m_listeners.remove(l);
+	}
+
+	public List<IRemoteCommandListener> getListeners() {
+		return m_listeners;
+	}
+
+	@Override
+	public PublishSubject<EventCommandBase> getEventPublisher() {
+		return m_eventPublisher;
 	}
 }

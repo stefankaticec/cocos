@@ -325,7 +325,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 
 		Envelope jcmd = Envelope.newBuilder()
 			.setSourceId(getMyId())
-			.setTargetId(command.getClientKey())
+			.setTargetId(command.getClient().getClientID())
 			.setVersion(1)
 			.setCmd(Hubcore.Command.newBuilder()
 				.setDataFormat(CommandNames.getJsonDataFormat(packet))
@@ -346,7 +346,11 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 			if(null != cmd)
 				return cmd;
 
-			cmd = new RemoteCommand(commandId, clientId, 60*1000, null, "Recovered command");
+			RemoteClient remoteClient = m_remoteClientMap.get(clientId);
+			if(null == remoteClient) {
+				throw new IllegalStateException("Got command " + commandName + " for remote client " + clientId + " - but I cannot find that client");
+			}
+			cmd = new RemoteCommand(remoteClient, commandId, 60*1000, null, "Recovered command");
 			m_commandMap.put(commandId, cmd);
 			return cmd;
 		}
@@ -363,7 +367,15 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 			try {
 				l.accept(listener);
 			} catch(Exception x) {
-				System.err.println("Command " + command + " listener failed: " + x);
+				System.err.println("Command " + command + " commandListener failed: " + x);
+				x.printStackTrace();
+			}
+		}
+		for(IRemoteCommandListener listener : command.getClient().getListeners()) {
+			try {
+				l.accept(listener);
+			} catch(Exception x) {
+				System.err.println("Command " + command + " clientListener failed: " + x);
 				x.printStackTrace();
 			}
 		}

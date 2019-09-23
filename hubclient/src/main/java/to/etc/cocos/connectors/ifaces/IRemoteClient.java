@@ -1,5 +1,6 @@
 package to.etc.cocos.connectors.ifaces;
 
+import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
@@ -19,4 +20,6 @@ public interface IRemoteClient {
 	//InventoryPacket getInventory();
 
 	String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception;
+
+	PublishSubject<EventCommandBase> getEventPublisher();
 }

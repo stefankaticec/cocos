@@ -1,5 +1,6 @@
 package to.etc.cocos.connectors.ifaces;
 
+import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -10,13 +11,13 @@ import org.eclipse.jdt.annotation.Nullable;
  */
 @NonNullByDefault
 public interface IRemoteCommand {
-	abstract String getCommandId();
+	String getCommandId();
 
 	void addListener(IRemoteCommandListener listener);
 
 	void removeListener(IRemoteCommandListener listener);
 
-	String getClientKey();
+	IRemoteClient getClient();
 
 	@Nullable
 	String getCommandKey();
@@ -27,4 +28,6 @@ public interface IRemoteCommand {
 
 	@Nullable
 	<T> T getAttribute(Class<T> clz);
+
+	PublishSubject<EventCommandBase> getEventPublisher();
 }
