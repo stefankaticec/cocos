@@ -437,8 +437,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		} else if(envelope.hasAuth()) {
 			//-- We're authenticated! Yay!
 			log("CLIENT authenticated!!");
-			setPacketState(this::psExpectClientInventory);
-			registerClient(getPacketStateData(BeforeClientData.class));
+			registerClient(getPacketStateData(BeforeClientData.class));		// ORDERED
+			setPacketState(this::psExpectClientInventory);					// ORDERED
 
 			AuthResponse auth = envelope.getAuth();
 			PacketResponseBuilder b = new PacketResponseBuilder(this)

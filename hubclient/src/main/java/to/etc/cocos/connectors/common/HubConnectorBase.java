@@ -707,7 +707,7 @@ public abstract class HubConnectorBase {
 		return m_lastError;
 	}
 
-	void log(String s) {
+	protected void log(String s) {
 		ConsoleUtil.consoleLog(m_logName, s);
 	}
 

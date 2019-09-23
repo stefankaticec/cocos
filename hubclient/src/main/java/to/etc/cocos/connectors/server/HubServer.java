@@ -28,6 +28,7 @@ import to.etc.cocos.messages.Hubcore.ClientAuthRequest;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.CommandResponse;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
@@ -114,7 +115,9 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	}
 
 	@Override protected void onErrorPacket(Envelope env) {
-		// IMPLEMENT
+		HubErrorResponse hubError = env.getHubError();
+		log("HUB error: " + hubError.getCode() + " " + hubError.getText());
+		forceDisconnect("HUB error received");
 	}
 
 	@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {

@@ -12,6 +12,7 @@ import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 
@@ -161,7 +162,9 @@ final public class HubClient extends HubConnectorBase {
 	}
 
 	@Override protected void onErrorPacket(Envelope env) {
-		// IMPLEMENT
+		HubErrorResponse hubError = env.getHubError();
+		log("HUB error: " + hubError.getCode() + " " + hubError.getText());
+		forceDisconnect("HUB error received");
 	}
 
 
