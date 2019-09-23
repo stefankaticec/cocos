@@ -17,6 +17,7 @@ import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.Server;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.AuthResponse;
 import to.etc.cocos.messages.Hubcore.ClientHeloResponse;
 import to.etc.cocos.messages.Hubcore.ClientInventory;
 import to.etc.cocos.messages.Hubcore.Envelope;
@@ -399,7 +400,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		setHelloInformation(m_envelope.getSourceId(), cluster, orgId);
 		getDirectory().registerTmpClient(m_tmpClientId, this);
 
-		Envelope tgtEnvelope = Envelope.newBuilder()
+		PacketResponseBuilder b = new PacketResponseBuilder(server.getHandler());
+		b.getEnvelope()
 			.setSourceId(m_tmpClientId)						// From tmp client ID
 			.setTargetId(server.getFullId())				// To the selected server
 			.setVersion(1)
@@ -408,10 +410,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				.setChallengeResponse(envelope.getHeloClient().getChallengeResponse())
 				.setClientId(m_myId)
 				.setClientVersion(envelope.getHeloClient().getClientVersion())
-			)
-			.build();
+			);
 		setPacketState(this::waitForServerAuth, new BeforeClientData(cluster, orgId, m_envelope.getSourceId()));
-		server.getHandler().immediateSendEnvelopeAndEmptyBody(tgtEnvelope, null);
+		b.send();
 	}
 
 	private void waitForServerAuth(Envelope envelope, @Nullable ByteBuf payload, int length) {
@@ -426,16 +427,24 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		//-- Expecting an AUTH or ERROR response.
 		if(envelope.hasHubError()) {
 			HubErrorResponse error = envelope.getHubError();
-			immediateSendEnvelopeAndEmptyBody(envelope, true, null);		// Return the error verbatim
+			PacketResponseBuilder b = new PacketResponseBuilder(this)
+				.forwardTo(envelope);
+			b.getEnvelope().setHubError(error);
+			b.send();
 
 			//-- REMOVE CLIENT
 			getDirectory().unregisterTmpClient(this);
 		} else if(envelope.hasAuth()) {
 			//-- We're authenticated! Yay!
 			log("CLIENT authenticated!!");
-			immediateSendEnvelopeAndEmptyBody(envelope, null);							// Forward AUTH to client
-			registerClient(getPacketStateData(BeforeClientData.class));
 			setPacketState(this::psExpectClientInventory);
+			registerClient(getPacketStateData(BeforeClientData.class));
+
+			AuthResponse auth = envelope.getAuth();
+			PacketResponseBuilder b = new PacketResponseBuilder(this)
+				.forwardTo(envelope);
+			b.getEnvelope().setAuth(auth);
+			b.send();
 		} else {
 			throw new ProtocolViolationException("Expected server:auth, got " + envelope.getPayloadCase());
 		}
@@ -554,17 +563,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/*	CODING:	Sending data to this channel's remote.						*/
 	/*----------------------------------------------------------------------*/
 
-	//private PacketResponseBuilder packetBuilder(String command) {
-	//	PacketResponseBuilder responseBuilder = new PacketResponseBuilder(this);
-	//	responseBuilder.getEnvelope()
-	//		.setVersion(1)
-	//		.setTargetId(getMyID())
-	//		.setSourceId("")
-	//		;
-	//
-	//	return responseBuilder;
-	//}
-
 	void tryScheduleSend(AbstractConnection conn, TxPacket packet) {
 		initiatePacketSending(packet);
 	}
@@ -627,9 +625,41 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 					if(null == conn)
 						return;
 				}
-				packet = conn.getNextPacketToTransmit();
+				packet = getNextPacketToTransmit();
 			}
 		}
+	}
+
+	/**
+	 * First check local packets; if nothing there try connection packets.
+	 */
+	@Nullable
+	private synchronized TxPacket getNextPacketToTransmit() {
+		AbstractConnection connection;
+		synchronized(this) {
+			if(m_txPacketQueuePrio.size() > 0) {
+				TxPacket txPacket = m_txPacketQueuePrio.get(0);
+				txPacket.setPacketRemoveFromQueue(() -> {
+					synchronized(this) {
+						m_txPacketQueuePrio.remove(txPacket);
+					}
+				});
+				return txPacket;
+			} else if(m_txPacketQueue.size() > 0) {
+				TxPacket txPacket = m_txPacketQueue.get(0);
+				txPacket.setPacketRemoveFromQueue(() -> {
+					synchronized(this) {
+						m_txPacketQueue.remove(txPacket);
+					}
+				});
+				return txPacket;
+			} else {
+				connection = m_connection;
+			}
+		}
+		if(null != connection)
+			return connection.getNextPacketToTransmit();
+		return null;
 	}
 
 	/**
@@ -690,7 +720,12 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 
 		if(packetToFinish != null) {
-			conn.txPacketFinished(packetToFinish);
+			synchronized(this) {
+				Runnable ftor = packetToFinish.getPacketRemoveFromQueue();
+				if(null == ftor)
+					throw new IllegalStateException("Packet in transmitter does not have a queue assigned to it");
+				ftor.run();
+			}
 			packetToFinish.getSendFuture().complete(packetToFinish);
 		}
 
@@ -727,35 +762,46 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	/**
-	 *
+	 * Schedule a packet to be sent with normal priority.
 	 */
-	void immediateSendResponse(PacketResponseBuilder r, IExecute onAfter) {
-		log("Sending response packet: " + r.getEnvelope().getPayloadCase());
-		immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build(), onAfter);
+	public void immediateSendPacket(TxPacket packet) {
+		synchronized(this) {
+			m_txPacketQueue.add(packet);					// Will be picked up when current packet tx finishes.
+		}
+		initiatePacketSending(packet);
 	}
 
-	private void immediateSendEnvelopeAndEmptyBody(Hubcore.Envelope envelope, @Nullable IExecute onAfter) {
-		immediateSendEnvelopeAndEmptyBody(envelope, false, onAfter);
-	}
-
-	private void immediateSendEnvelopeAndEmptyBody(Envelope envelope, boolean andDisconnect, @Nullable IExecute onAfter) {
-		ByteBuf buf = new PacketBuilder(m_channel.alloc())
-			.appendMessage(envelope)
-			.emptyBody()
-			.getCompleted()
-			;
-		ChannelFuture future = m_channel.writeAndFlush(buf);
-		future.addListener((ChannelFutureListener) f -> {
-			if(! f.isSuccess() || andDisconnect) {
-				m_channel.disconnect();
-			} else if(null != onAfter) {
-				onAfter.execute();
-
-			}
-		});
-
-	}
-
+	///**
+	// *
+	// */
+	//void immediateSendResponse(PacketResponseBuilder r /*, IExecute onAfter */) {
+	//	log("Sending response packet: " + r.getEnvelope().getPayloadCase());
+	//	r.send();
+	//	//immediateSendEnvelopeAndEmptyBody(r.getEnvelope().build(), onAfter);
+	//}
+	//
+	//private void immediateSendEnvelopeAndEmptyBody(Hubcore.Envelope envelope, @Nullable IExecute onAfter) {
+	//	immediateSendEnvelopeAndEmptyBody(envelope, false, onAfter);
+	//}
+	//
+	//private void immediateSendEnvelopeAndEmptyBody(Envelope envelope, boolean andDisconnect, @Nullable IExecute onAfter) {
+	//	ByteBuf buf = new PacketBuilder(m_channel.alloc())
+	//		.appendMessage(envelope)
+	//		.emptyBody()
+	//		.getCompleted()
+	//		;
+	//	ChannelFuture future = m_channel.writeAndFlush(buf);
+	//	future.addListener((ChannelFutureListener) f -> {
+	//		if(! f.isSuccess() || andDisconnect) {
+	//			m_channel.disconnect();
+	//		} else if(null != onAfter) {
+	//			onAfter.execute();
+	//
+	//		}
+	//	});
+	//
+	//}
+	//
 	private void immediateSendHubException(HubException x) {
 		log("sending hub exception " + x);
 
@@ -770,18 +816,26 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				.build()
 			);
 
-		//-- Convert the data into a response packet.
-		ByteBuf buf = new PacketBuilder(m_channel.alloc())
-			.appendMessage(rb.getEnvelope().build())
-			.emptyBody()
-			.getCompleted()
-			;
 		boolean isFatal = x instanceof FatalHubException;
-		ChannelFuture future = m_channel.writeAndFlush(buf);
-		future.addListener((ChannelFutureListener) f -> {
-			if(! f.isSuccess() || isFatal)
+		if(isFatal) {
+			rb.after(() -> {
 				m_channel.disconnect();
-		});
+			});
+		}
+		rb.send();
+		//
+		////-- Convert the data into a response packet.
+		//ByteBuf buf = new PacketBuilder(m_channel.alloc())
+		//	.appendMessage(rb.getEnvelope().build())
+		//	.emptyBody()
+		//	.getCompleted()
+		//	;
+		//boolean isFatal = x instanceof FatalHubException;
+		//ChannelFuture future = m_channel.writeAndFlush(buf);
+		//future.addListener((ChannelFutureListener) f -> {
+		//	if(! f.isSuccess() || isFatal)
+		//		m_channel.disconnect();
+		//});
 	}
 
 	public void sendPing() {

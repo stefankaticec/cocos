@@ -80,16 +80,13 @@ final public class PacketResponseBuilder {
 		return m_onAfter;
 	}
 
-	//public PacketResponseBuilder commandId(String id) {
-	//	getEnvelope().setCommandId(id);
-	//	return this;
-	//}
-
 	public void send() {
 		CentralSocketHandler socketHandler = m_socketHandler;
 		AbstractConnection connection = m_connection;
 		if(null != socketHandler) {
-			socketHandler.immediateSendResponse(this, m_onAfter);
+			TxPacket p = new TxPacket(m_envelope.build(), connection, m_bodySender, m_onAfter);
+			socketHandler.immediateSendPacket(p);
+			//socketHandler.immediateSendResponse(this, m_onAfter);
 		} else if(null != connection) {
 			TxPacket p = new TxPacket(m_envelope.build(), connection, m_bodySender, m_onAfter);
 			connection.sendPacket(p);
@@ -98,9 +95,13 @@ final public class PacketResponseBuilder {
 		}
 	}
 
-	//public void send(ByteBuf bb) {
-	//	TxPacket p = new TxPacket(m_envelope.build(), m_connection, new ByteBufPacketSender(bb));
-	//	m_connection.sendPacket(p);
-	//}
+	public PacketResponseBuilder forwardTo(Envelope envelope) {
+		m_envelope
+			.setVersion(envelope.getVersion())
+			.setSourceId(envelope.getSourceId())			// Swap src and dest
+			.setTargetId(envelope.getTargetId())
+		;
 
+		return this;
+	}
 }

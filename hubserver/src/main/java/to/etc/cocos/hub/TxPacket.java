@@ -3,6 +3,7 @@ package to.etc.cocos.hub;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.util.WrappedException;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -18,23 +19,33 @@ final public class TxPacket {
 	private final Envelope m_envelope;
 
 	/** The party to tell when sending failed. */
+	@Nullable
 	private final AbstractConnection m_onBehalfOf;
 
 	private final IPacketBodySender m_bodySender;
 
-	@Nullable
-	private final IExecute m_onAfter;
-
 	private final CompletableFuture<TxPacket> m_sendFuture = new CompletableFuture<>();
 
-	public TxPacket(Envelope envelope, AbstractConnection onBehalfOf, @Nullable IPacketBodySender bodySender, @Nullable IExecute onAfter) {
+	@Nullable
+	private Runnable m_packetRemoveFromQueue;
+
+	public TxPacket(Envelope envelope, @Nullable AbstractConnection onBehalfOf, @Nullable IPacketBodySender bodySender, @Nullable IExecute onAfter) {
 		m_envelope = envelope;
 		m_onBehalfOf = onBehalfOf;
 		m_bodySender = bodySender != null ? bodySender : a -> {
 			//-- Send a null body
 			a.getHeaderBuf().writeInt(0);
 		};
-		m_onAfter = onAfter;
+
+		if(onAfter != null) {
+			m_sendFuture.thenAccept(txPacket -> {
+				try {
+					onAfter.execute();
+				} catch(Exception x) {
+					throw WrappedException.wrap(x);					// I really get sick with those idiots creating these horrible API's.
+				}
+			});
+		}
 	}
 
 	//public TxPacket(Envelope envelope, AbstractConnection onBehalfOf) {
@@ -45,6 +56,7 @@ final public class TxPacket {
 		return m_envelope;
 	}
 
+	@Nullable
 	public AbstractConnection getOnBehalfOf() {
 		return m_onBehalfOf;
 	}
@@ -55,5 +67,14 @@ final public class TxPacket {
 
 	public CompletableFuture<TxPacket> getSendFuture() {
 		return m_sendFuture;
+	}
+
+	@Nullable
+	public synchronized Runnable getPacketRemoveFromQueue() {
+		return m_packetRemoveFromQueue;
+	}
+
+	public synchronized void setPacketRemoveFromQueue(@Nullable Runnable packetRemoveFromQueue) {
+		m_packetRemoveFromQueue = packetRemoveFromQueue;
 	}
 }

@@ -182,27 +182,21 @@ abstract public class AbstractConnection {
 	@Nullable
 	synchronized TxPacket getNextPacketToTransmit() {
 		if(m_txPacketQueuePrio.size() > 0) {
-			return m_txPacketQueuePrio.get(0);
+			TxPacket txPacket = m_txPacketQueuePrio.get(0);
+			synchronized(this) {
+				m_txPacketQueuePrio.remove(txPacket);
+			}
+			return txPacket;
 		} else if(m_txPacketQueue.size() > 0) {
-			return m_txPacketQueue.get(0);
+			TxPacket txPacket = m_txPacketQueue.get(0);
+			synchronized(this) {
+				m_txPacketQueue.remove(txPacket);
+			}
+			return txPacket;
 		} else {
 			return null;
 		}
 	}
-
-	/**
-	 * Remove the packet that was sent from its queue.
-	 */
-	synchronized void txPacketFinished(TxPacket packetToFinish) {
-		if(m_txPacketQueue.size() > 0 && m_txPacketQueue.get(0) == packetToFinish) {
-			m_txPacketQueue.remove(0);
-		} else if(m_txPacketQueuePrio.size() > 0 && m_txPacketQueuePrio.get(0) == packetToFinish) {
-			m_txPacketQueuePrio.remove(0);
-		} else {
-			throw new IllegalStateException("TxPacket was completed, but it cannot be found in either transmit queue");
-		}
-	}
-
 
 	//public void sendHubMessage(int packetCode, String command, @Nullable Message message, @Nullable RunnableEx after) {
 	//	getHandler().sendHubMessage(packetCode, command, message, after);
