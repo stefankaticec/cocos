@@ -15,6 +15,8 @@ import to.etc.util.ByteBufferOutputStream;
 import to.etc.util.ConsoleUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -126,5 +128,9 @@ final public class Client extends AbstractConnection {
 	private void handleHubCommand(Envelope envelope) {
 
 
+	}
+
+	public synchronized List<ByteBufferPacket> getInventoryPacketList() {
+		return new ArrayList<>(m_inventory.values());
 	}
 }

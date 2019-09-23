@@ -94,6 +94,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@Nullable
 	private Object m_packetStateData;
 
+	/*
+	 * Packet transmitter buffers.
+	 */
+	/** Immediate-level  priority packets to send. */
+	private List<TxPacket> m_txPacketQueue = new LinkedList<>();
+
+	/** Priority packets to send */
+	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
+
 	/** Buffers to send for the current packet */
 	private List<ByteBuf> m_txBufferList = new LinkedList<>();
 
@@ -545,16 +554,16 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/*	CODING:	Sending data to this channel's remote.						*/
 	/*----------------------------------------------------------------------*/
 
-	private PacketResponseBuilder packetBuilder(String command) {
-		PacketResponseBuilder responseBuilder = new PacketResponseBuilder(this);
-		responseBuilder.getEnvelope()
-			.setVersion(1)
-			.setTargetId(getMyID())
-			.setSourceId("")
-			;
-
-		return responseBuilder;
-	}
+	//private PacketResponseBuilder packetBuilder(String command) {
+	//	PacketResponseBuilder responseBuilder = new PacketResponseBuilder(this);
+	//	responseBuilder.getEnvelope()
+	//		.setVersion(1)
+	//		.setTargetId(getMyID())
+	//		.setSourceId("")
+	//		;
+	//
+	//	return responseBuilder;
+	//}
 
 	void tryScheduleSend(AbstractConnection conn, TxPacket packet) {
 		initiatePacketSending(packet);

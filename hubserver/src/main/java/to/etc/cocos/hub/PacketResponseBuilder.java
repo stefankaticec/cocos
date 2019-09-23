@@ -75,6 +75,11 @@ final public class PacketResponseBuilder {
 		return this;
 	}
 
+	@Nullable
+	public IExecute getOnAfter() {
+		return m_onAfter;
+	}
+
 	//public PacketResponseBuilder commandId(String id) {
 	//	getEnvelope().setCommandId(id);
 	//	return this;
