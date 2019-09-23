@@ -1,6 +1,5 @@
 package to.etc.cocos.connectors.client;
 
-import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
@@ -19,13 +18,17 @@ import java.util.function.Consumer;
  * Created on 20-09-19.
  */
 @NonNullByDefault
-abstract public class AbstractJsonCommandHandlerAsync implements IClientCommandHandler {
-	abstract protected JsonPacket execute(CommandContext ctx, @NonNull JsonPacket packet) throws Exception;
+final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implements IClientCommandHandler {
+	private final IJsonCommandHandler<T> m_jsonHandler;
+
+	public AsynchronousJsonCommandHandler(IJsonCommandHandler<T> jsonHandler) {
+		m_jsonHandler = jsonHandler;
+	}
 
 	@Override final public void execute(CommandContext ctx, List<byte[]> data, Consumer<Throwable> onFinished) throws Exception {
 		Throwable error = null;
 		try {
-			JsonPacket packet = decodeBody(ctx, data);
+			T packet = (T) decodeBody(ctx, data);
 			if(null == packet)
 				throw new ProtocolViolationException("Missing JSON packet");
 			Command cmd = ctx.getSourceEnvelope().getCmd();
@@ -33,7 +36,7 @@ abstract public class AbstractJsonCommandHandlerAsync implements IClientCommandH
 				Throwable asyError = null;
 				try {
 					ctx.setStatus(RemoteCommandStatus.RUNNING);
-					JsonPacket result = execute(ctx, packet);
+					JsonPacket result = m_jsonHandler.execute(ctx, packet);
 					ctx.respondJson(result);
 				} catch(HubException hx) {
 					asyError = hx;

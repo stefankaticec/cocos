@@ -84,6 +84,14 @@ final public class HubClient extends HubConnectorBase {
 			throw new IllegalStateException("Duplicate command name registered: " + commandName);
 	}
 
+	public synchronized <T extends JsonPacket> void registerJsonCommand(Class<T> packet, IJsonCommandHandler<T> handler) {
+		registerCommand(packet.getName(), () -> new SynchronousJsonCommandHandler<T>(handler));
+	}
+
+	public synchronized <T extends JsonPacket> void registerJsonCommandAsync(Class<T> packet, IJsonCommandHandler<T> handler) {
+		registerCommand(packet.getName(), () -> new AsynchronousJsonCommandHandler<T>(handler));
+	}
+
 	@Nullable
 	private synchronized IClientCommandHandler findCommandHandler(String commandName) {
 		Supplier<IClientCommandHandler> factory = m_commandHandlerMap.get(commandName);

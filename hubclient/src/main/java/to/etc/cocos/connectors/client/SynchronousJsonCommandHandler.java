@@ -16,16 +16,22 @@ import java.util.function.Consumer;
  * Created on 12-09-19.
  */
 @NonNullByDefault
-abstract public class AbstractJsonCommandHandler implements IClientCommandHandler {
-	abstract protected JsonPacket execute(CommandContext ctx, @Nullable JsonPacket packet) throws Exception;
+final public class SynchronousJsonCommandHandler<T extends JsonPacket> implements IClientCommandHandler {
+	private final IJsonCommandHandler<T> m_jsonHandler;
+
+	public SynchronousJsonCommandHandler(IJsonCommandHandler<T> jsonHandler) {
+		m_jsonHandler = jsonHandler;
+	}
 
 	@Override final public void execute(CommandContext ctx, List<byte[]> data, Consumer<Throwable> onFinished) throws Exception {
 		Throwable error = null;
 		try {
 			ctx.setStatus(RemoteCommandStatus.RUNNING);
-			JsonPacket packet = decodeBody(ctx, data);
+			T packet = (T) decodeBody(ctx, data);
+			if(null == packet)
+				throw new ProtocolViolationException("Null packet in command");
 			Command cmd = ctx.getSourceEnvelope().getCmd();
-			JsonPacket result = execute(ctx, packet);
+			JsonPacket result = m_jsonHandler.execute(ctx, packet);
 			ctx.respondJson(result);
 		} catch(Exception | Error x) {
 			error = x;
