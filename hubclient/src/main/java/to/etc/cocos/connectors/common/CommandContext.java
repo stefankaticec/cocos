@@ -4,6 +4,8 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.Command;
+import to.etc.cocos.messages.Hubcore.CommandOutput;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.Builder;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
@@ -24,6 +26,8 @@ final public class CommandContext {
 	private final Builder m_responseEnvelope;
 
 	private RemoteCommandStatus m_status = RemoteCommandStatus.SCHEDULED;
+
+	private int m_stdoutPacketNumber;
 
 	public CommandContext(HubConnectorBase connector, Envelope envelope) {
 		m_connector = connector;
@@ -105,7 +109,28 @@ final public class CommandContext {
 		}
 	}
 
+	private synchronized int nextSequenceNumber() {
+		return m_stdoutPacketNumber++;
+	}
+
 	public void respondCommandErrorPacket(Exception x) {
 		getConnector().sendCommandErrorPacket(this, x);
+	}
+
+	public void sendStdoutPacket(String s) {
+		Command cmd = m_envelope.getCmd();
+		Envelope envelope = Envelope.newBuilder()
+			.setVersion(m_envelope.getVersion())
+			.setSourceId(m_envelope.getTargetId())            // Swap src and dest
+			.setTargetId(m_envelope.getSourceId())
+			.setOutput(CommandOutput.newBuilder()
+				.setCode("stdout")
+				.setId(cmd.getId())
+				.setName(cmd.getName())
+				.setSequence(nextSequenceNumber())
+			).build();
+
+		//-- Create the JSON packet body
+		m_connector.sendPacket(os -> os.sendString(envelope, s));
 	}
 }

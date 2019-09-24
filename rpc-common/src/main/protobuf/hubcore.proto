@@ -80,7 +80,8 @@ message CommandProgress {
 message CommandOutput {
     string name = 1;
     string id = 2;
-    string code = 3;
+    int32 sequence = 3;
+    string code = 4;
 }
 
 //-- Event classes
