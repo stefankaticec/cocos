@@ -93,7 +93,9 @@ final class InventorySender {
 					}
 
 					b = m_server.packetBuilder(client.getFullId());
-					b.getEnvelope().setInventory(ClientInventory.getDefaultInstance());
+					b.getEnvelope().setInventory(ClientInventory.newBuilder()
+						.setDataFormat(packet.getDataFormat())
+					);
 					b.body(buffer);
 					if(i == 0)
 						b.after(this::sendNextPacket);

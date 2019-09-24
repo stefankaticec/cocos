@@ -257,10 +257,12 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	private void handleCLINVE(CommandContext cc, List<byte[]> data) throws Exception {
 		String dataFormat = cc.getSourceEnvelope().getInventory().getDataFormat();
 		if(! CommandNames.isJsonDataFormat(dataFormat))
-			throw new ProtocolViolationException("Inventory packet must be in JSON format");
+			throw new ProtocolViolationException("Inventory packet must be in JSON format (not '" + dataFormat + "')");
 		Object o = decodeBody(dataFormat, data);
+		if(null == o)
+			throw new IllegalStateException("Missing inventory packet for inventory command");
 		if(! (o instanceof JsonPacket))
-			throw new ProtocolViolationException("Inventory packet does not extend JsonPacket");
+			throw new ProtocolViolationException("Inventory packet " + o.getClass().getName() + " does not extend JsonPacket");
 		JsonPacket packet = (JsonPacket) o;
 
 		cc.log("Got client inventory packet " + packet);
