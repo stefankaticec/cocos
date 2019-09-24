@@ -124,8 +124,7 @@ public abstract class HubConnectorBase {
 	@Nullable
 	private Executor m_executor;
 
-	@Nullable
-	private ExecutorService m_createdExecutor;
+	private boolean m_executorWasCreated;
 
 	@Nullable
 	private ExecutorService m_eventExecutor;
@@ -225,7 +224,8 @@ public abstract class HubConnectorBase {
 	synchronized public Executor getExecutor() {
 		Executor executor = m_executor;
 		if(null == executor) {
-			executor = m_executor = m_createdExecutor = Executors.newCachedThreadPool();
+			m_executorWasCreated = true;
+			executor = m_executor = Executors.newCachedThreadPool();
 		}
 		return executor;
 	}
@@ -240,15 +240,17 @@ public abstract class HubConnectorBase {
 
 	private void cleanupAfterTerminate() {
 		m_connStatePublisher.onComplete();
-		ExecutorService service;
+		ExecutorService executor;
 		ExecutorService eventExecutor;
 		synchronized(this) {
-			service = m_createdExecutor;
+			executor = m_executorWasCreated ? (ExecutorService) m_executor : null;
 			eventExecutor = m_eventExecutor;
-			m_createdExecutor = null;
+			m_executorWasCreated = false;
+			m_eventExecutor = null;
+			m_executor = null;
 		}
-		if(null != service)
-			service.shutdownNow();
+		if(null != executor)
+			executor.shutdownNow();
 		if(null != eventExecutor)
 			eventExecutor.shutdown();
 	}
