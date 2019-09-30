@@ -62,7 +62,7 @@
 
     <modules>
         <module>rpc-common</module>
-        <module>hubserver</module>
+        <module>hub</module>
         <module>hubclient</module>
         <module>tests</module>
     </modules>
@@ -76,7 +76,7 @@
             </dependency>
             <dependency>
                 <groupId>to.etc.cocos</groupId>
-                <artifactId>hubserver</artifactId>
+                <artifactId>hub</artifactId>
                 <version>1.0-SNAPSHOT</version>
             </dependency>
 
