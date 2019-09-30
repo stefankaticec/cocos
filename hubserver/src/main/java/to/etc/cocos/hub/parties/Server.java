@@ -33,7 +33,7 @@ public class Server extends AbstractConnection {
 	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) {
 		if(!isUsable())
 			throw new FatalHubException(ErrorCode.serverDisconnected);
-		log("Packet received: " + envelope.getPayloadCase());
+		log("Packet received(S): " + envelope.getPayloadCase());
 
 		String targetId = envelope.getTargetId();
 		if(targetId.length() == 0) {
@@ -54,7 +54,7 @@ public class Server extends AbstractConnection {
 	}
 
 	@Override
-	public void log (String s){
+	public void log(String s){
 		ConsoleUtil.consoleLog("Hub:Server", getFullId(), s);
 	}
 

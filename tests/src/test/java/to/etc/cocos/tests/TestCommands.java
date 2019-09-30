@@ -3,12 +3,19 @@ package to.etc.cocos.tests;
 import io.reactivex.subjects.PublishSubject;
 import org.junit.Assert;
 import org.junit.Test;
+import to.etc.cocos.connectors.client.JsonSystemCommand;
+import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.ifaces.EventCommandBase;
 import to.etc.cocos.connectors.ifaces.EventCommandError;
+import to.etc.cocos.connectors.ifaces.EventCommandFinished;
+import to.etc.cocos.connectors.ifaces.EventCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
+import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.hubserver.protocol.ErrorCode;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -70,5 +77,57 @@ public class TestCommands extends TestAllBase {
 
 		Assert.assertEquals("Must be the packet we sent", p.getParameters(), ctp.getParameters());
 	}
+
+	@Test
+	public void testSendClientCommandWithStdout() throws Exception {
+		client().registerJsonCommand(StdoutCommandTestPacket.class, new ExecStdoutCommand());
+
+		waitConnected();
+		IRemoteClient remote = server().getClientList().get(0);
+
+		StdoutCommandTestPacket p = new StdoutCommandTestPacket();
+		p.setParameters("Real command");
+
+		PublishSubject<EventCommandBase> ps = PublishSubject.create();
+
+		StringBuilder stdout = new StringBuilder();
+
+		String cmdid = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", new IRemoteCommandListener() {
+			@Override
+			public void completedEvent(EventCommandFinished ev) throws Exception {
+				ps.onNext(ev);
+				ps.onComplete();
+			}
+
+			@Override
+			public void stdoutEvent(EventCommandOutput ev) throws Exception {
+				stdout.append(ev.getOutput());
+			}
+		});
+		System.out.println(">> CMDID=" + cmdid);
+
+		EventCommandBase event = ps
+			.timeout(5, TimeUnit.SECONDS)
+			.blockingFirst();
+
+		Assert.assertTrue("Must be command completed", event instanceof EventCommandFinished);
+		Assert.assertTrue("Output must be correct", stdout.toString().contains(OUTPUT));
+
+	}
+
+	static private final String OUTPUT = "The hills are alive with the sound of Metallica";
+
+	public class ExecStdoutCommand extends JsonSystemCommand<StdoutCommandTestPacket> {
+		@Override
+		public JsonPacket execute(CommandContext ctx, StdoutCommandTestPacket packet) throws Exception {
+			List<String> args = new ArrayList<>();
+			args.add("/bin/bash");
+			args.add("-c");
+			args.add("echo '" + OUTPUT +"'");
+			runRemoteCommand(ctx, args);
+			return new JsonPacket();
+		}
+	}
+
 
 }

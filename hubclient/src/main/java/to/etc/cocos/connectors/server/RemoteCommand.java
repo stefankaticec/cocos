@@ -7,11 +7,17 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.ifaces.EventCommandBase;
 import to.etc.cocos.connectors.ifaces.EventCommandError;
 import to.etc.cocos.connectors.ifaces.EventCommandFinished;
+import to.etc.cocos.connectors.ifaces.EventCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore.CommandError;
+import to.etc.function.ConsumerEx;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +53,15 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	private final PublishSubject<EventCommandBase> m_eventPublisher = PublishSubject.<EventCommandBase>create();
 
+	/** Decodes the output stream bytes to a string */
+	@Nullable
+	private CharsetDecoder m_decoder;
+
+	final private CharBuffer m_outBuffer = CharBuffer.allocate(8192*4);
+
+	final private ByteBuffer m_inBuffer = ByteBuffer.allocate(8192);
+
+
 	public RemoteCommand(RemoteClient client, String commandId, long commandTimeout, @Nullable String commandKey, String description) {
 		m_commandId = commandId;
 		m_client = client;
@@ -78,6 +93,25 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	public List<IRemoteCommandListener> getListeners() {
 		return m_listeners;
+	}
+
+	public void callCommandListeners(ConsumerEx<IRemoteCommandListener> l) {
+		for(IRemoteCommandListener listener : getListeners()) {
+			try {
+				l.accept(listener);
+			} catch(Exception x) {
+				System.err.println("Command " + this + " commandListener failed: " + x);
+				x.printStackTrace();
+			}
+		}
+		for(IRemoteCommandListener listener : getClient().getListeners()) {
+			try {
+				l.accept(listener);
+			} catch(Exception x) {
+				System.err.println("Command " + this + " clientListener failed: " + x);
+				x.printStackTrace();
+			}
+		}
 	}
 
 	@Override
@@ -140,4 +174,47 @@ final public class RemoteCommand implements IRemoteCommand {
 	public PublishSubject<EventCommandBase> getEventPublisher() {
 		return m_eventPublisher;
 	}
+
+	public synchronized void appendOutput(List<byte[]> data, String code) {
+		CharsetDecoder decoder = m_decoder;
+		if(null == decoder) {
+			Charset charset = Charset.forName("utf-8");
+			decoder = m_decoder = charset.newDecoder();
+		}
+
+		StringBuilder sb = new StringBuilder();
+		for(byte[] datum : data) {
+			if(datum.length > 0)
+				pushData(sb, datum, decoder);
+		}
+
+		if(sb.length() > 0) {
+			EventCommandOutput eco = new EventCommandOutput(this, code, sb.toString());
+			callCommandListeners(l -> l.stdoutEvent(eco));
+		}
+	}
+
+	private void pushData(StringBuilder sb, byte[] buffer, CharsetDecoder decoder) {
+		int off = 0;
+		while(off < buffer.length) {
+			int todoBytes = m_inBuffer.capacity();
+			int len = buffer.length - off;
+			if(todoBytes > len) {
+				todoBytes = len;
+			}
+
+			//-- Put in buffer, then advance
+			m_inBuffer.put(buffer, off, todoBytes);
+			off += todoBytes;
+
+			//-- Convert to the correct encoding
+			m_inBuffer.flip();
+			decoder.decode(m_inBuffer, m_outBuffer, false);
+			m_inBuffer.clear();
+			m_outBuffer.flip();
+			sb.append(m_outBuffer);
+			m_outBuffer.clear();
+		}
+	}
+
 }

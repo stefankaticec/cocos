@@ -7,9 +7,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.HubConnectorBase;
-import to.etc.cocos.connectors.common.ISendPacket;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.common.PacketWriter;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.cocos.connectors.ifaces.EventCommandError;
@@ -19,13 +17,13 @@ import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteClientHub;
 import to.etc.cocos.connectors.ifaces.IRemoteClientListener;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
-import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AuthResponse;
 import to.etc.cocos.messages.Hubcore.ClientAuthRequest;
 import to.etc.cocos.messages.Hubcore.CommandError;
+import to.etc.cocos.messages.Hubcore.CommandOutput;
 import to.etc.cocos.messages.Hubcore.CommandResponse;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
@@ -155,6 +153,10 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 
 			case RESPONSE:
 				handleCommandFinished(ctx, data);
+				break;
+
+			case OUTPUT:
+				handleCommandOutput(ctx, data);
 				break;
 		}
 	}
@@ -335,11 +337,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 				.setName(packet.getClass().getName())
 			)
 			.build();
-		sendPacket(new ISendPacket() {
-			@Override public void send(PacketWriter os) throws Exception {
-				os.send(jcmd, packet);
-			}
-		});
+		sendPacket(jcmd, packet);
 	}
 
 	private RemoteCommand getCommandFromID(String clientId, String commandId, String commandName) {
@@ -362,25 +360,6 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	@Override
 	public void close() throws Exception {
 		terminateAndWait();
-	}
-
-	private void callCommandListeners(RemoteCommand command, ConsumerEx<IRemoteCommandListener> l) {
-		for(IRemoteCommandListener listener : command.getListeners()) {
-			try {
-				l.accept(listener);
-			} catch(Exception x) {
-				System.err.println("Command " + command + " commandListener failed: " + x);
-				x.printStackTrace();
-			}
-		}
-		for(IRemoteCommandListener listener : command.getClient().getListeners()) {
-			try {
-				l.accept(listener);
-			} catch(Exception x) {
-				System.err.println("Command " + command + " clientListener failed: " + x);
-				x.printStackTrace();
-			}
-		}
 	}
 
 	@Nullable
@@ -409,7 +388,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		synchronized(this) {
 			command.setStatus(RemoteCommandStatus.FAILED);
 			EventCommandError ev = new EventCommandError(command, err);
-			callCommandListeners(command, l -> l.errorEvent(ev));
+			command.callCommandListeners(l -> l.errorEvent(ev));
 			command.setFinishedAt(System.currentTimeMillis());
 		}
 	}
@@ -431,8 +410,16 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		synchronized(this) {
 			command.setStatus(RemoteCommandStatus.FINISHED);
 			EventCommandFinished ev = new EventCommandFinished(command, dataFormat, packet);
-			callCommandListeners(command, l -> l.completedEvent(ev));
+			command.callCommandListeners(l -> l.completedEvent(ev));
 			command.setFinishedAt(System.currentTimeMillis());
 		}
 	}
+
+	private void handleCommandOutput(CommandContext ctx, List<byte[]> data) {
+		//-- Command output propagated as a string. Create the string by decoding the output.
+		CommandOutput output = ctx.getSourceEnvelope().getOutput();
+		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), output.getId(), output.getName());
+		command.appendOutput(data, output.getCode());
+	}
+
 }

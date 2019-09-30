@@ -49,12 +49,12 @@ final public class CommandContext {
 
 	public void respondJson(@NonNull Object jsonPacket) {
 		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacket(os -> os.send(envelope, jsonPacket));
+		m_connector.sendPacket(envelope, jsonPacket);
 	}
 
 	public void respond() {
 		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacket(os -> os.send(envelope, null));
+		m_connector.sendPacket(envelope, null);
 	}
 
 	public Envelope getSourceEnvelope() {
@@ -118,6 +118,7 @@ final public class CommandContext {
 	}
 
 	public void sendStdoutPacket(String s) {
+		System.out.println("stdout> " + s);
 		Command cmd = m_envelope.getCmd();
 		Envelope envelope = Envelope.newBuilder()
 			.setVersion(m_envelope.getVersion())
@@ -127,6 +128,7 @@ final public class CommandContext {
 				.setCode("stdout")
 				.setId(cmd.getId())
 				.setName(cmd.getName())
+				.setEncoding("utf-8")
 				.setSequence(nextSequenceNumber())
 			).build();
 

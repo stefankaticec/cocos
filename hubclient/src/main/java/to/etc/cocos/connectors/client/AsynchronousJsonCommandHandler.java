@@ -8,6 +8,7 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore.Command;
+import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.HubException;
 
 import java.util.List;
@@ -37,6 +38,11 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 				try {
 					ctx.setStatus(RemoteCommandStatus.RUNNING);
 					JsonPacket result = m_jsonHandler.execute(ctx, packet);
+					ctx.getResponseEnvelope()
+						.getResponseBuilder()
+						.setName(cmd.getName())
+						.setId(cmd.getId())
+						.setDataFormat(CommandNames.getJsonDataFormat(result));
 					ctx.respondJson(result);
 				} catch(HubException hx) {
 					asyError = hx;

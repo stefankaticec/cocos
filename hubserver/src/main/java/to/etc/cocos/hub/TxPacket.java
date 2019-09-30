@@ -3,6 +3,7 @@ package to.etc.cocos.hub;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.util.WrappedException;
 
 import java.util.concurrent.CompletableFuture;
@@ -36,6 +37,8 @@ final public class TxPacket {
 	private static int m_nextId;
 
 	public TxPacket(Envelope envelope, @Nullable AbstractConnection onBehalfOf, @Nullable IPacketBodySender bodySender, @Nullable IExecute onAfter) {
+		if(envelope.getPayloadCase() == PayloadCase.PAYLOAD_NOT_SET)
+			throw new IllegalStateException("PAYLOAD NOT SET");
 		m_id = nextId();
 		m_envelope = envelope;
 		m_onBehalfOf = onBehalfOf;

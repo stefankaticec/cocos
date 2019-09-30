@@ -82,6 +82,7 @@ message CommandOutput {
     string id = 2;
     int32 sequence = 3;
     string code = 4;
+    string encoding = 5;
 }
 
 //-- Event classes

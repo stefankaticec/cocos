@@ -11,4 +11,6 @@ public interface IRemoteCommandListener {
 	default void errorEvent(EventCommandError errorEvent) throws Exception {}
 
 	default void completedEvent(EventCommandFinished ev) throws Exception {}
+
+	default void stdoutEvent(EventCommandOutput ev) throws Exception {}
 }

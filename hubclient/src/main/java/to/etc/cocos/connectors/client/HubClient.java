@@ -119,6 +119,7 @@ final public class HubClient extends HubConnectorBase {
 			});
 		} catch(Exception x) {
 			ctx.log("Command " + cmd.getName() + " failed: " + x);
+			x.printStackTrace();
 			sendCommandErrorPacket(ctx, x);
 		}
 	}

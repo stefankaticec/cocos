@@ -67,7 +67,7 @@ final public class Client extends AbstractConnection {
 	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) {
 		if(!isUsable())
 			throw new IllegalStateException("Received data from a defunct client??");
-		log("Packet received: " + envelope.getPayloadCase());
+		log("Packet received(C): " + envelope.getPayloadCase());
 
 		String targetId = envelope.getTargetId();
 		if(targetId.length() == 0) {

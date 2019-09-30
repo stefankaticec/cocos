@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>to.etc.cocos</groupId>
-    <artifactId>root</artifactId>
+    <artifactId>cocos</artifactId>
     <version>1.0-SNAPSHOT</version>
     <name>Cocos # root</name>
     <packaging>pom</packaging>

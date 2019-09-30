@@ -7,6 +7,7 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore.Command;
+import to.etc.hubserver.protocol.CommandNames;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -32,6 +33,11 @@ final public class SynchronousJsonCommandHandler<T extends JsonPacket> implement
 				throw new ProtocolViolationException("Null packet in command");
 			Command cmd = ctx.getSourceEnvelope().getCmd();
 			JsonPacket result = m_jsonHandler.execute(ctx, packet);
+			ctx.getResponseEnvelope()
+				.getResponseBuilder()
+				.setName(cmd.getName())
+				.setId(cmd.getId())
+				.setDataFormat(CommandNames.getJsonDataFormat(result));
 			ctx.respondJson(result);
 		} catch(Exception | Error x) {
 			error = x;
