@@ -257,7 +257,8 @@
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <version>${maven-javadoc-plugin.version}</version>
                     <configuration> <!-- add this to disable checking -->
-                        <additionalparam>-Xdoclint:none</additionalparam>
+                        <additionalOptions>-Xdoclint:none</additionalOptions>
+<!--                        <additionalparam>-Xdoclint:none</additionalparam>-->
                     </configuration>
                 </plugin>
                 <plugin>

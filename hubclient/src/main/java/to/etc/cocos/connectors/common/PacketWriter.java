@@ -19,9 +19,12 @@ import java.nio.charset.StandardCharsets;
 final public class PacketWriter {
 	private OutputStream m_os;
 
+	private final HubConnectorBase m_connector;
+
 	final private ObjectMapper m_mapper;
 
-	public PacketWriter(ObjectMapper mapper) {
+	public PacketWriter(HubConnectorBase connector, ObjectMapper mapper) {
+		m_connector = connector;
 		m_mapper = mapper;
 	}
 
@@ -30,6 +33,7 @@ final public class PacketWriter {
 	}
 
 	public void send(Envelope envelope, Object jsonBody) throws Exception {
+		m_connector.log("sending " + envelope.getPayloadCase());
 		sendEnvelope(envelope);
 		if(null == jsonBody) {
 			writeInt(0);								// Send an empty body.
@@ -39,6 +43,7 @@ final public class PacketWriter {
 	}
 
 	public void sendString(Envelope envelope, String text) throws Exception {
+		m_connector.log("sending string " + envelope.getPayloadCase());
 		sendEnvelope(envelope);
 		if(null == text) {
 			writeInt(0);								// Send an empty body.

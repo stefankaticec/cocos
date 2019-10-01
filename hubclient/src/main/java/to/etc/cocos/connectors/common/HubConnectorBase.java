@@ -61,6 +61,10 @@ public abstract class HubConnectorBase {
 
 	static private final Logger LOG = LoggerFactory.getLogger(HubConnectorBase.class);
 
+	private final int m_id;
+
+	private static int m_idCounter;
+
 	private final PublishSubject<ConnectorState> m_connStatePublisher;
 
 	private final ObjectMapper m_mapper;
@@ -140,6 +144,7 @@ public abstract class HubConnectorBase {
 
 
 	protected HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
+		m_id = nextId();
 		m_server = server;
 		m_port = port;
 		m_myId = myId;
@@ -154,7 +159,11 @@ public abstract class HubConnectorBase {
 		//module.addSerializer(java.sql.Date.class, new DateSerializer());
 		//om.registerModule(module);
 
-		m_writer = new PacketWriter(om);
+		m_writer = new PacketWriter(this, om);
+	}
+
+	private static synchronized int nextId() {
+		return ++m_idCounter;
 	}
 
 	public ObjectMapper getMapper() {
@@ -179,7 +188,7 @@ public abstract class HubConnectorBase {
 			m_nextReconnect = 0;
 			m_reconnectCount = 0;
 
-			Thread wt = m_writerThread = new Thread(this::writerMain, "conn#writer");
+			Thread wt = m_writerThread = new Thread(this::writerMain, "cw#" + m_id);
 			wt.setDaemon(true);
 			wt.setDaemon(true);
 			wt.start();
@@ -443,7 +452,7 @@ public abstract class HubConnectorBase {
 			sb.append("Session accessed in ").append(session.getLastAccessedTime()).append("\n");
 			log(sb.toString());
 
-			Thread th = m_readerThread = new Thread(this::readerMain, "conn#reader");
+			Thread th = m_readerThread = new Thread(this::readerMain, "cr#" + m_id);
 			th.setDaemon(true);
 			th.start();
 			synchronized(this) {
