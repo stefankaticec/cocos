@@ -122,6 +122,13 @@ public class TestAllBase {
 			m_server = null;
 			server.terminateAndWait();
 		}
+
+		HubClient client = m_client;
+		if(null != client) {
+			m_client = null;
+			client.terminateAndWait();
+		}
+
 		m_serverPassword = null;
 		m_clientPassword = null;
 	}
