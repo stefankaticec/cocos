@@ -1,6 +1,9 @@
 package to.etc.cocos.tests;
 
 import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.TestName;
 import to.etc.cocos.connectors.client.HubClient;
 import to.etc.cocos.connectors.client.IClientAuthenticationHandler;
 import to.etc.cocos.connectors.common.ConnectorState;
@@ -44,6 +47,9 @@ public class TestAllBase {
 	private String m_clientPassword;
 
 	private String m_allClientPassword = CLIENTPASSWORD;
+
+	@Rule
+	public TestName m_testName = new TestName();
 
 	public HubClient client() {
 		HubClient client = m_client;
@@ -131,6 +137,15 @@ public class TestAllBase {
 
 		m_serverPassword = null;
 		m_clientPassword = null;
+	}
+
+	@Before
+	public void logName() {
+		System.out.println("\n\n");
+		System.out.println("----------------------------------------------------------------------");
+		System.out.println("Test: " + m_testName.getMethodName());
+		System.out.println("----------------------------------------------------------------------");
+
 	}
 
 	protected void setServerPassword(String assword) {

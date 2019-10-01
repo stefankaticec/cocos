@@ -474,7 +474,7 @@ public abstract class HubConnectorBase {
 	private void readerMain() {
 		String disconnectReason = "Normal termination";
 		try {
-			for(;;) {
+			for(; ; ) {
 				InputStream is;
 				synchronized(this) {
 					is = m_is;
@@ -483,6 +483,11 @@ public abstract class HubConnectorBase {
 				}
 				m_packetReader.readPacket(is);
 				executePacket();
+			}
+		} catch(SocketEofException eofx) {
+			if(isRunning()) {
+				ConsoleUtil.consoleLog("reader terminated because of eof");
+				disconnectReason = "Server disconnect";
 			}
 		} catch(Exception x) {
 			//log("state " + getState());
@@ -588,8 +593,9 @@ public abstract class HubConnectorBase {
 	 * state and m_terminate. This is a no-op if the disconnection is
 	 * already a fact. In that case no message will be reported either.
 	 */
-	protected void forceDisconnect(String why) {
-		log("forceDisconnect: " + why);
+	protected void forceDisconnect(@Nullable String why) {
+		if(null != why)
+			log("forceDisconnect: " + why);
 		Socket socket;
 		InputStream is;
 		OutputStream os;
