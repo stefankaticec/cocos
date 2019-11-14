@@ -1,14 +1,13 @@
 package to.etc.cocos.tests;
 
 import org.junit.After;
-import to.etc.cocos.connectors.common.CommandContext;
-import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.client.HubClient;
-import to.etc.cocos.connectors.server.HubServer;
+import to.etc.cocos.connectors.client.IClientAuthenticationHandler;
+import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.client.IClientPacketHandler;
-import to.etc.cocos.connectors.server.IClientAuthenticator;
-import to.etc.cocos.connectors.server.IServerEvent;
+import to.etc.cocos.connectors.ifaces.IClientAuthenticator;
+import to.etc.cocos.connectors.ifaces.IServerEvent;
+import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.Hub;
 
@@ -49,14 +48,14 @@ public class TestAllBase {
 	public HubClient client() {
 		HubClient client = m_client;
 		if(null == client) {
-			IClientPacketHandler ph = new IClientPacketHandler() {
+			IClientAuthenticationHandler ph = new IClientAuthenticationHandler() {
 				@Override public JsonPacket getInventory() {
 					return new InventoryTestPacket();
 				}
-
-				@Override public void executeCommand(CommandContext cc, JsonPacket packet) throws Exception {
-					throw new IllegalStateException("I have no clue on how to " + packet.getClass().getName());
-				}
+				//
+				//@Override public void executeCommand(CommandContext cc, JsonPacket packet, Consumer<Throwable> onFinished) throws Exception {
+				//	throw new IllegalStateException("I have no clue on how to " + packet.getClass().getName());
+				//}
 			};
 
 			client = m_client = HubClient.create(ph, "localhost", HUBPORT, CLUSTERNAME, CLIENTID, m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword);

@@ -9,16 +9,16 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>hubclient</artifactId>
+    <artifactId>hub</artifactId>
     <version>1.0-SNAPSHOT</version>
-
-    <name>Cocos # hubclient</name>
+    <name>Cocos # hub</name>
 
     <dependencies>
         <dependency>
             <groupId>to.etc.cocos</groupId>
             <artifactId>rpc-common</artifactId>
         </dependency>
+
         <dependency>
             <groupId>to.etc.domui</groupId>
             <artifactId>to.etc.alg</artifactId>
@@ -39,19 +39,9 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
-        <!-- rxjava support -->
         <dependency>
-            <groupId>io.reactivex.rxjava2</groupId>
-            <artifactId>rxjava</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.eclipse.jdt/org.eclipse.jdt.annotation -->
@@ -60,6 +50,6 @@
             <artifactId>org.eclipse.jdt.annotation</artifactId>
         </dependency>
 
-    </dependencies>
 
+    </dependencies>
 </project>

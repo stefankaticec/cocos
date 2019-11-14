@@ -9,12 +9,14 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.CommandError;
+import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
+import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.HubException;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.CommandError;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
@@ -124,8 +126,7 @@ public abstract class HubConnectorBase {
 	@Nullable
 	private Executor m_executor;
 
-	@Nullable
-	private ExecutorService m_createdExecutor;
+	private boolean m_executorWasCreated;
 
 	@Nullable
 	private ExecutorService m_eventExecutor;
@@ -225,7 +226,8 @@ public abstract class HubConnectorBase {
 	synchronized public Executor getExecutor() {
 		Executor executor = m_executor;
 		if(null == executor) {
-			executor = m_executor = m_createdExecutor = Executors.newCachedThreadPool();
+			m_executorWasCreated = true;
+			executor = m_executor = Executors.newCachedThreadPool();
 		}
 		return executor;
 	}
@@ -240,15 +242,17 @@ public abstract class HubConnectorBase {
 
 	private void cleanupAfterTerminate() {
 		m_connStatePublisher.onComplete();
-		ExecutorService service;
+		ExecutorService executor;
 		ExecutorService eventExecutor;
 		synchronized(this) {
-			service = m_createdExecutor;
+			executor = m_executorWasCreated ? (ExecutorService) m_executor : null;
 			eventExecutor = m_eventExecutor;
-			m_createdExecutor = null;
+			m_executorWasCreated = false;
+			m_eventExecutor = null;
+			m_executor = null;
 		}
-		if(null != service)
-			service.shutdownNow();
+		if(null != executor)
+			executor.shutdownNow();
 		if(null != eventExecutor)
 			eventExecutor.shutdown();
 	}
@@ -364,6 +368,17 @@ public abstract class HubConnectorBase {
 			error("Send for packet " + sender + " failed: " + x);
 			forceDisconnect("Packet send failed");
 		}
+	}
+
+	public void sendPacket(Hubcore.Envelope message, @Nullable Object json) {
+		if(message.getPayloadCase() == PayloadCase.PAYLOAD_NOT_SET)
+			throw new IllegalStateException("Missing payload!!");
+		ISendPacket sp = new ISendPacket() {
+			@Override public void send(PacketWriter os) throws Exception {
+				os.send(message, json);
+			}
+		};
+		sendPacket(sp);
 	}
 
 	public void sendPacket(ISendPacket packetSender) {
@@ -518,12 +533,7 @@ public abstract class HubConnectorBase {
 			.setCode("command.exception")
 			.setDetails(StringTool.strStacktrace(cfx))
 			;
-		ISendPacket sp = new ISendPacket() {
-			@Override public void send(PacketWriter os) throws Exception {
-				os.send(ctx.getResponseEnvelope().build(), null);
-			}
-		};
-		sendPacket(sp);
+		sendPacket(ctx.getResponseEnvelope().build(), null);
 	}
 
 	public void sendCommandErrorPacket(CommandContext ctx, String code, String message, @Nullable String details) {
@@ -535,12 +545,7 @@ public abstract class HubConnectorBase {
 			.setDetails(details)
 			.build();
 		ctx.getResponseEnvelope().setCommandError(cmdE);
-		ISendPacket sp = new ISendPacket() {
-			@Override public void send(PacketWriter os) throws Exception {
-				os.send(ctx.getResponseEnvelope().build(), null);
-			}
-		};
-		sendPacket(sp);
+		sendPacket(ctx.getResponseEnvelope().build(), null);
 	}
 
 	public void sendCommandErrorPacket(CommandContext ctx, ErrorCode code, Object... params) {
@@ -553,12 +558,7 @@ public abstract class HubConnectorBase {
 			//.setDetails(details)
 			.build();
 		ctx.getResponseEnvelope().setCommandError(cmdE);
-		ISendPacket sp = new ISendPacket() {
-			@Override public void send(PacketWriter os) throws Exception {
-				os.send(ctx.getResponseEnvelope().build(), null);
-			}
-		};
-		sendPacket(sp);
+		sendPacket(ctx.getResponseEnvelope().build(), null);
 	}
 
 	public void sendCommandErrorPacket(CommandContext ctx, Throwable t) {
@@ -571,15 +571,8 @@ public abstract class HubConnectorBase {
 			.setDetails(StringTool.strStacktrace(t))
 			.build();
 		ctx.getResponseEnvelope().setCommandError(cmdE);
-		ISendPacket sp = new ISendPacket() {
-			@Override public void send(PacketWriter os) throws Exception {
-				os.send(ctx.getResponseEnvelope().build(), null);
-			}
-		};
-		sendPacket(sp);
+		sendPacket(ctx.getResponseEnvelope().build(), null);
 	}
-
-
 
 	/**
 	 * Force disconnect and enter the next appropriate state, depending on
@@ -707,7 +700,7 @@ public abstract class HubConnectorBase {
 		return m_lastError;
 	}
 
-	void log(String s) {
+	protected void log(String s) {
 		ConsoleUtil.consoleLog(m_logName, s);
 	}
 

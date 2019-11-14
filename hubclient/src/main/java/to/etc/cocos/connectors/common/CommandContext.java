@@ -2,12 +2,15 @@ package to.etc.cocos.connectors.common;
 
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.Command;
+import to.etc.cocos.messages.Hubcore.CommandOutput;
+import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.Builder;
+import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.HubException;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.Envelope.Builder;
-import to.etc.puzzler.daemon.rpc.messages.Hubcore.HubErrorResponse;
 import to.etc.util.StringTool;
 
 /**
@@ -22,6 +25,10 @@ final public class CommandContext {
 
 	private final Builder m_responseEnvelope;
 
+	private RemoteCommandStatus m_status = RemoteCommandStatus.SCHEDULED;
+
+	private int m_stdoutPacketNumber;
+
 	public CommandContext(HubConnectorBase connector, Envelope envelope) {
 		m_connector = connector;
 		m_envelope = envelope;
@@ -34,14 +41,20 @@ final public class CommandContext {
 			;
 	}
 
+	public String getId() {
+		if(! m_envelope.hasCmd())
+			throw new IllegalStateException("This is not a command");
+		return m_envelope.getCmd().getId();
+	}
+
 	public void respondJson(@NonNull Object jsonPacket) {
 		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacket(os -> os.send(envelope, jsonPacket));
+		m_connector.sendPacket(envelope, jsonPacket);
 	}
 
 	public void respond() {
 		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacket(os -> os.send(envelope, null));
+		m_connector.sendPacket(envelope, null);
 	}
 
 	public Envelope getSourceEnvelope() {
@@ -84,7 +97,42 @@ final public class CommandContext {
 		respond();
 	}
 
+	public RemoteCommandStatus getStatus() {
+		synchronized(m_connector) {
+			return m_status;
+		}
+	}
+
+	public void setStatus(RemoteCommandStatus status) {
+		synchronized(m_connector) {
+			m_status = status;
+		}
+	}
+
+	private synchronized int nextSequenceNumber() {
+		return m_stdoutPacketNumber++;
+	}
+
 	public void respondCommandErrorPacket(Exception x) {
 		getConnector().sendCommandErrorPacket(this, x);
+	}
+
+	public void sendStdoutPacket(String s) {
+		System.out.println("stdout> " + s);
+		Command cmd = m_envelope.getCmd();
+		Envelope envelope = Envelope.newBuilder()
+			.setVersion(m_envelope.getVersion())
+			.setSourceId(m_envelope.getTargetId())            // Swap src and dest
+			.setTargetId(m_envelope.getSourceId())
+			.setOutput(CommandOutput.newBuilder()
+				.setCode("stdout")
+				.setId(cmd.getId())
+				.setName(cmd.getName())
+				.setEncoding("utf-8")
+				.setSequence(nextSequenceNumber())
+			).build();
+
+		//-- Create the JSON packet body
+		m_connector.sendPacket(os -> os.sendString(envelope, s));
 	}
 }

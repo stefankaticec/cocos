@@ -4,9 +4,9 @@ import to.etc.cocos.connectors.common.JsonPacket;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
- * Created on 23-09-19.
+ * Created on 22-07-19.
  */
-public class CommandTestPacket extends JsonPacket {
+public class UnknownCommandTestPacket extends JsonPacket {
 	private String m_parameters;
 
 	public String getParameters() {
