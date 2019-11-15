@@ -58,10 +58,16 @@ public class TestAllBase {
 				@Override public JsonPacket getInventory() {
 					return new InventoryTestPacket();
 				}
-				//
-				//@Override public void executeCommand(CommandContext cc, JsonPacket packet, Consumer<Throwable> onFinished) throws Exception {
-				//	throw new IllegalStateException("I have no clue on how to " + packet.getClass().getName());
-				//}
+
+				@Override
+				public byte[] createAuthenticationResponse(String clientId, byte[] challenge) throws Exception {
+					String ref = m_clientPassword + ":" + clientId;
+					MessageDigest md = MessageDigest.getInstance("SHA-256");
+					md.update(ref.getBytes(StandardCharsets.UTF_8));
+					md.update(challenge);
+					byte[] digest = md.digest();
+					return digest;
+				}
 			};
 
 			client = m_client = HubClient.create(ph, "localhost", HUBPORT, CLUSTERNAME, CLIENTID, m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword);

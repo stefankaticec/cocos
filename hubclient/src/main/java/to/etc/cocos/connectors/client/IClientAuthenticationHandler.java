@@ -10,4 +10,6 @@ import to.etc.cocos.connectors.common.JsonPacket;
 @NonNullByDefault
 public interface IClientAuthenticationHandler {
 	JsonPacket getInventory();
+
+	byte[] createAuthenticationResponse(String clientId, byte[] challenge) throws Exception;
 }

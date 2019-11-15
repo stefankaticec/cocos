@@ -16,8 +16,6 @@ import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -125,8 +123,7 @@ final public class HubClient extends HubConnectorBase {
 	}
 
 	/**
-	 * Respond with a Client HELO response. This send the inventory
-	 * packet, and encodes the challenge with the password.
+	 * Respond with a Client HELO response. This encodes the challenge with the password, or something.
 	 */
 	@Synchronous
 	public void handleHELO(CommandContext cc) throws Exception {
@@ -134,18 +131,14 @@ final public class HubClient extends HubConnectorBase {
 		ByteString ba = cc.getSourceEnvelope().getChallenge().getChallenge();
 		byte[] challenge = ba.toByteArray();
 
-		String ref = m_clientPassword + ":" + cc.getConnector().getMyId();
-		MessageDigest md = MessageDigest.getInstance("SHA-256");
-		md.update(ref.getBytes(StandardCharsets.UTF_8));
-		md.update(challenge);
-		byte[] digest = md.digest();
+		byte[] response = m_authHandler.createAuthenticationResponse(cc.getConnector().getMyId(), challenge);
 
 		cc.getResponseEnvelope()
 			.setSourceId(cc.getConnector().getMyId())
 			.setVersion(1)
 			.setTargetId(m_targetCluster)
 			.setHeloClient(Hubcore.ClientHeloResponse.newBuilder()
-				.setChallengeResponse(ByteString.copyFrom(digest))
+				.setChallengeResponse(ByteString.copyFrom(response))
 				.setClientVersion(m_clientVersion)
 				.build()
 			);
