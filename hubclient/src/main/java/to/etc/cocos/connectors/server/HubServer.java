@@ -108,6 +108,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		return responder;
 	}
 
+	@Override
 	public Observable<IServerEvent> observeServerEvents() {
 		return m_serverEventSubject;
 	}

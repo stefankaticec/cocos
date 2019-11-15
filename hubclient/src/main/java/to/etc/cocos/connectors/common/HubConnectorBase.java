@@ -14,6 +14,7 @@ import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
+import to.etc.cocos.messages.Hubcore.Pong;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.HubException;
@@ -749,53 +750,30 @@ public abstract class HubConnectorBase {
 
 	private void packetReceived(CommandContext ctx, List<byte[]> data) throws Exception {
 		try {
-			handlePacketReceived(ctx, data);
+			switch(ctx.getSourceEnvelope().getPayloadCase()){
+				default:
+					handlePacketReceived(ctx, data);
+					break;
+
+				case PING:
+					respondWithPong(ctx);
+					break;
+
+
+			}
 		} catch(Exception x) {
 			unwrapAndRethrowException(ctx, x);
 		}
-		//Object body = decodeBody(ctx.getConnector(), ctx.getSourceEnvelope().getDataFormat(), data);
-		//Method m = findHandlerMethod(ctx.getSourceEnvelope().getCommand(), body);
-		//if(null == m) {
-		//	throw new ProtocolViolationException("No handler for packet command " + ctx.getSourceEnvelope().getCommand() + " with body type " + bodyType(body));
-		//}
-		//
-		//if(m.getAnnotation(Synchronous.class) != null) {
-		//	invokeCall(ctx, body, m);
-		//} else {
-		//	invokeCallAsync(ctx, body, m);
-		//}
+	}
+
+	private void respondWithPong(CommandContext ctx) {
+		ctx.getResponseEnvelope().setPong(Pong.newBuilder());
+		ctx.respond();
 	}
 
 	private String bodyType(@Nullable Object body) {
 		return null == body ? "(void)" : body.getClass().getName();
 	}
-
-
-	//private void invokeCallAsync(CommandContext ctx, @Nullable Object body, Method m) {
-	//	ctx.getConnector().getExecutor().execute(() -> {
-	//		try {
-	//			invokeCall(ctx, body, m);
-	//		} catch(Exception x) {
-	//			ctx.log("Failed to execute " + m.getName() + ": " + x);
-	//			try {
-	//				unwrapAndRethrowException(ctx, x);
-	//			} catch(Exception xx) {
-	//				ctx.log("Could not return protocol error: " + xx);
-	//			}
-	//		}
-	//	});
-	//}
-	//
-	//private void invokeCall(CommandContext ctx, @Nullable Object body, Method m) throws Exception {
-	//	try {
-	//		if(null == body)
-	//			m.invoke(this, ctx);
-	//		else
-	//			m.invoke(this, ctx, body);
-	//	} catch(InvocationTargetException itx) {
-	//		unwrapAndRethrowException(ctx, itx);
-	//	}
-	//}
 
 	static public void unwrapAndRethrowException(CommandContext cc, Throwable t) throws Exception {
 		while(t instanceof InvocationTargetException) {

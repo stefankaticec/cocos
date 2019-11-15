@@ -24,7 +24,7 @@ final public class Main {
 	static private Logger LOG = LoggerFactory.getLogger(Hub.class);
 
 	@Option(name = "-port", usage = "The listener port number")
-	private int m_port = 9876;
+	private int m_port = 8987;
 
 	@Option(name = "-pinginterval", usage = "The #of seconds between PING messages, to keep the connection alive when idle")
 	private int m_pingInterval = 120;
@@ -64,9 +64,9 @@ final public class Main {
 			m_ident = ident = name;
 		}
 		String addr = InetAddress.getLocalHost().getHostAddress();
-		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr);
+		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr  + ":" + m_port);
 
-		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "testCluster");
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael");
 		server.startServer();
 
 		//-- Listen to signals to stop the thing
