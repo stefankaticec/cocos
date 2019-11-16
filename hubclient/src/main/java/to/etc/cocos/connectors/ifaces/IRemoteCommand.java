@@ -29,5 +29,5 @@ public interface IRemoteCommand {
 	@Nullable
 	<T> T getAttribute(Class<T> clz);
 
-	Observable<EventCommandBase> getEventPublisher();
+	Observable<ServerCommandEventBase> observeEvents();
 }

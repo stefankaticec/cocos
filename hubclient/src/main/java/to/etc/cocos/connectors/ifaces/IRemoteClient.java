@@ -19,7 +19,7 @@ public interface IRemoteClient {
 	//@NonNull
 	//InventoryPacket getInventory();
 
-	String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception;
+	IRemoteCommand sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception;
 
-	Observable<EventCommandBase> getEventPublisher();
+	Observable<ServerCommandEventBase> getEventPublisher();
 }

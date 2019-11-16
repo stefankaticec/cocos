@@ -4,10 +4,10 @@ import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import to.etc.cocos.connectors.ifaces.EventCommandBase;
-import to.etc.cocos.connectors.ifaces.EventCommandError;
-import to.etc.cocos.connectors.ifaces.EventCommandFinished;
-import to.etc.cocos.connectors.ifaces.EventCommandOutput;
+import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
+import to.etc.cocos.connectors.ifaces.EvCommandError;
+import to.etc.cocos.connectors.ifaces.EvCommandFinished;
+import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
@@ -51,7 +51,7 @@ final public class RemoteCommand implements IRemoteCommand {
 	@Nullable
 	private CommandError m_commandError;
 
-	private final PublishSubject<EventCommandBase> m_eventPublisher = PublishSubject.<EventCommandBase>create();
+	private final PublishSubject<ServerCommandEventBase> m_eventPublisher = PublishSubject.<ServerCommandEventBase>create();
 
 	/** Decodes the output stream bytes to a string */
 	@Nullable
@@ -70,12 +70,12 @@ final public class RemoteCommand implements IRemoteCommand {
 		m_description = description;
 		addListener(new IRemoteCommandListener() {
 			@Override
-			public void errorEvent(EventCommandError errorEvent) throws Exception {
+			public void errorEvent(EvCommandError errorEvent) throws Exception {
 				m_eventPublisher.onNext(errorEvent);
 			}
 
 			@Override
-			public void completedEvent(EventCommandFinished ev) throws Exception {
+			public void completedEvent(EvCommandFinished ev) throws Exception {
 				m_eventPublisher.onNext(ev);
 			}
 		});
@@ -171,7 +171,7 @@ final public class RemoteCommand implements IRemoteCommand {
 	}
 
 	@Override
-	public PublishSubject<EventCommandBase> getEventPublisher() {
+	public PublishSubject<ServerCommandEventBase> observeEvents() {
 		return m_eventPublisher;
 	}
 
@@ -189,7 +189,7 @@ final public class RemoteCommand implements IRemoteCommand {
 		}
 
 		if(sb.length() > 0) {
-			EventCommandOutput eco = new EventCommandOutput(this, code, sb.toString());
+			EvCommandOutput eco = new EvCommandOutput(this, code, sb.toString());
 			callCommandListeners(l -> l.stdoutEvent(eco));
 		}
 	}
@@ -217,4 +217,8 @@ final public class RemoteCommand implements IRemoteCommand {
 		}
 	}
 
+	@Override
+	public String toString() {
+		return m_commandId + ":" + m_description;
+	}
 }

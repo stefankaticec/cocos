@@ -8,9 +8,9 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault
 public interface IRemoteCommandListener {
-	default void errorEvent(EventCommandError errorEvent) throws Exception {}
+	default void errorEvent(EvCommandError errorEvent) throws Exception {}
 
-	default void completedEvent(EventCommandFinished ev) throws Exception {}
+	default void completedEvent(EvCommandFinished ev) throws Exception {}
 
-	default void stdoutEvent(EventCommandOutput ev) throws Exception {}
+	default void stdoutEvent(EvCommandOutput ev) throws Exception {}
 }

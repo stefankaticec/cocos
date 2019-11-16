@@ -10,8 +10,8 @@ import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
-import to.etc.cocos.connectors.ifaces.EventCommandError;
-import to.etc.cocos.connectors.ifaces.EventCommandFinished;
+import to.etc.cocos.connectors.ifaces.EvCommandError;
+import to.etc.cocos.connectors.ifaces.EvCommandFinished;
 import to.etc.cocos.connectors.ifaces.IClientAuthenticator;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteClientHub;
@@ -388,7 +388,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), err.getId(), err.getName());
 		synchronized(this) {
 			command.setStatus(RemoteCommandStatus.FAILED);
-			EventCommandError ev = new EventCommandError(command, err);
+			EvCommandError ev = new EvCommandError(command, err);
 			command.callCommandListeners(l -> l.errorEvent(ev));
 			command.setFinishedAt(System.currentTimeMillis());
 		}
@@ -410,7 +410,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), cr.getId(), cr.getName());
 		synchronized(this) {
 			command.setStatus(RemoteCommandStatus.FINISHED);
-			EventCommandFinished ev = new EventCommandFinished(command, dataFormat, packet);
+			EvCommandFinished ev = new EvCommandFinished(command, dataFormat, packet);
 			command.callCommandListeners(l -> l.completedEvent(ev));
 			command.setFinishedAt(System.currentTimeMillis());
 		}

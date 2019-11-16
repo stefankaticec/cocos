@@ -4,10 +4,11 @@ import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.ifaces.EventCommandBase;
-import to.etc.cocos.connectors.ifaces.EventCommandError;
-import to.etc.cocos.connectors.ifaces.EventCommandFinished;
+import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
+import to.etc.cocos.connectors.ifaces.EvCommandError;
+import to.etc.cocos.connectors.ifaces.EvCommandFinished;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
+import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.util.StringTool;
 
@@ -34,7 +35,7 @@ final public class RemoteClient implements IRemoteClient {
 
 	private Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
 
-	private final PublishSubject<EventCommandBase> m_eventPublisher = PublishSubject.<EventCommandBase>create();
+	private final PublishSubject<ServerCommandEventBase> m_eventPublisher = PublishSubject.<ServerCommandEventBase>create();
 
 	private CopyOnWriteArrayList<IRemoteCommandListener> m_listeners = new CopyOnWriteArrayList<>();
 
@@ -43,12 +44,12 @@ final public class RemoteClient implements IRemoteClient {
 		m_clientId = clientId;
 		addListener(new IRemoteCommandListener() {
 			@Override
-			public void errorEvent(EventCommandError errorEvent) throws Exception {
+			public void errorEvent(EvCommandError errorEvent) throws Exception {
 				m_eventPublisher.onNext(errorEvent);
 			}
 
 			@Override
-			public void completedEvent(EventCommandFinished ev) throws Exception {
+			public void completedEvent(EvCommandFinished ev) throws Exception {
 				m_eventPublisher.onNext(ev);
 			}
 		});
@@ -79,7 +80,7 @@ final public class RemoteClient implements IRemoteClient {
 	 * Send a command to the client.
 	 */
 	@Override
-	public String sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
+	public IRemoteCommand sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
 		String commandId = StringTool.generateGUID();
 		RemoteCommand command = new RemoteCommand(this, commandId, commandTimeout, commandKey, description);
 		if(null != l)
@@ -93,7 +94,7 @@ final public class RemoteClient implements IRemoteClient {
 			//m_commandMap.put(commandId, command);
 		}
 		m_hubServer.sendJsonCommand(command, packet);
-		return commandId;
+		return command;
 	}
 
 	@Nullable
@@ -116,7 +117,7 @@ final public class RemoteClient implements IRemoteClient {
 	}
 
 	@Override
-	public PublishSubject<EventCommandBase> getEventPublisher() {
+	public PublishSubject<ServerCommandEventBase> getEventPublisher() {
 		return m_eventPublisher;
 	}
 }

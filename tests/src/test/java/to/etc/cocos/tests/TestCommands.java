@@ -6,11 +6,12 @@ import org.junit.Test;
 import to.etc.cocos.connectors.client.JsonSystemCommand;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.ifaces.EventCommandBase;
-import to.etc.cocos.connectors.ifaces.EventCommandError;
-import to.etc.cocos.connectors.ifaces.EventCommandFinished;
-import to.etc.cocos.connectors.ifaces.EventCommandOutput;
+import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
+import to.etc.cocos.connectors.ifaces.EvCommandError;
+import to.etc.cocos.connectors.ifaces.EvCommandFinished;
+import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
+import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.hubserver.protocol.ErrorCode;
 
@@ -31,16 +32,16 @@ public class TestCommands extends TestAllBase {
 		UnknownCommandTestPacket p = new UnknownCommandTestPacket();
 		p.setParameters("This is a test command packet");
 
-		String cmdid = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", null);
-		System.out.println(">> CMDID=" + cmdid);
+		IRemoteCommand cmd = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", null);
+		System.out.println(">> CMD=" + cmd);
 
-		EventCommandBase error = remote.getEventPublisher()
+		ServerCommandEventBase error = remote.getEventPublisher()
 			.doOnNext(a -> System.out.println(">> got cmdEvent " + a))
-			.filter(a -> a instanceof EventCommandError)
+			.filter(a -> a instanceof EvCommandError)
 			.timeout(5000, TimeUnit.SECONDS)
 			.blockingFirst();
 
-		EventCommandError err = (EventCommandError) error;
+		EvCommandError err = (EvCommandError) error;
 		Assert.assertEquals("Must be commandNotFound", err.getCode(), ErrorCode.commandNotFound.name());
 	}
 
@@ -61,8 +62,8 @@ public class TestCommands extends TestAllBase {
 		CommandTestPacket p = new CommandTestPacket();
 		p.setParameters("Real command");
 
-		String cmdid = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", null);
-		System.out.println(">> CMDID=" + cmdid);
+		IRemoteCommand cmd = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", null);
+		System.out.println(">> CMD=" + cmd);
 
 		CommandTestPacket ctp = ps
 			.filter(a -> a instanceof CommandTestPacket)
@@ -88,29 +89,29 @@ public class TestCommands extends TestAllBase {
 		StdoutCommandTestPacket p = new StdoutCommandTestPacket();
 		p.setParameters("Real command");
 
-		PublishSubject<EventCommandBase> ps = PublishSubject.create();
+		PublishSubject<ServerCommandEventBase> ps = PublishSubject.create();
 
 		StringBuilder stdout = new StringBuilder();
 
-		String cmdid = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", new IRemoteCommandListener() {
+		IRemoteCommand cmd = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", new IRemoteCommandListener() {
 			@Override
-			public void completedEvent(EventCommandFinished ev) throws Exception {
+			public void completedEvent(EvCommandFinished ev) throws Exception {
 				ps.onNext(ev);
 				ps.onComplete();
 			}
 
 			@Override
-			public void stdoutEvent(EventCommandOutput ev) throws Exception {
+			public void stdoutEvent(EvCommandOutput ev) throws Exception {
 				stdout.append(ev.getOutput());
 			}
 		});
-		System.out.println(">> CMDID=" + cmdid);
+		System.out.println(">> CMD=" + cmd);
 
-		EventCommandBase event = ps
+		ServerCommandEventBase event = ps
 			.timeout(5, TimeUnit.SECONDS)
 			.blockingFirst();
 
-		Assert.assertTrue("Must be command completed", event instanceof EventCommandFinished);
+		Assert.assertTrue("Must be command completed", event instanceof EvCommandFinished);
 		Assert.assertTrue("Output must be correct", stdout.toString().contains(OUTPUT));
 
 	}
