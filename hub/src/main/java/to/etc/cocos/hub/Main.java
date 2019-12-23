@@ -66,7 +66,7 @@ final public class Main {
 		String addr = InetAddress.getLocalHost().getHostAddress();
 		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr  + ":" + m_port);
 
-		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael");
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael");		// FIXME Do real auth
 		server.startServer();
 
 		//-- Listen to signals to stop the thing
