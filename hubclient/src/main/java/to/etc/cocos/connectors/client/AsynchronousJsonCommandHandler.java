@@ -3,13 +3,13 @@ package to.etc.cocos.connectors.client;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
-import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.HubException;
+import to.etc.util.WrappedException;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -51,11 +51,15 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 				} catch(Exception x) {
 					asyError = x;
 					ctx.log("Command " + cmd.getName() + " failed: " + x);
-					try {
-						HubConnectorBase.unwrapAndRethrowException(ctx, x);
-					} catch(Exception xx) {
-						ctx.log("Could not return protocol error: " + xx);
-					}
+					Exception unwrapped = WrappedException.unwrap(x);
+					ctx.respondCommandErrorPacket(unwrapped);
+					//
+					//try {
+					//	HubConnectorBase.unwrapAndRethrowException(ctx, x);
+					//} catch(Exception xx) {
+					//	ctx.log("Could not return protocol error: " + xx);
+					//}
+					//
 				} catch(Error x) {
 					asyError = x;
 					throw x;
