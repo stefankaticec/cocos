@@ -54,6 +54,7 @@ public class TestAllBase {
 	public HubClient client() {
 		HubClient client = m_client;
 		if(null == client) {
+			String password = m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword;
 			IClientAuthenticationHandler ph = new IClientAuthenticationHandler() {
 				@Override public JsonPacket getInventory() {
 					return new InventoryTestPacket();
@@ -61,7 +62,7 @@ public class TestAllBase {
 
 				@Override
 				public byte[] createAuthenticationResponse(String clientId, byte[] challenge) throws Exception {
-					String ref = m_clientPassword + ":" + clientId;
+					String ref = password + ":" + clientId;
 					MessageDigest md = MessageDigest.getInstance("SHA-256");
 					md.update(ref.getBytes(StandardCharsets.UTF_8));
 					md.update(challenge);
@@ -70,7 +71,7 @@ public class TestAllBase {
 				}
 			};
 
-			client = m_client = HubClient.create(ph, "localhost", HUBPORT, CLUSTERNAME, CLIENTID, m_clientPassword == null ? CLIENTPASSWORD : m_clientPassword);
+			client = m_client = HubClient.create(ph, "localhost", HUBPORT, CLUSTERNAME, CLIENTID);
 			client.start();
 		}
 		return client;

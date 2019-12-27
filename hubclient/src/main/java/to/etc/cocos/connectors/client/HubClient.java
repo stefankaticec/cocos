@@ -29,8 +29,6 @@ import java.util.function.Supplier;
 final public class HubClient extends HubConnectorBase {
 	private final String m_clientVersion = "HubClient 1.0";
 
-	private final String m_clientPassword;
-
 	private final String m_targetCluster;
 
 	private final IClientAuthenticationHandler m_authHandler;
@@ -39,17 +37,16 @@ final public class HubClient extends HubConnectorBase {
 
 	private final Map<String, CommandContext> m_commandMap = new HashMap<>();
 
-	private HubClient(String hubServer, int hubServerPort, IClientAuthenticationHandler authHandler, String clientPassword, String targetClusterAndOrg, String myId) {
+	private HubClient(String hubServer, int hubServerPort, IClientAuthenticationHandler authHandler, String targetClusterAndOrg, String myId) {
 		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
 		m_authHandler = authHandler;
 		if(targetClusterAndOrg.indexOf('@') != -1)
 			throw new IllegalStateException("The target for a client must be in the format 'organisation#cluster' or just a cluster name");
-		m_clientPassword = clientPassword;
 		m_targetCluster = targetClusterAndOrg;
 	}
 
-	static public HubClient create(IClientAuthenticationHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId, String myPassword) {
-		HubClient responder = new HubClient(hubServer, hubServerPort, handler, myPassword, targetClusterAndOrg, myId);
+	static public HubClient create(IClientAuthenticationHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId) {
+		HubClient responder = new HubClient(hubServer, hubServerPort, handler, targetClusterAndOrg, myId);
 		return responder;
 	}
 
