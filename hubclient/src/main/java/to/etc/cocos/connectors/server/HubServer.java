@@ -349,7 +349,8 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 
 	void sendJsonCommand(RemoteCommand command, JsonPacket packet) {
 		synchronized(this) {
-			m_commandMap.put(command.getCommandId(), command);
+			if(null != m_commandMap.put(command.getCommandId(), command))
+				throw new IllegalStateException("Non-unique command id used!!");
 		}
 
 		Envelope jcmd = Envelope.newBuilder()

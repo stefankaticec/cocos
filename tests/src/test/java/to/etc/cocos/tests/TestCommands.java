@@ -14,6 +14,7 @@ import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.util.StringTool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +33,7 @@ public class TestCommands extends TestAllBase {
 		UnknownCommandTestPacket p = new UnknownCommandTestPacket();
 		p.setParameters("This is a test command packet");
 
-		IRemoteCommand cmd = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", null);
+		IRemoteCommand cmd = remote.sendJsonCommand(StringTool.generateGUID(), p, 10 * 1000, null, "Test command", null);
 		System.out.println(">> CMD=" + cmd);
 
 		ServerCommandEventBase error = remote.getEventPublisher()
@@ -62,7 +63,7 @@ public class TestCommands extends TestAllBase {
 		CommandTestPacket p = new CommandTestPacket();
 		p.setParameters("Real command");
 
-		IRemoteCommand cmd = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", null);
+		IRemoteCommand cmd = remote.sendJsonCommand(StringTool.generateGUID(), p, 10 * 1000, null, "Test command", null);
 		System.out.println(">> CMD=" + cmd);
 
 		CommandTestPacket ctp = ps
@@ -93,7 +94,7 @@ public class TestCommands extends TestAllBase {
 
 		StringBuilder stdout = new StringBuilder();
 
-		IRemoteCommand cmd = remote.sendJsonCommand(p, 10 * 1000, null, "Test command", new IRemoteCommandListener() {
+		IRemoteCommand cmd = remote.sendJsonCommand(StringTool.generateGUID(), p, 10 * 1000, null, "Test command", new IRemoteCommandListener() {
 			@Override
 			public void completedEvent(EvCommandFinished ev) throws Exception {
 				ps.onNext(ev);

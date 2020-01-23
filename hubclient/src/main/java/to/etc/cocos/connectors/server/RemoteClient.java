@@ -4,14 +4,13 @@ import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.ifaces.EvCommandOutput;
-import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 import to.etc.cocos.connectors.ifaces.EvCommandError;
 import to.etc.cocos.connectors.ifaces.EvCommandFinished;
+import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
-import to.etc.util.StringTool;
+import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 
 import java.util.HashMap;
 import java.util.List;
@@ -88,8 +87,7 @@ final public class RemoteClient implements IRemoteClient {
 	 * Send a command to the client.
 	 */
 	@Override
-	public IRemoteCommand sendJsonCommand(JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
-		String commandId = StringTool.generateGUID();
+	public IRemoteCommand sendJsonCommand(String commandId, JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
 		RemoteCommand command = new RemoteCommand(this, commandId, commandTimeout, commandKey, description);
 		if(null != l)
 			command.addListener(l);
