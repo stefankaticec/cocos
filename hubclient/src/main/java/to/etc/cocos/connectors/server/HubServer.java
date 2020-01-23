@@ -17,6 +17,7 @@ import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteClientHub;
 import to.etc.cocos.connectors.ifaces.IRemoteClientListener;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
+import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
@@ -54,6 +55,8 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	private final IClientAuthenticator m_authenticator;
 
 	private CopyOnWriteArrayList<IRemoteClientListener> m_clientListeners = new CopyOnWriteArrayList<>();
+
+	private CopyOnWriteArrayList<IRemoteCommandListener> m_commandListeners = new CopyOnWriteArrayList<>();
 
 	private Map<String, RemoteClient> m_remoteClientMap = new HashMap<>();
 
@@ -301,6 +304,27 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		}
 	}
 
+	public void addCommandListener(IRemoteCommandListener l) {
+		m_commandListeners.add(l);
+	}
+
+	public void removeCommandListener(IRemoteCommandListener l) {
+		m_commandListeners.remove(l);
+	}
+
+	public List<IRemoteCommandListener> getCommandListeners() {
+		return m_commandListeners;
+	}
+	void callCommandListeners(ConsumerEx<IRemoteCommandListener> what) {
+		for(IRemoteCommandListener l : m_commandListeners) {
+			try {
+				what.accept(l);
+			} catch(Exception x) {
+				x.printStackTrace();
+			}
+		}
+	}
+
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Interface.													*/
 	/*----------------------------------------------------------------------*/
@@ -422,5 +446,6 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), output.getId(), output.getName());
 		command.appendOutput(data, output.getCode());
 	}
+
 
 }

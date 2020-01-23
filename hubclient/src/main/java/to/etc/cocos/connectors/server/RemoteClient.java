@@ -4,6 +4,7 @@ import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 import to.etc.cocos.connectors.ifaces.EvCommandError;
 import to.etc.cocos.connectors.ifaces.EvCommandFinished;
@@ -46,11 +47,18 @@ final public class RemoteClient implements IRemoteClient {
 			@Override
 			public void errorEvent(EvCommandError errorEvent) throws Exception {
 				m_eventPublisher.onNext(errorEvent);
+				m_hubServer.callCommandListeners(a -> a.errorEvent(errorEvent));
 			}
 
 			@Override
 			public void completedEvent(EvCommandFinished ev) throws Exception {
 				m_eventPublisher.onNext(ev);
+				m_hubServer.callCommandListeners(a -> a.completedEvent(ev));
+			}
+
+			@Override
+			public void stdoutEvent(EvCommandOutput ev) throws Exception {
+				m_hubServer.callCommandListeners(a -> a.stdoutEvent(ev));
 			}
 		});
 	}
