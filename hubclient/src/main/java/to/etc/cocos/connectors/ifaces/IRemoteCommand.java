@@ -24,7 +24,7 @@ public interface IRemoteCommand {
 
 	String getDescription();
 
-	<T> void putAttribute(@NonNull T object);
+	<T> void setAttribute(@NonNull T object);
 
 	@Nullable
 	<T> T getAttribute(Class<T> clz);

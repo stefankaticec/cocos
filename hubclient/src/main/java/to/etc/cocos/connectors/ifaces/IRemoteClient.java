@@ -5,6 +5,8 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
 
+import java.time.Duration;
+
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 25-6-19.
@@ -19,7 +21,7 @@ public interface IRemoteClient {
 	//@NonNull
 	//InventoryPacket getInventory();
 
-	IRemoteCommand sendJsonCommand(String uniqueCommandId, JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception;
+	IRemoteCommand sendJsonCommand(String uniqueCommandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception;
 
 	Observable<ServerCommandEventBase> getEventPublisher();
 }

@@ -35,6 +35,8 @@ import to.etc.hubserver.protocol.ErrorCode;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -376,7 +378,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 			if(null == remoteClient) {
 				throw new IllegalStateException("Got command " + commandName + " for remote client " + clientId + " - but I cannot find that client");
 			}
-			cmd = new RemoteCommand(remoteClient, commandId, 60*1000, null, "Recovered command");
+			cmd = new RemoteCommand(remoteClient, commandId, Duration.of(60, ChronoUnit.SECONDS), null, "Recovered command");
 			m_commandMap.put(commandId, cmd);
 			return cmd;
 		}

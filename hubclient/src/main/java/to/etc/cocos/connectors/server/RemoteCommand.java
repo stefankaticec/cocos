@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	private final RemoteClient m_client;
 
-	final private long m_commandTimeout;
+	final private Duration m_commandTimeout;
 
 	@Nullable
 	private final String m_commandKey;
@@ -62,7 +63,7 @@ final public class RemoteCommand implements IRemoteCommand {
 	final private ByteBuffer m_inBuffer = ByteBuffer.allocate(8192);
 
 
-	public RemoteCommand(RemoteClient client, String commandId, long commandTimeout, @Nullable String commandKey, String description) {
+	public RemoteCommand(RemoteClient client, String commandId, Duration commandTimeout, @Nullable String commandKey, String description) {
 		m_commandId = commandId;
 		m_client = client;
 		m_commandTimeout = commandTimeout;
@@ -124,7 +125,7 @@ final public class RemoteCommand implements IRemoteCommand {
 		return m_client;
 	}
 
-	public long getCommandTimeout() {
+	public Duration getCommandTimeout() {
 		return m_commandTimeout;
 	}
 
@@ -140,7 +141,7 @@ final public class RemoteCommand implements IRemoteCommand {
 	}
 
 	@Override
-	public <T> void putAttribute(@NonNull T object) {
+	public <T> void setAttribute(@NonNull T object) {
 		m_attributeMap.put(object.getClass().getName(), object);
 	}
 

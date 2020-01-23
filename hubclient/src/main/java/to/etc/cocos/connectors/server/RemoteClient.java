@@ -12,6 +12,7 @@ import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +88,7 @@ final public class RemoteClient implements IRemoteClient {
 	 * Send a command to the client.
 	 */
 	@Override
-	public IRemoteCommand sendJsonCommand(String commandId, JsonPacket packet, long commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
+	public IRemoteCommand sendJsonCommand(String commandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
 		RemoteCommand command = new RemoteCommand(this, commandId, commandTimeout, commandKey, description);
 		if(null != l)
 			command.addListener(l);
