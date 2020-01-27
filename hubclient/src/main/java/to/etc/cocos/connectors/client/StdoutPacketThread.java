@@ -9,6 +9,8 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This will read a stdout stream of a process and collect the data from
@@ -33,8 +35,13 @@ final public class StdoutPacketThread implements AutoCloseable {
 
 	private volatile boolean m_terminate;
 
+	private volatile boolean m_finished;
+
 	@Nullable
-	private Thread m_thread;
+	private Thread m_readerThread;
+
+	@Nullable
+	private Thread m_writerThread;
 
 	private byte[] m_readBuffer = new byte[8192];
 
@@ -46,24 +53,36 @@ final public class StdoutPacketThread implements AutoCloseable {
 
 	private StringBuilder m_output = new StringBuilder(65536);
 
-	/** The last time we pushed a packet */
-	private long m_nextPushTime;
+	///** The last time we pushed a packet */
+	//private long m_nextPushTime;
+
+	private final ReentrantLock m_lock = new ReentrantLock();
+
+	private Condition m_dataAvailable;
+
+	private Condition m_bufferEmptied;
 
 	public StdoutPacketThread(CommandContext cctx, InputStream inputStream, Charset streamEncoding) {
 		m_cctx = cctx;
 		m_inputStream = inputStream;
 		m_decoder = streamEncoding.newDecoder();
+		m_dataAvailable = m_lock.newCondition();
+		m_bufferEmptied = m_lock.newCondition();
 	}
 
 	public void start() {
 		if(m_started)
 			throw new IllegalStateException("Already started!");
 		m_started = true;
-		Thread thread = m_thread = new Thread(() -> mainLoop());
+		Thread thread = m_readerThread = new Thread(() -> readerLoop());
 		thread.setDaemon(true);
 		thread.setName("stdout#rd");
 		thread.start();
-		m_nextPushTime = System.currentTimeMillis() + LINGERTIME_MS;
+
+		thread = m_writerThread = new Thread(() -> writerLoop());
+		thread.setDaemon(true);
+		thread.setName("stdout#wr");
+		thread.start();
 	}
 
 	/**
@@ -82,7 +101,7 @@ final public class StdoutPacketThread implements AutoCloseable {
 	 * The latter is actually important because otherwise we cannot detect eof, and the thread
 	 * would loop forever.
 	 */
-	private void mainLoop() {
+	private void readerLoop() {
 		try {
 			int emptyLoops = 0;
 			for(; ; ) {
@@ -107,7 +126,7 @@ final public class StdoutPacketThread implements AutoCloseable {
 					emptyLoops++;
 					if(emptyLoops > 3) {
 						//-- Did not get data for a while. Force a push, then do an actual read.
-						appendCompleted(true);
+						//appendCompleted(true);
 						int read = m_inputStream.read(m_readBuffer, 0, 10);
 						if(read == -1) {
 							break;
@@ -122,15 +141,15 @@ final public class StdoutPacketThread implements AutoCloseable {
 			m_decoder.decode(m_inBuffer, m_outBuffer, true);
 			m_decoder.flush(m_outBuffer);
 			m_output.append(m_outBuffer);
-			if(! m_terminate)
-				appendCompleted(true);								// Force sending the last packet
+			appendOutput(m_outBuffer);
+			m_finished = true;
 		} catch(Exception x) {
 			x.printStackTrace();
 			m_terminate = true;
 		}
 	}
 
-	private void pushData(int len) {
+	private void pushData(int len) throws Exception {
 		int off = 0;
 		while(len > 0) {
 			int todoBytes = m_inBuffer.capacity();
@@ -148,61 +167,131 @@ final public class StdoutPacketThread implements AutoCloseable {
 			m_decoder.decode(m_inBuffer, m_outBuffer, false);
 			m_inBuffer.clear();
 			m_outBuffer.flip();
-			m_output.append(m_outBuffer);
+			appendOutput(m_outBuffer);
+			//m_output.append(m_outBuffer);
 			m_outBuffer.clear();
 		}
-
-		appendCompleted(false);
+		//appendCompleted(false);
 	}
 
-	private void appendCompleted(boolean force) {
-		//-- Is it time to push a packet?
-		if(m_output.length() == 0) {
-			return;
-		}
-		if(m_output.length() >= MAX_BUFFERED) {
-			sendPacket(System.currentTimeMillis());
-			return;
-		}
-		long cts = System.currentTimeMillis();
-		if(cts >= m_nextPushTime || force) {
-			sendPacket(cts);
+	private long m_lastOutputTime;
+
+	private long m_lastPacketTime;
+
+	private void appendOutput(CharBuffer data) throws Exception {
+		m_lock.lock();
+		try {
+			while(m_output.length() > 1024*1024) {
+				m_bufferEmptied.await();
+			}
+			m_output.append(data);
+			m_lastOutputTime = System.currentTimeMillis();
+			m_dataAvailable.signal();						// There is data
+		} finally {
+			m_lock.unlock();
 		}
 	}
 
-	private void sendPacket(long cts) {
-		String s = m_output.toString();
-		m_output.setLength(0);
-		m_nextPushTime = cts + LINGERTIME_MS;
+	//private void appendCompleted(boolean force) {
+	//	//-- Is it time to push a packet?
+	//	if(m_output.length() == 0) {
+	//		return;
+	//	}
+	//	if(m_output.length() >= MAX_BUFFERED) {
+	//		sendPacket(System.currentTimeMillis());
+	//		return;
+	//	}
+	//	long cts = System.currentTimeMillis();
+	//	if(cts >= m_nextPushTime || force) {
+	//		sendPacket(cts);
+	//	}
+	//}
 
-		m_cctx.sendStdoutPacket(s);
+	private void writerLoop() {
+		while(! m_terminate) {
 
-		//System.out.println("<<packet>>");
-		//System.out.println(s);
-		//System.out.println("<</packet>>");
+			String packetData = null;
+			m_lock.lock();
+			try {
+				//-- 1. Do we have output?
+				int length = m_output.length();
+				if(length > 0) {
+					long cts = System.currentTimeMillis();
+
+					//-- Is it time to send the packet?
+					if(isPacketSendTime(cts, length)) {
+						packetData = m_output.toString();
+						m_output.setLength(0);
+						m_lastPacketTime = cts;
+						m_bufferEmptied.signal();
+					}
+				} else if(m_finished) {
+					return;
+				}
+			} finally {
+				m_lock.unlock();
+			}
+
+			if(packetData != null) {
+				m_cctx.sendStdoutPacket(packetData);
+			}
+		}
 	}
+
+	private boolean isPacketSendTime(long cts, int length) {
+		if(length > 10_000 || m_finished)
+			return true;
+
+		//-- Is the last data production > 200ms ago?
+		if(m_lastOutputTime < cts - 200)
+			return true;
+
+		//-- Is the last time we sent a packet > 1 second ago?
+		if(m_lastPacketTime < cts - 1000)
+			return true;
+
+		return false;
+	}
+
+	//private void sendPacket(long cts) {
+	//	String s = m_output.toString();
+	//	m_output.setLength(0);
+	//	m_nextPushTime = cts + LINGERTIME_MS;
+	//
+	//	m_cctx.sendStdoutPacket(s);
+	//}
 
 	@Override public void close() throws Exception {
+		Thread rt = m_readerThread;
+		Thread wt = m_writerThread;
 		if(! m_terminate) {
 			//-- Wait for the thread to finish
-			Thread thread = m_thread;
-			if(null != thread) {
-				m_thread = null;
-				thread.join(120_000);							// Wait for 2 minutes max
-				if(thread.isAlive()) {
-					thread.interrupt();
-					thread.join(15_000);
-					if(thread.isAlive()) {
-						System.err.println("stdout reader does not want to stop...");
-					}
+			if(null != rt && wt != null) {
+				m_readerThread = null;
+				m_writerThread = null;
+				rt.join(120_000);							// Wait for 2 minutes max
+				wt.join(10_000);
+				if(wt.isAlive())
+					wt.interrupt();
+				if(rt.isAlive())
+					rt.interrupt();
+				rt.join(15_000);
+				wt.join(15_000);
+				if(rt.isAlive()) {
+					System.err.println("stdout reader does not want to stop...");
+				}
+				if(wt.isAlive()) {
+					System.err.println("stdout writer does not want to stop...");
 				}
 			}
 		} else {
-			Thread thread = m_thread;
-			if(null != thread) {
-				m_thread = null;
-				thread.interrupt();
-				thread.join(10_000);
+			if(null != rt && null != wt) {
+				m_readerThread = null;
+				m_writerThread = null;
+				rt.interrupt();
+				wt.interrupt();
+				rt.join(10_000);
+				wt.join(10_000);
 			}
 		}
 
