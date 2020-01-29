@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -224,6 +225,11 @@ final public class StdoutPacketThread implements AutoCloseable {
 						m_output.setLength(0);
 						m_lastPacketTime = cts;
 						m_bufferEmptied.signal();
+					} else {
+						try {
+							m_dataAvailable.await(1, TimeUnit.SECONDS);
+						} catch(InterruptedException x) {
+						}
 					}
 				} else if(m_finished) {
 					return;
@@ -242,15 +248,15 @@ final public class StdoutPacketThread implements AutoCloseable {
 		if(length > 10_000 || m_finished)
 			return true;
 
-		//-- Is the last data production > 200ms ago?
-		if(m_lastOutputTime < cts - 200)
-			return true;
+		//-- If the last output is < 500ms ago then wait for more
+		if(m_lastOutputTime >= cts - 500)
+			return false;
 
-		//-- Is the last time we sent a packet > 1 second ago?
-		if(m_lastPacketTime < cts - 1000)
-			return true;
+		////-- Is the last time we sent a packet > 1 second ago?
+		//if(m_lastPacketTime < cts - 1000)
+		//	return true;
 
-		return false;
+		return true;
 	}
 
 	//private void sendPacket(long cts) {
