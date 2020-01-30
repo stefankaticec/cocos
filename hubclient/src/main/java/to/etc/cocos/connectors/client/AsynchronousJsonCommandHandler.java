@@ -3,6 +3,7 @@ package to.etc.cocos.connectors.client;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.CommandFailedException;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
@@ -22,6 +23,9 @@ import java.util.function.Consumer;
 final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implements IClientCommandHandler {
 	private final IJsonCommandHandler<T> m_jsonHandler;
 
+	@Nullable
+	private String m_cancelReason;
+
 	public AsynchronousJsonCommandHandler(IJsonCommandHandler<T> jsonHandler) {
 		m_jsonHandler = jsonHandler;
 	}
@@ -36,6 +40,10 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 			ctx.getConnector().getExecutor().execute(() -> {
 				Throwable asyError = null;
 				try {
+					String cancelReason = getCancelReason();
+					if(null != cancelReason)
+						throw new CommandFailedException("Command was cancelled: " + cancelReason);
+
 					ctx.setStatus(RemoteCommandStatus.RUNNING);
 					JsonPacket result = m_jsonHandler.execute(ctx, packet);
 					ctx.getResponseEnvelope()
@@ -72,6 +80,25 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 			throw x;
 		} finally {
 			onFinished.accept(error);
+		}
+	}
+
+	@Nullable
+	private synchronized String getCancelReason() {
+		return m_cancelReason;
+	}
+
+	/**
+	 * As the command only scheduled the command for execution we need to see if it already started...
+	 */
+	@Override
+	public void cancel(CommandContext ctx, @Nullable String cancelReason) throws Exception {
+		synchronized(this) {
+			m_cancelReason = cancelReason;					// Make sure that IF it starts to run it will die again
+		}
+
+		if(ctx.getStatus() == RemoteCommandStatus.RUNNING) {
+			m_jsonHandler.cancel(ctx, cancelReason);		// Ask the handler to die
 		}
 	}
 

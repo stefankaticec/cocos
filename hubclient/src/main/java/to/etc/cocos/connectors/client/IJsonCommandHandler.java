@@ -1,6 +1,7 @@
 package to.etc.cocos.connectors.client;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.JsonPacket;
 
@@ -11,4 +12,6 @@ import to.etc.cocos.connectors.common.JsonPacket;
 @NonNullByDefault
 public interface IJsonCommandHandler<T extends JsonPacket> {
 	JsonPacket execute(CommandContext ctx, T packet) throws Exception;
+
+	default void cancel(CommandContext ctx, @Nullable String cancelReason) throws Exception {}
 }

@@ -47,6 +47,11 @@ final public class SynchronousJsonCommandHandler<T extends JsonPacket> implement
 		}
 	}
 
+	@Override
+	public void cancel(CommandContext ctx, @Nullable String cancelReason) throws Exception {
+		m_jsonHandler.cancel(ctx, cancelReason);
+	}
+
 	@Nullable
 	private JsonPacket decodeBody(CommandContext ctx, List<byte[]> data) throws Exception {
 		Object o = ctx.getConnector().decodeBody(ctx.getSourceEnvelope().getCmd().getDataFormat(), data);

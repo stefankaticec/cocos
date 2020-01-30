@@ -19,6 +19,7 @@ import to.etc.hubserver.protocol.ErrorCode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -35,7 +36,7 @@ final public class HubClient extends HubConnectorBase {
 
 	private final Map<String, Supplier<IClientCommandHandler>> m_commandHandlerMap = new HashMap<>();
 
-	private final Map<String, CommandContext> m_commandMap = new HashMap<>();
+	private final Map<String, CommandContext> m_commandMap = new ConcurrentHashMap<>();
 
 	private HubClient(String hubServer, int hubServerPort, IClientAuthenticationHandler authHandler, String targetClusterAndOrg, String myId) {
 		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
@@ -105,6 +106,7 @@ final public class HubClient extends HubConnectorBase {
 		}
 
 		m_commandMap.put(ctx.getId(), ctx);
+		ctx.setHandler(commandHandler);
 		try {
 			commandHandler.execute(ctx, data, throwable -> {
 				synchronized(this) {
@@ -117,6 +119,18 @@ final public class HubClient extends HubConnectorBase {
 			x.printStackTrace();
 			sendCommandErrorPacket(ctx, x);
 		}
+	}
+
+	public void cancelCommand(String commandId, String cancelReason) throws Exception {
+		CommandContext commandContext = m_commandMap.get(commandId);
+		if(null == commandContext) {							// Not there: command is cancelled or has finished before.
+			return;
+		}
+		IClientCommandHandler handler = commandContext.prepareCancellation(cancelReason);
+		if(null == handler) {
+			return;												// No handler: not running yet, but marked for cancellation as soon as it tries to run.
+		}
+		handler.cancel(commandContext, cancelReason);			// Ask the thing to cancel
 	}
 
 	/**

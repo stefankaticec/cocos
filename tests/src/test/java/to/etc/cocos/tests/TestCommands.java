@@ -53,7 +53,7 @@ public class TestCommands extends TestAllBase {
 		PublishSubject<CommandTestPacket> ps = PublishSubject.create();
 
 		client().registerJsonCommand(CommandTestPacket.class, (ctx, packet) -> {
-			System.out.println(">> Got comand! " + packet.getParameters());
+			System.out.println(">> Got command! " + packet.getParameters());
 			ps.onNext(packet);
 			ps.onComplete();
 			return new JsonPacket();

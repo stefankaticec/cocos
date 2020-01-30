@@ -2,6 +2,8 @@ package to.etc.cocos.connectors.common;
 
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.connectors.client.IClientCommandHandler;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.Command;
@@ -28,6 +30,12 @@ final public class CommandContext {
 	private RemoteCommandStatus m_status = RemoteCommandStatus.SCHEDULED;
 
 	private int m_stdoutPacketNumber;
+
+	@Nullable
+	private IClientCommandHandler m_handler;
+
+	@Nullable
+	private String m_cancelReason;
 
 	public CommandContext(HubConnectorBase connector, Envelope envelope) {
 		m_connector = connector;
@@ -134,5 +142,18 @@ final public class CommandContext {
 
 		//-- Create the JSON packet body
 		m_connector.sendPacket(os -> os.sendString(envelope, s));
+	}
+
+	public synchronized void setHandler(@Nullable IClientCommandHandler handler) {
+		if(m_cancelReason != null) {
+			throw new CommandFailedException("The command was cancelled: " + m_cancelReason);
+		}
+		m_handler = handler;
+	}
+
+	@Nullable
+	public synchronized IClientCommandHandler prepareCancellation(String cancelReason) {
+		m_cancelReason = cancelReason;
+		return m_handler;
 	}
 }
