@@ -30,4 +30,6 @@ public interface IRemoteCommand {
 	<T> T getAttribute(Class<T> clz);
 
 	Observable<ServerCommandEventBase> observeEvents();
+
+	void cancel(@NonNull String cancelReason) throws Exception;
 }

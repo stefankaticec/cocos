@@ -9,6 +9,7 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.packets.CancelPacket;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.Envelope;
@@ -48,6 +49,7 @@ final public class HubClient extends HubConnectorBase {
 
 	static public HubClient create(IClientAuthenticationHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId) {
 		HubClient responder = new HubClient(hubServer, hubServerPort, handler, targetClusterAndOrg, myId);
+		responder.registerJsonCommandAsync(CancelPacket.class, new CancelCommand(responder));
 		return responder;
 	}
 
