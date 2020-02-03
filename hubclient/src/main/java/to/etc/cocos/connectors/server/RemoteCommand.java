@@ -4,21 +4,24 @@ import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 import to.etc.cocos.connectors.ifaces.EvCommandError;
 import to.etc.cocos.connectors.ifaces.EvCommandFinished;
 import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
+import to.etc.cocos.connectors.packets.CancelPacket;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.function.ConsumerEx;
+import to.etc.util.StringTool;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -216,6 +219,17 @@ final public class RemoteCommand implements IRemoteCommand {
 			sb.append(m_outBuffer);
 			m_outBuffer.clear();
 		}
+	}
+
+	/**
+	 * Send a CANCEL request for this command.
+	 */
+	@Override
+	public IRemoteCommand cancel(@NonNull String cancelReason) throws Exception {
+		CancelPacket cp = new CancelPacket();
+		cp.setCancelReason(cancelReason);
+		cp.setCommandId(getCommandId());
+		return m_client.sendJsonCommand(StringTool.generateGUID(), cp, Duration.of(30, ChronoUnit.SECONDS), null, "Cancelling " + this, null);
 	}
 
 	@Override
