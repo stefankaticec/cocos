@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * A connector to a Hub server. This connector keeps a single connection to the Hub server
@@ -139,6 +140,16 @@ public abstract class HubConnectorBase {
 	@Nullable
 	private HubErrorResponse m_lastError;
 
+	private ThreadFactory m_threadFactory = new ThreadFactory() {
+		@Override
+		@NonNullByDefault(false)
+		public Thread newThread(Runnable r) {
+			Thread t = Executors.defaultThreadFactory().newThread(r);
+			t.setDaemon(true);
+			return t;
+		}
+	};
+
 	protected abstract void onErrorPacket(Envelope env);
 
 	protected abstract void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception;
@@ -220,10 +231,25 @@ public abstract class HubConnectorBase {
 			wt = m_writerThread;
 
 		}
-		if(null != rt)
-			rt.join();
-		if(null != wt)
-			wt.join();
+		if(null != rt) {
+			rt.join(1000);
+			rt.interrupt();
+		}
+		if(null != wt) {
+			wt.join(1000);
+			wt.interrupt();
+		}
+		if(null != rt) {
+			rt.join(5_000);
+			if(rt.isAlive())
+				error("Reader thread does not want to die");
+		}
+		if(null != wt) {
+			wt.join(5_000);
+			if(wt.isAlive())
+				error("Writer thread does not want to die");
+		}
+
 		synchronized(this) {
 			m_state = ConnectorState.STOPPED;
 		}
@@ -237,7 +263,7 @@ public abstract class HubConnectorBase {
 		Executor executor = m_executor;
 		if(null == executor) {
 			m_executorWasCreated = true;
-			executor = m_executor = Executors.newCachedThreadPool();
+			executor = m_executor = Executors.newCachedThreadPool(m_threadFactory);
 		}
 		return executor;
 	}
@@ -245,7 +271,7 @@ public abstract class HubConnectorBase {
 	public synchronized Executor getEventExecutor() {
 		ExecutorService eventExecutor = m_eventExecutor;
 		if(null == eventExecutor) {
-			m_eventExecutor = eventExecutor = Executors.newSingleThreadExecutor();
+			m_eventExecutor = eventExecutor = Executors.newSingleThreadExecutor(m_threadFactory);
 		}
 		return eventExecutor;
 	}
