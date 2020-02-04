@@ -139,9 +139,16 @@ final public class StdoutPacketThread implements AutoCloseable {
 			}
 
 			//-- Finish the decode
+			m_inBuffer.flip();
+			//System.err.println(">> finish: inBuffer size=" + m_inBuffer.position() + " limit=" + m_inBuffer.limit() + ", " + m_inBuffer.remaining());
+			//System.err.println(">> finish: outBuffer size=" + m_outBuffer.length() + " limit=" + m_outBuffer.limit() + ", " + m_outBuffer.remaining() + ", pos " + m_outBuffer.position());
 			m_decoder.decode(m_inBuffer, m_outBuffer, true);
+			//System.err.println(">> finish: outBuffer size=" + m_outBuffer.length() + " limit=" + m_outBuffer.limit() + ", " + m_outBuffer.remaining() + ", pos " + m_outBuffer.position());
+
 			m_decoder.flush(m_outBuffer);
-			m_output.append(m_outBuffer);
+			m_outBuffer.flip();
+			//System.err.println(">> finish: outBuffer size=" + m_outBuffer.length() + " limit=" + m_outBuffer.limit() + ", " + m_outBuffer.remaining() + ", pos " + m_outBuffer.position());
+			//m_output.append(m_outBuffer);
 			appendOutput(m_outBuffer);
 			m_finished = true;
 		} catch(Exception x) {
@@ -185,7 +192,16 @@ final public class StdoutPacketThread implements AutoCloseable {
 			while(m_output.length() > 1024*1024) {
 				m_bufferEmptied.await();
 			}
+			int l = m_output.length();
 			m_output.append(data);
+			int count = 0;
+			while(l < m_output.length()) {
+				if(0 == m_output.charAt(l++)) {
+					count++;
+				}
+			}
+			if(count > 0)
+				System.err.println(">> ADDED " + count + " NUL CHARS");
 			m_lastOutputTime = System.currentTimeMillis();
 			m_dataAvailable.signal();						// There is data
 		} finally {
@@ -239,6 +255,8 @@ final public class StdoutPacketThread implements AutoCloseable {
 			}
 
 			if(packetData != null) {
+				if(packetData.contains("\u0000"))
+					System.err.println("OUTPUT BUFFER CONTAINS NUL CHARACTERS");
 				m_cctx.sendStdoutPacket(packetData);
 			}
 		}
