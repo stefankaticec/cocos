@@ -14,6 +14,7 @@ import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 import to.etc.cocos.connectors.packets.CancelPacket;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.function.ConsumerEx;
+import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
 
 import java.nio.ByteBuffer;
@@ -226,6 +227,7 @@ final public class RemoteCommand implements IRemoteCommand {
 	 */
 	@Override
 	public IRemoteCommand cancel(@NonNull String cancelReason) throws Exception {
+		ConsoleUtil.consoleWarning("remoteCommand", "Cancelling command " + getCommandId() + ": " + cancelReason);
 		CancelPacket cp = new CancelPacket();
 		cp.setCancelReason(cancelReason);
 		cp.setCommandId(getCommandId());
