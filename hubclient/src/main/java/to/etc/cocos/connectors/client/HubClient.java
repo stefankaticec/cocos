@@ -126,10 +126,12 @@ final public class HubClient extends HubConnectorBase {
 	public void cancelCommand(String commandId, String cancelReason) throws Exception {
 		CommandContext commandContext = m_commandMap.get(commandId);
 		if(null == commandContext) {							// Not there: command is cancelled or has finished before.
+			error("Cancel command failed: id " + commandId + " not found");
 			return;
 		}
 		IClientCommandHandler handler = commandContext.prepareCancellation(cancelReason);
 		if(null == handler) {
+			error("Cancel command failed: no handler returned for id=" + commandId);
 			return;												// No handler: not running yet, but marked for cancellation as soon as it tries to run.
 		}
 		handler.cancel(commandContext, cancelReason);			// Ask the thing to cancel

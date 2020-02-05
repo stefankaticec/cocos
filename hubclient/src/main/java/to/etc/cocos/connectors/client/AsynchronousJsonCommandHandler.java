@@ -93,12 +93,15 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 	 */
 	@Override
 	public void cancel(CommandContext ctx, @Nullable String cancelReason) throws Exception {
+		System.err.println("AsyncJsonCommand: cancel " + ctx.getId() + ": " + cancelReason);
 		synchronized(this) {
 			m_cancelReason = cancelReason;					// Make sure that IF it starts to run it will die again
 		}
 
 		if(ctx.getStatus() == RemoteCommandStatus.RUNNING) {
 			m_jsonHandler.cancel(ctx, cancelReason);		// Ask the handler to die
+		} else {
+			System.err.println("AsyncJsonCommand: cancel " + ctx.getId() + " failed, command is not running");
 		}
 	}
 
