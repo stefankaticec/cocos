@@ -110,7 +110,7 @@ final public class StdoutPacketThread implements AutoCloseable {
 					break;
 				int avail = m_inputStream.available();
 				if(avail > 0) {
-					System.err.println("== avail " + avail);
+					//System.err.println("== avail " + avail);
 					if(avail > m_readBuffer.length)
 						avail = m_readBuffer.length;
 					int read = m_inputStream.read(m_readBuffer, 0, avail);
