@@ -79,7 +79,8 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 			error = x;
 			throw x;
 		} finally {
-			onFinished.accept(error);
+			if(error != null)
+				onFinished.accept(error);
 		}
 	}
 

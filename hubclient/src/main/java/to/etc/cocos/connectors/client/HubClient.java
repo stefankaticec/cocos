@@ -106,13 +106,14 @@ final public class HubClient extends HubConnectorBase {
 			sendCommandErrorPacket(ctx, ErrorCode.commandNotFound, cmd.getName());
 			return;
 		}
-		ctx.log("Running handler for " + cmd.getName());
+		ctx.log("Running handler for " + cmd.getName() + " and command " + cmd.getId());
 
 		m_commandMap.put(ctx.getId(), ctx);
 		ctx.setHandler(commandHandler);
 		try {
 			commandHandler.execute(ctx, data, throwable -> {
 				synchronized(this) {
+					System.err.println("Command " + ctx.getId() + " completion handler called: " + throwable);
 					ctx.setStatus(throwable == null ? RemoteCommandStatus.FINISHED : RemoteCommandStatus.FAILED);
 					m_commandMap.remove(ctx.getId());
 				}
