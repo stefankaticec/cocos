@@ -106,6 +106,7 @@ final public class HubClient extends HubConnectorBase {
 			sendCommandErrorPacket(ctx, ErrorCode.commandNotFound, cmd.getName());
 			return;
 		}
+		ctx.log("Running handler for " + cmd.getName());
 
 		m_commandMap.put(ctx.getId(), ctx);
 		ctx.setHandler(commandHandler);
