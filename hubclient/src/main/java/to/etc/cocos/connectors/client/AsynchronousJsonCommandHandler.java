@@ -4,6 +4,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.CommandFailedException;
+import to.etc.cocos.connectors.common.HubConnectorBase.PacketPrio;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
@@ -51,11 +52,11 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 						.setName(cmd.getName())
 						.setId(cmd.getId())
 						.setDataFormat(CommandNames.getJsonDataFormat(result));
-					ctx.respondJson(result);
+					ctx.respondJson(PacketPrio.NORMAL, result);
 				} catch(HubException hx) {
 					asyError = hx;
 					ctx.log("Command " + cmd.getName() + " failed: " + hx);
-					ctx.respondWithHubErrorPacket(hx);
+					ctx.respondWithHubErrorPacket(PacketPrio.NORMAL, hx);
 				} catch(Exception x) {
 					asyError = x;
 					ctx.log("Command " + cmd.getName() + " failed: " + x);

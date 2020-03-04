@@ -159,7 +159,7 @@ final public class HubClient extends HubConnectorBase {
 				.setClientVersion(m_clientVersion)
 				.build()
 			);
-		cc.respond();
+		cc.respond(PacketPrio.HUB);
 	}
 
 	/**
@@ -177,7 +177,7 @@ final public class HubClient extends HubConnectorBase {
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
 			)
 			;
-		cc.respondJson(inventory);
+		cc.respondJson(PacketPrio.HUB, inventory);
 	}
 
 	@Override protected void onErrorPacket(Envelope env) {

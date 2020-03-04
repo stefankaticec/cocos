@@ -125,9 +125,18 @@ public abstract class HubConnectorBase {
 
 	private final PacketWriter m_writer;
 
-	private List<ISendPacket> m_txQueue = new ArrayList<>();
+	/** Contains HUB commands. These will be sent immediately in all states, and on failure they will all be discarded. */
+	private List<IPacketTransmitter> m_txHubQueue = new ArrayList<>();
 
-	private List<ISendPacket> m_txPrioQueue = new ArrayList<>();
+	/** Contains normal end-to-end packets. Will only be sent in AUTHORIZED state, and on failure packets will be kept. */
+	private List<IPacketTransmitter> m_txQueue = new ArrayList<>();
+
+	/** Contains high priority end-to-end packets. Will only be sent in AUTHORIZED state, and on failure packets will be kept. */
+	private List<IPacketTransmitter> m_txPrioQueue = new ArrayList<>();
+
+	public enum PacketPrio {
+		HUB, NORMAL, PRIO
+	}
 
 	@Nullable
 	private Executor m_executor;
@@ -352,16 +361,20 @@ public abstract class HubConnectorBase {
 				case AUTHENTICATED:
 				case CONNECTED:
 					//-- We need to transmit packets when available
-					ISendPacket sender;
-					if(m_txPrioQueue.size() > 0) {
-						sender = m_txPrioQueue.remove(0);
-					} else if(m_txQueue.size() > 0) {
-						sender = m_txQueue.remove(0);
+					IPacketTransmitter transmitter;
+					if(m_txHubQueue.size() > 0) {
+						transmitter = m_txHubQueue.remove(0);
+						action = () -> transmitPacket(transmitter, null);
+					} else if(m_txPrioQueue.size() > 0 && state == ConnectorState.AUTHENTICATED) {
+						transmitter = m_txPrioQueue.remove(0);
+						action = () -> transmitPacket(transmitter, m_txPrioQueue);
+					} else if(m_txQueue.size() > 0 && state == ConnectorState.AUTHENTICATED) {
+						transmitter = m_txQueue.remove(0);
+						action = () -> transmitPacket(transmitter, m_txQueue);
 					} else {
 						sleepWait(10_000L);
 						return true;
 					}
-					action = () -> transmitPacket(sender);
 					break;
 
 				case CONNECTING:
@@ -388,9 +401,14 @@ public abstract class HubConnectorBase {
 	}
 
 	/**
-	 * Transmit the packet. If sending fails we disconnect state.
+	 * Transmit the packet. If sending fails we disconnect state. This gets
+	 * called on the writer thread. If the send fails with an IOException and
+	 * pushbackQueue is not null then the failing packet is requeued first
+	 * on that queue, so that it will be retransmitted as soon as the connection
+	 * is re-established. If the send has failed the channel will have been
+	 * disconnected.
 	 */
-	private void transmitPacket(ISendPacket sender) {
+	private void transmitPacket(IPacketTransmitter sender, @Nullable List<IPacketTransmitter> pushbackQueue) {
 		try {
 			OutputStream os;
 			synchronized(this) {
@@ -400,39 +418,54 @@ public abstract class HubConnectorBase {
 			}
 			m_writer.setOs(os);
 			sender.send(m_writer);
+			os.flush();
 		} catch(Exception x) {
 			error("Send for packet " + sender + " failed: " + x);
 			forceDisconnect("Packet send failed");
+
+			if(null != pushbackQueue) {
+				synchronized(this) {
+					pushbackQueue.add(0, sender);
+				}
+			}
 		}
 	}
 
-	public void sendPacket(Hubcore.Envelope message, @Nullable Object json) {
+	public void sendPacket(PacketPrio prio, Hubcore.Envelope message, @Nullable Object json) {
 		if(message.getPayloadCase() == PayloadCase.PAYLOAD_NOT_SET)
 			throw new IllegalStateException("Missing payload!!");
-		ISendPacket sp = new ISendPacket() {
+		IPacketTransmitter sp = new IPacketTransmitter() {
 			@Override public void send(PacketWriter os) throws Exception {
 				os.send(message, json);
 			}
 		};
-		sendPacket(sp);
+		sendPacket(prio, sp);
 	}
 
-	public void sendPacket(ISendPacket packetSender) {
+	public void sendPacket(PacketPrio prio, IPacketTransmitter packetSender) {
 		synchronized(this) {
 			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
 				throw new IllegalStateException("Cannot send packets when connector is " + m_state);
 			}
-			m_txQueue.add(packetSender);
-			notify();
-		}
-	}
+			List<IPacketTransmitter> queue;
+			switch(prio) {
+				default:
+					throw new IllegalStateException(prio + "??");
 
-	public void sendPacketPrio(ISendPacket packetSender) {
-		synchronized(this) {
-			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
-				throw new IllegalStateException("Cannot send packets when connector is " + m_state);
+				case HUB:
+					queue = m_txHubQueue;
+					break;
+
+				case NORMAL:
+					queue = m_txQueue;
+					break;
+
+				case PRIO:
+					queue = m_txPrioQueue;
+					break;
 			}
-			m_txPrioQueue.add(packetSender);
+
+			queue.add(packetSender);
 			notify();
 		}
 	}
@@ -567,26 +600,29 @@ public abstract class HubConnectorBase {
 		}
 	}
 
+	/**
+	 * Send a HUB error packet using normal send.
+	 */
 	private void sendHubErrorPacket(CommandContext ctx, CommandFailedException cfx) {
 		ctx.getResponseEnvelope().getHubErrorBuilder()
 			.setText(cfx.getMessage())
 			.setCode("command.exception")
 			.setDetails(StringTool.strStacktrace(cfx))
 			;
-		sendPacket(ctx.getResponseEnvelope().build(), null);
+		sendPacket(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
 	}
 
-	public void sendCommandErrorPacket(CommandContext ctx, String code, String message, @Nullable String details) {
-		CommandError cmdE = CommandError.newBuilder()
-			.setId(ctx.getSourceEnvelope().getCmd().getId())
-			.setName(ctx.getSourceEnvelope().getCmd().getName())
-			.setCode(code)
-			.setMessage(message)
-			.setDetails(details)
-			.build();
-		ctx.getResponseEnvelope().setCommandError(cmdE);
-		sendPacket(ctx.getResponseEnvelope().build(), null);
-	}
+	//public void sendCommandErrorPacket(CommandContext ctx, String code, String message, @Nullable String details) {
+	//	CommandError cmdE = CommandError.newBuilder()
+	//		.setId(ctx.getSourceEnvelope().getCmd().getId())
+	//		.setName(ctx.getSourceEnvelope().getCmd().getName())
+	//		.setCode(code)
+	//		.setMessage(message)
+	//		.setDetails(details)
+	//		.build();
+	//	ctx.getResponseEnvelope().setCommandError(cmdE);
+	//	sendPacket(ctx.getResponseEnvelope().build(), null);
+	//}
 
 	public void sendCommandErrorPacket(CommandContext ctx, ErrorCode code, Object... params) {
 		String message = MessageFormat.format(code.getText(), params);
@@ -598,7 +634,7 @@ public abstract class HubConnectorBase {
 			//.setDetails(details)
 			.build();
 		ctx.getResponseEnvelope().setCommandError(cmdE);
-		sendPacket(ctx.getResponseEnvelope().build(), null);
+		sendPacket(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
 	}
 
 	public void sendCommandErrorPacket(CommandContext ctx, Throwable t) {
@@ -611,7 +647,7 @@ public abstract class HubConnectorBase {
 			.setDetails(StringTool.strStacktrace(t))
 			.build();
 		ctx.getResponseEnvelope().setCommandError(cmdE);
-		sendPacket(ctx.getResponseEnvelope().build(), null);
+		sendPacket(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
 	}
 
 	/**
@@ -796,20 +832,20 @@ public abstract class HubConnectorBase {
 
 	private void respondWithPong(CommandContext ctx) {
 		ctx.getResponseEnvelope().setPong(Pong.newBuilder());
-		ctx.respond();
+		ctx.respond(PacketPrio.HUB);
 	}
 
 	private String bodyType(@Nullable Object body) {
 		return null == body ? "(void)" : body.getClass().getName();
 	}
 
-	static public void unwrapAndRethrowException(CommandContext cc, Throwable t) throws Exception {
+	static private void unwrapAndRethrowException(CommandContext cc, Throwable t) throws Exception {
 		while(t instanceof InvocationTargetException) {
 			t = ((InvocationTargetException)t).getTargetException();
 		}
 
 		if(t instanceof HubException) {
-			cc.respondWithHubErrorPacket((HubException) t);
+			cc.respondWithHubErrorPacket(PacketPrio.HUB, (HubException) t);
 		}  if(t instanceof RuntimeException) {
 			throw (RuntimeException) t;
 		} else if(t instanceof Error) {

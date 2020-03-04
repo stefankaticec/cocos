@@ -4,6 +4,7 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.client.IClientCommandHandler;
+import to.etc.cocos.connectors.common.HubConnectorBase.PacketPrio;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.Command;
@@ -55,14 +56,14 @@ final public class CommandContext {
 		return m_envelope.getCmd().getId();
 	}
 
-	public void respondJson(@NonNull Object jsonPacket) {
+	public void respondJson(PacketPrio prio, @NonNull Object jsonPacket) {
 		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacket(envelope, jsonPacket);
+		m_connector.sendPacket(prio, envelope, jsonPacket);
 	}
 
-	public void respond() {
+	public void respond(PacketPrio prio) {
 		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacket(envelope, null);
+		m_connector.sendPacket(prio, envelope, null);
 	}
 
 	public Envelope getSourceEnvelope() {
@@ -85,24 +86,24 @@ final public class CommandContext {
 		m_connector.error(s);
 	}
 
-	public void respondWithHubErrorPacket(ErrorCode code, String details) {
+	public void respondWithHubErrorPacket(PacketPrio prio, ErrorCode code, String details) {
 		getResponseEnvelope().setHubError(HubErrorResponse.newBuilder()
 			.setCode(code.name())
 			.setText(code.getText())
 			.setDetails(details)
 			.build()
 		);
-		respond();
+		respond(prio);
 	}
 
-	public void respondWithHubErrorPacket(HubException t) {
+	public void respondWithHubErrorPacket(PacketPrio prio, HubException t) {
 		getResponseEnvelope().setHubError(HubErrorResponse.newBuilder()
 			.setCode(t.getCode().name())
 			.setText(t.getMessage())
 			.setDetails(StringTool.strStacktrace(t))
 			.build()
 		);
-		respond();
+		respond(prio);
 	}
 
 	public RemoteCommandStatus getStatus() {
@@ -141,7 +142,7 @@ final public class CommandContext {
 			).build();
 
 		//-- Create the JSON packet body
-		m_connector.sendPacket(os -> os.sendString(envelope, s));
+		m_connector.sendPacket(PacketPrio.NORMAL, os -> os.sendString(envelope, s));
 	}
 
 	public synchronized void setHandler(@Nullable IClientCommandHandler handler) {

@@ -3,6 +3,7 @@ package to.etc.cocos.connectors.client;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.HubConnectorBase.PacketPrio;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
@@ -38,7 +39,7 @@ final public class SynchronousJsonCommandHandler<T extends JsonPacket> implement
 				.setName(cmd.getName())
 				.setId(cmd.getId())
 				.setDataFormat(CommandNames.getJsonDataFormat(result));
-			ctx.respondJson(result);
+			ctx.respondJson(PacketPrio.NORMAL, result);
 		} catch(Exception | Error x) {
 			error = x;
 			throw x;

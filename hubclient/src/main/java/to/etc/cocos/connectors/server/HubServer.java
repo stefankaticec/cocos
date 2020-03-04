@@ -197,7 +197,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 				.setServerVersion(m_serverVersion)
 				.build()
 			);
-		cc.respond();
+		cc.respond(PacketPrio.HUB);
 	}
 
 	/**
@@ -217,7 +217,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		ClientAuthRequest clau = cc.getSourceEnvelope().getClientAuth();
 		cc.log("Client authentication request from " + clau.getClientId());
 		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion())) {
-			cc.respondWithHubErrorPacket(ErrorCode.authenticationFailure, "");
+			cc.respondWithHubErrorPacket(PacketPrio.HUB, ErrorCode.authenticationFailure, "");
 			return;
 		}
 
@@ -225,7 +225,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		cc.getResponseEnvelope()
 			.setAuth(AuthResponse.newBuilder().build())
 			;
-		cc.respond();
+		cc.respond(PacketPrio.HUB);
 	}
 
 	/**
@@ -365,7 +365,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 				.setName(packet.getClass().getName())
 			)
 			.build();
-		sendPacket(jcmd, packet);
+		sendPacket(PacketPrio.NORMAL, jcmd, packet);
 	}
 
 	private RemoteCommand getCommandFromID(String clientId, String commandId, String commandName) {
