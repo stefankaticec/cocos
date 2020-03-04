@@ -48,6 +48,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@NonNull
 	private final SocketChannel m_channel;
 
+	private final String m_remoteAddress;
+
 	@Nullable
 	private AbstractConnection m_connection;
 
@@ -114,6 +116,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	public CentralSocketHandler(Hub central, SocketChannel socketChannel) {
 		m_central = central;
 		m_channel = socketChannel;
+		m_remoteAddress = socketChannel.remoteAddress().getAddress().getHostAddress();
 	}
 
 	@Override protected void channelRead0(ChannelHandlerContext context, ByteBuf data) throws Exception {
@@ -537,6 +540,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * The channel disconnected, possibly because of a remote disconnect.
 	 */
 	private void remoteDisconnected(ChannelHandlerContext ctx) {
+		log("remote disconnect received");
 		AbstractConnection connection;
 		Cluster cluster;
 		synchronized(this) {
@@ -708,7 +712,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			} else {
 				byteBuf = null;
 
-				//-- We need to send a new packet
+				//-- We need to send a new packetdisconnect
 				packetToFinish = m_txCurrentPacket;
 				if(null == packetToFinish)
 					throw new IllegalStateException("Null current txpacket at end of send");
@@ -792,23 +796,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		boolean isFatal = x instanceof FatalHubException;
 		if(isFatal) {
 			rb.after(() -> {
+				log("send failed, disconnecting");
 				m_channel.disconnect();
 			});
 		}
 		rb.send();
-		//
-		////-- Convert the data into a response packet.
-		//ByteBuf buf = new PacketBuilder(m_channel.alloc())
-		//	.appendMessage(rb.getEnvelope().build())
-		//	.emptyBody()
-		//	.getCompleted()
-		//	;
-		//boolean isFatal = x instanceof FatalHubException;
-		//ChannelFuture future = m_channel.writeAndFlush(buf);
-		//future.addListener((ChannelFutureListener) f -> {
-		//	if(! f.isSuccess() || isFatal)
-		//		m_channel.disconnect();
-		//});
 	}
 
 	public void sendPing() {
@@ -880,6 +872,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	private ConnectionDirectory getDirectory() {
 		return m_central.getDirectory();
+	}
+
+	public String getRemoteAddress() {
+		return m_remoteAddress;
 	}
 
 	interface IReadHandler {

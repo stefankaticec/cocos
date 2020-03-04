@@ -45,6 +45,9 @@ abstract public class AbstractConnection {
 	/** Priority packets to send */
 	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
 
+	abstract public void log(String s);
+
+
 	public AbstractConnection(Cluster cluster, Hub systemContext, String id) {
 		m_cluster = cluster;
 		m_systemContext = systemContext;
@@ -73,14 +76,22 @@ abstract public class AbstractConnection {
 	 */
 	public void newConnection(CentralSocketHandler handler) {
 		synchronized(this) {
+			log("New connection from " + handler.getRemoteAddress());
 			CentralSocketHandler oldChannel = m_handler;
 			if(null == oldChannel) {
 				//-- No disconnects - reset duplicate state
 				m_dupConnCount = 0;
 				m_state = ConnectionState.CONNECTED;
 			} else {
+				//-- If the new address differs from the current one prefer the current one
+				if(! oldChannel.getRemoteAddress().equals(handler.getRemoteAddress())) {
+					log("New connection from " + handler.getRemoteAddress() + " discarded: preferring existing connection from " + oldChannel.getRemoteAddress());
+					handler.disconnectOnly("Refused because a connection already exists");
+					return;
+				}
+
 				//-- Most certainly disconnect the old, existing connection
-				disconnectOnly("New connection came in");
+				disconnectOnly("New connection came in from " + handler.getRemoteAddress());
 
 				//-- Duplicate detection...
 				long ts = System.currentTimeMillis();
@@ -121,6 +132,7 @@ abstract public class AbstractConnection {
 			m_handler = null;
 			m_state = ConnectionState.DISCONNECTED;
 		}
+		log("called disconnectOnly " + why + " with handler=" + handler);
 		if(null != handler) {
 			handler.disconnectOnly(why);
 		}
@@ -130,14 +142,8 @@ abstract public class AbstractConnection {
 		m_state = ConnectionState.DISCONNECTED;
 		m_handler = null;
 		m_cluster.unregister(this);
-		//log("channel closed");
+		log("channel closed");
 	}
-
-	abstract public void log(String s);
-
-	//public void forwardPacket(HubPacket packet) {
-	//	getHandler().forwardPacket(packet);
-	//}
 
 	@NonNull public CentralSocketHandler getHandler() {
 		CentralSocketHandler handler = m_handler;
@@ -201,95 +207,6 @@ abstract public class AbstractConnection {
 			return null;
 		}
 	}
-
-	//public void sendHubMessage(int packetCode, String command, @Nullable Message message, @Nullable RunnableEx after) {
-	//	getHandler().sendHubMessage(packetCode, command, message, after);
-	//}
-	//
-	//public void sendHubError(String failedCommand, ErrorCode errorCode, @Nullable RunnableEx after) {
-	//	getHandler().sendHubError(failedCommand, after, errorCode);
-	//}
-	//
-	//public void sendHubErrorAndDisconnect(String failedCommand, ErrorCode errorCode) {
-	//	getHandler().sendHubErrorAndDisconnect(failedCommand, errorCode);
-	//}
-	//
-	//public void sendMessage(int packetCode, String sourceID, String command, Message message, @Nullable RunnableEx after) {
-	//	getHandler().sendMessage(packetCode, sourceID, command, message, after);
-	//}
-	//
-	//public void sendError(String sourceID, String failedCommand, @Nullable RunnableEx after, ErrorCode errorCode, Object... parameters) {
-	//	getHandler().sendError(sourceID, failedCommand, after, errorCode, parameters);
-	//}
-	//
-	//public void sendErrorAndDisconnect(String sourceID, String failedCommand, ErrorCode errorCode, Object... parameters) {
-	//	getHandler().sendErrorAndDisconnect(sourceID, failedCommand, errorCode, parameters);
-	//}
-
-	/*----------------------------------------------------------------------*/
-	/*	CODING:	Generic packet handling.									*/
-	/*----------------------------------------------------------------------*/
-	//protected <T extends Message> T parseBuffer(Class<T> clz, HubPacket packet) throws Exception {
-	//	T instance = (T) clz.getMethod("getDefaultInstance").invoke(null);
-	//	return (T) instance.getParserForType().parseFrom(packet.getRemainingStream());
-	//}
-
-	/**
-	 * A handler method is a method with a name "handleCOMMAND", with one
-	 * parameter of type HubPacket and optionally a second packet which is
-	 * a protobuf Message of a specific type.
-	 */
-	//@Nullable
-	//protected Method findHandlerMethod(String command) {
-	//	String name = "handle" + command;
-	//	for(Method method : getClass().getMethods()) {
-	//		if(method.getName().equals(name)) {
-	//			if(Modifier.isPublic(method.getModifiers())) {
-	//				if(method.getParameterCount() >= 1 && method.getParameterCount() <= 2) {
-	//					Class<?>[] pt = method.getParameterTypes();
-	//					if(pt[0] == HubPacket.class) {
-	//						return method;
-	//					}
-	//				}
-	//			}
-	//		}
-	//	}
-	//	return null;
-	//}
-	//
-	//protected void callPacketMethod(HubPacket packet) throws Exception {
-	//	Method m = findHandlerMethod(packet.getCommand());
-	//	if(null == m) {
-	//		throw new ProtocolViolationException("No handler for packet command " + packet.getCommand());
-	//	}
-	//
-	//	Object[] args = new Object[m.getParameterCount()];
-	//	args[0] = packet;
-	//
-	//	if(m.getParameterCount() > 1) {
-	//		Class<?> bufferClass = m.getParameterTypes()[2];
-	//		if(! MessageOrBuilder.class.isAssignableFrom(bufferClass))
-	//			throw new ProtocolViolationException(m.getName() + " has an unknown packet buffer parameter " + bufferClass.getName());
-	//		Class<Message> mbc = (Class<Message>) bufferClass;
-	//		Message message = parseBuffer(mbc, packet);
-	//		args[1] = message;
-	//	}
-	//
-	//	try {
-	//		m.invoke(this, args);
-	//	} catch(InvocationTargetException itx) {
-	//		Throwable tx = itx.getTargetException();
-	//		if(tx instanceof RuntimeException) {
-	//			throw (RuntimeException) tx;
-	//		} else if(tx instanceof Error) {
-	//			throw (Error) tx;
-	//		} else if(tx instanceof Exception) {
-	//			throw (Exception) tx;
-	//		} else {
-	//			throw itx;
-	//		}
-	//	}
-	//}
 
 	public Hub getSystemContext() {
 		return m_systemContext;

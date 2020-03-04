@@ -60,8 +60,9 @@ public class Server extends AbstractConnection {
 
 
 	private void handleHubCommand (Envelope envelope){
-		log("HUB command packet received");
-
+		if(envelope.hasPong())
+			return;
+		log("HUB command packet received: " + envelope.getPayloadCase());
 	}
 
 	public PacketResponseBuilder packetBuilder(String clientID) {

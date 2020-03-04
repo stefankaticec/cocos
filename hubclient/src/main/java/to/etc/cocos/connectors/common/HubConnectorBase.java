@@ -513,7 +513,7 @@ public abstract class HubConnectorBase {
 			}
 		} catch(SocketEofException eofx) {
 			if(isRunning()) {
-				ConsoleUtil.consoleLog("reader terminated because of eof");
+				ConsoleUtil.consoleLog("reader terminated because of eof: " + eofx.getMessage());
 				disconnectReason = "Server disconnect";
 			}
 		} catch(Exception x) {
@@ -568,7 +568,6 @@ public abstract class HubConnectorBase {
 	}
 
 	private void sendHubErrorPacket(CommandContext ctx, CommandFailedException cfx) {
-
 		ctx.getResponseEnvelope().getHubErrorBuilder()
 			.setText(cfx.getMessage())
 			.setCode("command.exception")
@@ -649,6 +648,9 @@ public abstract class HubConnectorBase {
 					break;
 
 				case AUTHENTICATED:
+					m_reconnectCount = 0;
+					/*FALL_THROUGH*/
+
 				case CONNECTED:
 				case CONNECTING:
 					/*
