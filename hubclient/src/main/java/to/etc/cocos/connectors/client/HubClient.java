@@ -49,7 +49,7 @@ final public class HubClient extends HubConnectorBase {
 
 	static public HubClient create(IClientAuthenticationHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId) {
 		HubClient responder = new HubClient(hubServer, hubServerPort, handler, targetClusterAndOrg, myId);
-		responder.registerJsonCommandAsync(CancelPacket.class, new CancelCommand(responder));
+		responder.registerJsonCommandAsync(CancelPacket.class, () -> new CancelCommand(responder));
 		return responder;
 	}
 
@@ -82,12 +82,12 @@ final public class HubClient extends HubConnectorBase {
 			throw new IllegalStateException("Duplicate command name registered: " + commandName);
 	}
 
-	public synchronized <T extends JsonPacket> void registerJsonCommand(Class<T> packet, IJsonCommandHandler<T> handler) {
-		registerCommand(packet.getName(), () -> new SynchronousJsonCommandHandler<T>(handler));
+	public synchronized <T extends JsonPacket> void registerJsonCommand(Class<T> packet, Supplier<IJsonCommandHandler<T>> handlerSupplier) {
+		registerCommand(packet.getName(), () -> new SynchronousJsonCommandHandler<T>(handlerSupplier.get()));
 	}
 
-	public synchronized <T extends JsonPacket> void registerJsonCommandAsync(Class<T> packet, IJsonCommandHandler<T> handler) {
-		registerCommand(packet.getName(), () -> new AsynchronousJsonCommandHandler<T>(handler));
+	public synchronized <T extends JsonPacket> void registerJsonCommandAsync(Class<T> packet, Supplier<IJsonCommandHandler<T>> handlerSupplier) {
+		registerCommand(packet.getName(), () -> new AsynchronousJsonCommandHandler<T>(handlerSupplier.get()));
 	}
 
 	@Nullable

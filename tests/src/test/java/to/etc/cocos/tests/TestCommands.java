@@ -52,7 +52,7 @@ public class TestCommands extends TestAllBase {
 	public void testSendClientCommand() throws Exception {
 		PublishSubject<CommandTestPacket> ps = PublishSubject.create();
 
-		client().registerJsonCommand(CommandTestPacket.class, (ctx, packet) -> {
+		client().registerJsonCommand(CommandTestPacket.class, () -> (ctx, packet) -> {
 			System.out.println(">> Got command! " + packet.getParameters());
 			ps.onNext(packet);
 			ps.onComplete();
@@ -84,7 +84,7 @@ public class TestCommands extends TestAllBase {
 
 	@Test
 	public void testSendClientCommandWithStdout() throws Exception {
-		client().registerJsonCommand(StdoutCommandTestPacket.class, new ExecStdoutCommand());
+		client().registerJsonCommand(StdoutCommandTestPacket.class, () -> new ExecStdoutCommand());
 
 		waitConnected();
 		IRemoteClient remote = server().getClientList().get(0);
