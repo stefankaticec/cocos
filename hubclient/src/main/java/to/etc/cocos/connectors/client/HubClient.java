@@ -186,6 +186,10 @@ final public class HubClient extends HubConnectorBase {
 		forceDisconnect("HUB error received");
 	}
 
+	public int getRunningCommands() {
+		return m_commandMap.values().size();
+	}
+
 
 
 }
