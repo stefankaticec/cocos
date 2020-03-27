@@ -209,21 +209,6 @@ final public class StdoutPacketThread implements AutoCloseable {
 		}
 	}
 
-	//private void appendCompleted(boolean force) {
-	//	//-- Is it time to push a packet?
-	//	if(m_output.length() == 0) {
-	//		return;
-	//	}
-	//	if(m_output.length() >= MAX_BUFFERED) {
-	//		sendPacket(System.currentTimeMillis());
-	//		return;
-	//	}
-	//	long cts = System.currentTimeMillis();
-	//	if(cts >= m_nextPushTime || force) {
-	//		sendPacket(cts);
-	//	}
-	//}
-
 	private void writerLoop() {
 		while(! m_terminate) {
 

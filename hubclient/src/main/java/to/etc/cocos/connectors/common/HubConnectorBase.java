@@ -23,6 +23,7 @@ import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 import to.etc.util.StringTool;
+import to.etc.util.WrappedException;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
@@ -443,30 +444,49 @@ public abstract class HubConnectorBase {
 	}
 
 	public void sendPacket(PacketPrio prio, IPacketTransmitter packetSender) {
+		List<IPacketTransmitter> queue;
+		switch(prio) {
+			default:
+				throw new IllegalStateException(prio + "??");
+
+			case HUB:
+				queue = m_txHubQueue;
+				break;
+
+			case NORMAL:
+				queue = m_txQueue;
+				break;
+
+			case PRIO:
+				queue = m_txPrioQueue;
+				break;
+		}
+
+		boolean blocked = false;
 		synchronized(this) {
-			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
-				throw new IllegalStateException("Cannot send packets when connector is " + m_state);
+			for(;;) {
+				if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
+					throw new IllegalStateException("Cannot send packets when connector is " + m_state);
+				}
+
+				if(queue.size() > 200) {
+					log("Transmitter queue full, blocking");
+					blocked = true;
+					try {
+						wait(5000);
+					} catch(InterruptedException x) {
+						throw new WrappedException(x);
+					}
+				} else {
+					if(blocked) {
+						log("Transmitter queue unblocked");
+						blocked = false;
+					}
+					queue.add(packetSender);
+					notify();
+					return;
+				}
 			}
-			List<IPacketTransmitter> queue;
-			switch(prio) {
-				default:
-					throw new IllegalStateException(prio + "??");
-
-				case HUB:
-					queue = m_txHubQueue;
-					break;
-
-				case NORMAL:
-					queue = m_txQueue;
-					break;
-
-				case PRIO:
-					queue = m_txPrioQueue;
-					break;
-			}
-
-			queue.add(packetSender);
-			notify();
 		}
 	}
 
