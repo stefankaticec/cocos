@@ -10,6 +10,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.messages.Hubcore.Pong;
 import to.etc.hubserver.protocol.CommandNames;
@@ -166,8 +167,9 @@ public abstract class HubConnectorBase {
 
 	protected abstract void onErrorPacket(Envelope env);
 
-	protected abstract void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception;
+	protected abstract void handleCHALLENGE(Envelope heloPacket) throws Exception;
 
+	protected abstract void handleAUTH(Envelope authPacket) throws Exception;
 
 	protected HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
 		m_id = nextId();
@@ -440,14 +442,14 @@ public abstract class HubConnectorBase {
 	/**
 	 * Put a packet into the transmitter queue, to be sent as soon as the transmitter is free.
 	 */
-	void sendPacketPrimitive(Envelope envelope, IBodyTransmitter bodyTransmitter) {
+	protected void sendPacketPrimitive(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter) {
 		sendPacketPrimitive(new PendingTxPacket(envelope, bodyTransmitter));
 	}
 
 	/**
 	 * Put a packet in the transmitter queue. Drop it if the queue gets too full.
 	 */
-	void sendPacketPrimitive(PendingTxPacket pp) {
+	protected void sendPacketPrimitive(PendingTxPacket pp) {
 		synchronized(this) {
 			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
 				throw new IllegalStateException("Cannot send packets when connector is " + m_state);
@@ -558,39 +560,72 @@ public abstract class HubConnectorBase {
 
 	private void executePacket() {
 		Envelope env = m_packetReader.getEnvelope();
-		if(env.hasHubError()) {
-			HubErrorResponse error = env.getHubError();
+		log("Received packet: " + getPacketType(env));
 
-			log("Received HUB ERROR packet: " + error.getCode() + " " + error.getText());
-			synchronized(this) {
-				m_lastError = error;
-			}
-
-			try {
-				onErrorPacket(env);
-			} catch(Exception x) {
-				log("Unexpected exception while handling error packet: " + x);
-				x.printStackTrace();;
-			}
-
-			//-- Disconnect.
-			//forceDisconnect("HUB error: " + error.getCode());
-			return;
-		}
-
-		log("Received packet: " + env.getPayloadCase());
-		CommandContext ctx = new CommandContext(this, env);
 		try {
-			packetReceived(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
-			//m_responder.acceptPacket(ctx, new ArrayList<>(m_packetReader.getReceiveBufferList()));
-		} catch(CommandFailedException cfx) {
-			log("Command failed: " + cfx);
-			sendHubErrorPacket(ctx, cfx);
+			ArrayList<byte[]> body = new ArrayList<>(m_packetReader.getReceiveBufferList());
+			switch(env.getPayloadCase()) {
+				default:
+					throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
+
+				case HUBERROR:
+					HubErrorResponse error = env.getHubError();
+
+					log("Received HUB ERROR packet: " + error.getCode() + " " + error.getText());
+					synchronized(this) {
+						m_lastError = error;
+					}
+
+					try {
+						onErrorPacket(env);
+					} catch(Exception x) {
+						log("Unexpected exception while handling error packet: " + x);
+						x.printStackTrace();;
+					}
+					return;
+
+				case CHALLENGE:
+					handleCHALLENGE(env);
+					break;
+
+				case AUTH:
+					handleAUTH(env);
+					break;
+
+				case ACK:
+					handleAckPacket(env);
+					break;
+
+				case ACKABLE:
+					handleAckablePacket(env, body);
+					break;
+
+				case PING:
+					respondWithPong(env);
+					break;
+			}
 		} catch(Exception px) {
-			log("Fatal command handler exception: " + px);
-			forceDisconnect(px.toString());
+			Throwable t = px;
+			while(t instanceof InvocationTargetException) {
+				t = ((InvocationTargetException)t).getTargetException();
+			}
+			log("Fatal Packet Execute exception: " + t);
+			forceDisconnect(t.toString());
 		}
 	}
+
+	private void handleAckablePacket(Envelope env, ArrayList<byte[]> body) {
+		CommandContext ctx = new CommandContext(this, env);
+
+		try {
+
+		} catch(CommandFailedException cfx) {
+			sendHubErrorPacket(ctx, cfx);
+		} catch(Exception x) {
+
+		}
+	}
+
 
 	/**
 	 * Send a HUB error packet using normal send.
@@ -800,27 +835,25 @@ public abstract class HubConnectorBase {
 	/*----------------------------------------------------------------------*/
 	static private final byte[] NULLBODY = new byte[0];
 
-	private void packetReceived(CommandContext ctx, List<byte[]> data) throws Exception {
-		try {
-			switch(ctx.getSourceEnvelope().getPayloadCase()){
-				default:
-					handlePacketReceived(ctx, data);
-					break;
-
-				case PING:
-					respondWithPong(ctx);
-					break;
-
-
-			}
-		} catch(Exception x) {
-			unwrapAndRethrowException(ctx, x);
-		}
+	private void respondWithPong(Envelope src) {
+		Envelope response = responseEnvelope(src)
+			.setPong(Pong.newBuilder())
+			.build();
+		sendPacketPrimitive(response, null);
 	}
 
-	private void respondWithPong(CommandContext ctx) {
-		ctx.getResponseEnvelope().setPong(Pong.newBuilder());
-		ctx.respond(PacketPrio.HUB);
+	protected Envelope.Builder responseEnvelope(Envelope src) {
+		return Envelope.newBuilder()
+			.setVersion(1)
+			.setTargetId(src.getSourceId())
+			.setSourceId(m_myId)
+			;
+	}
+
+	private String getPacketType(Envelope env) {
+		if(env.getPayloadCase() == PayloadCase.ACKABLE)
+			return env.getAckable().getPayloadCase().name();
+		return env.getPayloadCase().name();
 	}
 
 	private String bodyType(@Nullable Object body) {

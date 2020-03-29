@@ -1,6 +1,7 @@
 package to.etc.cocos.connectors.common;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Envelope;
 
 /**
@@ -13,6 +14,7 @@ import to.etc.cocos.messages.Hubcore.Envelope;
 final class PendingTxPacket {
 	private final Envelope m_envelope;
 
+	@Nullable
 	private final IBodyTransmitter m_bodyTransmitter;
 
 	private final long m_submittedAt;
@@ -21,7 +23,7 @@ final class PendingTxPacket {
 
 	private long m_retryAt;
 
-	public PendingTxPacket(Envelope envelope, IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt) {
+	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt) {
 		m_envelope = envelope;
 		m_bodyTransmitter = bodyTransmitter;
 		m_submittedAt = submittedAt;
@@ -40,6 +42,7 @@ final class PendingTxPacket {
 		return m_envelope;
 	}
 
+	@Nullable
 	public IBodyTransmitter getBodyTransmitter() {
 		return m_bodyTransmitter;
 	}

@@ -124,48 +124,48 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		forceDisconnect("HUB error received");
 	}
 
-	@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {
-		switch(ctx.getSourceEnvelope().getPayloadCase()) {
-			default:
-				throw new ProtocolViolationException("Unexpected packet type=" + ctx.getSourceEnvelope().getPayloadCase());
-
-			case CHALLENGE:
-				handleHELO(ctx);
-				break;
-
-			case AUTH:
-				handleAUTH(ctx);
-				break;
-
-			case CLIENTAUTH:
-				handleCLAUTH(ctx);
-				break;
-
-			case CLIENTCONNECTED:
-				handleCLCONN(ctx);
-				break;
-
-			case CLIENTDISCONNECTED:
-				handleCLDISC(ctx);
-				break;
-
-			case INVENTORY:
-				handleCLINVE(ctx, data);
-				break;
-
-			case COMMANDERROR:
-				handleCommandError(ctx);
-				break;
-
-			case RESPONSE:
-				handleCommandFinished(ctx, data);
-				break;
-
-			case OUTPUT:
-				handleCommandOutput(ctx, data);
-				break;
-		}
-	}
+	//@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {
+	//	switch(ctx.getSourceEnvelope().getPayloadCase()) {
+	//		default:
+	//			throw new ProtocolViolationException("Unexpected packet type=" + ctx.getSourceEnvelope().getPayloadCase());
+	//
+	//		case CHALLENGE:
+	//			handleHELO(ctx);
+	//			break;
+	//
+	//		case AUTH:
+	//			handleAUTH(ctx);
+	//			break;
+	//
+	//		case CLIENTAUTH:
+	//			handleCLAUTH(ctx);
+	//			break;
+	//
+	//		case CLIENTCONNECTED:
+	//			handleCLCONN(ctx);
+	//			break;
+	//
+	//		case CLIENTDISCONNECTED:
+	//			handleCLDISC(ctx);
+	//			break;
+	//
+	//		case INVENTORY:
+	//			handleCLINVE(ctx, data);
+	//			break;
+	//
+	//		case COMMANDERROR:
+	//			handleCommandError(ctx);
+	//			break;
+	//
+	//		case RESPONSE:
+	//			handleCommandFinished(ctx, data);
+	//			break;
+	//
+	//		case OUTPUT:
+	//			handleCommandOutput(ctx, data);
+	//			break;
+	//	}
+	//}
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Authentication.												*/
@@ -175,29 +175,26 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	 * Server authentication request from the HUB. Respond with a Server
 	 * HELO response, and encode the challenge with the password.
 	 */
-	@Synchronous
-	private void handleHELO(CommandContext cc) throws Exception {
-		System.out.println("Got HELO request");
-
-		ByteString ba = cc.getSourceEnvelope().getChallenge().getChallenge();
+	@Override
+	protected void handleCHALLENGE(Envelope src) throws Exception {
+		ByteString ba = src.getChallenge().getChallenge();
 		byte[] challenge = ba.toByteArray();
 
-		String ref = m_clusterPassword + ":" + cc.getConnector().getMyId();
+		String ref = m_clusterPassword + ":" + getMyId();
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(ref.getBytes(StandardCharsets.UTF_8));
 		md.update(challenge);
 		byte[] digest = md.digest();
 
-		cc.getResponseEnvelope()
-			.setSourceId(cc.getConnector().getMyId())
-			.setVersion(1)
-			.setTargetId("")
+		Envelope reply = responseEnvelope(src)
 			.setHeloServer(Hubcore.ServerHeloResponse.newBuilder()
 				.setChallengeResponse(ByteString.copyFrom(digest))
 				.setServerVersion(m_serverVersion)
 				.build()
-			);
-		cc.respond(PacketPrio.HUB);
+			).build()
+			;
+
+		sendPacketPrimitive(reply, null);
 	}
 
 	/**

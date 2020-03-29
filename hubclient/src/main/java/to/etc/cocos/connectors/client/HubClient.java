@@ -53,29 +53,29 @@ final public class HubClient extends HubConnectorBase {
 		return responder;
 	}
 
-	@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {
-		switch(ctx.getSourceEnvelope().getPayloadCase()) {
-			default:
-				throw new ProtocolViolationException("Unexpected packet type=" + ctx.getSourceEnvelope().getPayloadCase());
-
-			case CHALLENGE:
-				handleHELO(ctx);
-				break;
-
-			case AUTH:
-				handleAUTH(ctx);
-				break;
-
-			case CMD:
-				handleCommand(ctx, data);
-				break;
-
-			case HUBERROR:
-				onErrorPacket(ctx.getSourceEnvelope());
-				forceDisconnect("Hub error: " + ctx.getSourceEnvelope().getHubError().getText());
-				break;
-		}
-	}
+	//@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {
+	//	switch(ctx.getSourceEnvelope().getPayloadCase()) {
+	//		default:
+	//			throw new ProtocolViolationException("Unexpected packet type=" + ctx.getSourceEnvelope().getPayloadCase());
+	//
+	//		case CHALLENGE:
+	//			handleHELO(ctx);
+	//			break;
+	//
+	//		case AUTH:
+	//			handleAUTH(ctx);
+	//			break;
+	//
+	//		case CMD:
+	//			handleCommand(ctx, data);
+	//			break;
+	//
+	//		case HUBERROR:
+	//			onErrorPacket(ctx.getSourceEnvelope());
+	//			forceDisconnect("Hub error: " + ctx.getSourceEnvelope().getHubError().getText());
+	//			break;
+	//	}
+	//}
 
 	public synchronized void registerCommand(String commandName, Supplier<IClientCommandHandler> handler) {
 		if(null != m_commandHandlerMap.put(commandName, handler))
@@ -142,33 +142,30 @@ final public class HubClient extends HubConnectorBase {
 	/**
 	 * Respond with a Client HELO response. This encodes the challenge with the password, or something.
 	 */
-	@Synchronous
-	public void handleHELO(CommandContext cc) throws Exception {
-		System.out.println("Got HELO request");
-		ByteString ba = cc.getSourceEnvelope().getChallenge().getChallenge();
+	@Override
+	protected void handleCHALLENGE(Envelope src) throws Exception {
+		ByteString ba = src.getChallenge().getChallenge();
 		byte[] challenge = ba.toByteArray();
+		byte[] response = m_authHandler.createAuthenticationResponse(getMyId(), challenge);
 
-		byte[] response = m_authHandler.createAuthenticationResponse(cc.getConnector().getMyId(), challenge);
-
-		cc.getResponseEnvelope()
-			.setSourceId(cc.getConnector().getMyId())
-			.setVersion(1)
-			.setTargetId(m_targetCluster)
+		Envelope reply = responseEnvelope(src)
 			.setHeloClient(Hubcore.ClientHeloResponse.newBuilder()
 				.setChallengeResponse(ByteString.copyFrom(response))
 				.setClientVersion(m_clientVersion)
 				.build()
-			);
-		cc.respond(PacketPrio.HUB);
+			).build()
+			;
+
+		sendPacketPrimitive(reply, null);
 	}
 
 	/**
 	 * If the authorization was successful we receive this; move to AUTHORIZED status.
 	 */
-	@Synchronous
-	public void handleAUTH(CommandContext cc) throws Exception {
-		cc.getConnector().authorized();
-		cc.log("Authenticated successfully");
+	@Override
+	protected void handleAUTH(Envelope src) throws Exception {
+		authorized();
+		log("Authenticated successfully");
 
 		//-- Immediately send the inventory packet
 		JsonPacket inventory = m_authHandler.getInventory();
