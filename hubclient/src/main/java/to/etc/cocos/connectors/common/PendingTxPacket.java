@@ -31,7 +31,7 @@ final class PendingTxPacket {
 		m_retryAt = retryAt;
 	}
 
-	public PendingTxPacket(Envelope envelope, IBodyTransmitter bodyTransmitter) {
+	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter) {
 		m_envelope = envelope;
 		m_bodyTransmitter = bodyTransmitter;
 		m_submittedAt = 0;

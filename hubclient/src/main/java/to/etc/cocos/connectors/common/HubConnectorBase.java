@@ -39,7 +39,9 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -139,6 +141,12 @@ public abstract class HubConnectorBase {
 	@Nullable
 	private HubErrorResponse m_lastError;
 
+	/**
+	 * All (recently active) peers by their ID. This only contains the server for
+	 * a client, but for a server it contains all clients.
+	 */
+	private final Map<String, Peer> m_peerMap = new HashMap<>();
+
 	private ThreadFactory m_threadFactory = new ThreadFactory() {
 		@Override
 		@NonNullByDefault(false)
@@ -170,6 +178,8 @@ public abstract class HubConnectorBase {
 	protected abstract void handleCHALLENGE(Envelope heloPacket) throws Exception;
 
 	protected abstract void handleAUTH(Envelope authPacket) throws Exception;
+
+	protected abstract Peer createPeer(String peerId);
 
 	protected HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
 		m_id = nextId();
@@ -614,6 +624,21 @@ public abstract class HubConnectorBase {
 		}
 	}
 
+	/**
+	 * Ack whatever was sent by the appropriate peer.
+	 */
+	private void handleAckPacket(Envelope env) {
+		Peer peer;
+		synchronized(this) {
+			peer = m_peerMap.get(env.getSourceId());
+		}
+		if(null == peer) {
+			log("Ack received for unknown peer=" + env.getSourceId());
+			return;
+		}
+		peer.ackReceived(env.getAck().getSequence());
+	}
+
 	private void handleAckablePacket(Envelope env, ArrayList<byte[]> body) {
 		CommandContext ctx = new CommandContext(this, env);
 
@@ -623,6 +648,12 @@ public abstract class HubConnectorBase {
 			sendHubErrorPacket(ctx, cfx);
 		} catch(Exception x) {
 
+		}
+	}
+
+	private Peer getPeerByID(String id) {
+		synchronized(this) {
+			return m_peerMap.computeIfAbsent(id, a -> createPeer(id));
 		}
 	}
 

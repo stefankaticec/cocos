@@ -4,6 +4,7 @@ import io.reactivex.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.common.Peer;
 import to.etc.cocos.connectors.ifaces.EvCommandError;
 import to.etc.cocos.connectors.ifaces.EvCommandFinished;
 import to.etc.cocos.connectors.ifaces.EvCommandOutput;
@@ -25,7 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Created on 18-07-19.
  */
 @NonNullByDefault
-final public class RemoteClient implements IRemoteClient {
+final public class RemoteClient extends Peer implements IRemoteClient {
 	final private String m_clientId;
 
 	private final HubServer m_hubServer;
@@ -41,6 +42,7 @@ final public class RemoteClient implements IRemoteClient {
 	private CopyOnWriteArrayList<IRemoteCommandListener> m_listeners = new CopyOnWriteArrayList<>();
 
 	public RemoteClient(HubServer server, String clientId) {
+		super(server, clientId);
 		m_hubServer= server;
 		m_clientId = clientId;
 		addListener(new IRemoteCommandListener() {

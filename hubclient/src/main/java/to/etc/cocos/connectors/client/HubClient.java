@@ -6,6 +6,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.common.Peer;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
@@ -181,6 +182,11 @@ final public class HubClient extends HubConnectorBase {
 		HubErrorResponse hubError = env.getHubError();
 		log("HUB error: " + hubError.getCode() + " " + hubError.getText());
 		forceDisconnect("HUB error received");
+	}
+
+	@Override
+	protected Peer createPeer(String peerId) {
+		return new Peer(this, peerId);
 	}
 
 	public int getRunningCommands() {

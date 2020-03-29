@@ -8,6 +8,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.common.Peer;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.cocos.connectors.ifaces.EvCommandError;
@@ -200,10 +201,10 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	/**
 	 * If the server's authorization was successful we receive this; move to AUTHORIZED status.
 	 */
-	@Synchronous
-	private void handleAUTH(CommandContext cc) throws Exception {
-		cc.getConnector().authorized();
-		cc.log("Authenticated successfully");
+	@Override
+	protected void handleAUTH(Envelope auth) throws Exception {
+		authorized();
+		log("Authenticated successfully");
 	}
 
 	/**
@@ -447,5 +448,8 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		command.appendOutput(data, output.getCode());
 	}
 
-
+	@Override
+	protected Peer createPeer(String peerId) {
+		return new RemoteClient(this, peerId);
+	}
 }
