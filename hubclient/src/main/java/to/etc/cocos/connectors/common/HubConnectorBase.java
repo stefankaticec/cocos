@@ -9,21 +9,16 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import to.etc.cocos.messages.Hubcore;
-import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.Envelope;
-import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.messages.Hubcore.Pong;
 import to.etc.hubserver.protocol.CommandNames;
-import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 import to.etc.util.StringTool;
-import to.etc.util.WrappedException;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
@@ -42,7 +37,6 @@ import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -126,14 +120,8 @@ public abstract class HubConnectorBase {
 
 	private final PacketWriter m_writer;
 
-	/** Contains HUB commands. These will be sent immediately in all states, and on failure they will all be discarded. */
-	private List<IPacketTransmitter> m_txHubQueue = new ArrayList<>();
-
-	/** Contains normal end-to-end packets. Will only be sent in AUTHORIZED state, and on failure packets will be kept. */
-	private List<IPacketTransmitter> m_txQueue = new ArrayList<>();
-
-	/** Contains high priority end-to-end packets. Will only be sent in AUTHORIZED state, and on failure packets will be kept. */
-	private List<IPacketTransmitter> m_txPrioQueue = new ArrayList<>();
+	/** Transmitter queue. Will be emptied as soon as the connection gets lost. */
+	private List<PendingTxPacket> m_txQueue = new ArrayList<>();
 
 	public enum PacketPrio {
 		HUB, NORMAL, PRIO
@@ -159,6 +147,22 @@ public abstract class HubConnectorBase {
 			return t;
 		}
 	};
+
+	/**
+	 * Returns the #of millis the peer needs to have been unavailable before packets sent to the peer will be failed immediately.
+	 */
+	public abstract long getPeerDisconnectedDuration();
+
+	/**
+	 * When T any task transmitting an ackable packet to a peer that has a full transmitter queue will block. When false
+	 * the packet will be refused with an exception when the queue is full. The latter mode is used by servers.
+	 */
+	public abstract boolean isTransmitBlocking();
+
+	/**
+	 * Returns the max #of ackable packets that can be queued before exception or block.
+	 */
+	public abstract int getMaxQueuedPackets();
 
 	protected abstract void onErrorPacket(Envelope env);
 
@@ -363,15 +367,9 @@ public abstract class HubConnectorBase {
 				case CONNECTED:
 					//-- We need to transmit packets when available
 					IPacketTransmitter transmitter;
-					if(m_txHubQueue.size() > 0) {
-						transmitter = m_txHubQueue.remove(0);
-						action = () -> transmitPacket(transmitter, null);
-					} else if(m_txPrioQueue.size() > 0 && state == ConnectorState.AUTHENTICATED) {
-						transmitter = m_txPrioQueue.remove(0);
-						action = () -> transmitPacket(transmitter, m_txPrioQueue);
-					} else if(m_txQueue.size() > 0 && state == ConnectorState.AUTHENTICATED) {
-						transmitter = m_txQueue.remove(0);
-						action = () -> transmitPacket(transmitter, m_txQueue);
+					if(m_txQueue.size() > 0) {
+						PendingTxPacket pp = m_txQueue.remove(0);
+						action = () -> transmitPacket(pp);
 					} else {
 						sleepWait(10_000L);
 						return true;
@@ -409,7 +407,7 @@ public abstract class HubConnectorBase {
 	 * is re-established. If the send has failed the channel will have been
 	 * disconnected.
 	 */
-	private void transmitPacket(IPacketTransmitter sender, @Nullable List<IPacketTransmitter> pushbackQueue) {
+	private void transmitPacket(PendingTxPacket pp) {
 		try {
 			OutputStream os;
 			synchronized(this) {
@@ -418,75 +416,49 @@ public abstract class HubConnectorBase {
 					throw new SocketEofException("Sender socket is null");
 			}
 			m_writer.setOs(os);
-			sender.send(m_writer);
+			m_writer.sendEnvelope(pp.getEnvelope());
+			m_writer.sendBody(pp.getBodyTransmitter());
 			os.flush();
 		} catch(Exception x) {
-			error("Send for packet " + sender + " failed: " + x);
+			error("Send for packet " + pp + " failed: " + x);
 			forceDisconnect("Packet send failed");
-
-			if(null != pushbackQueue) {
-				synchronized(this) {
-					pushbackQueue.add(0, sender);
-				}
-			}
+			m_txQueue.clear();
 		}
 	}
 
-	public void sendPacket(PacketPrio prio, Hubcore.Envelope message, @Nullable Object json) {
-		if(message.getPayloadCase() == PayloadCase.PAYLOAD_NOT_SET)
-			throw new IllegalStateException("Missing payload!!");
-		IPacketTransmitter sp = new IPacketTransmitter() {
-			@Override public void send(PacketWriter os) throws Exception {
-				os.send(message, json);
-			}
-		};
-		sendPacket(prio, sp);
+	//void sendPacketPrimitive(Hubcore.Envelope message, @Nullable Object json) {
+	//	if(message.getPayloadCase() == PayloadCase.PAYLOAD_NOT_SET)
+	//		throw new IllegalStateException("Missing payload!!");
+	//	IPacketTransmitter sp = new IPacketTransmitter() {
+	//		@Override public void send(PacketWriter os) throws Exception {
+	//			os.send(message, json);
+	//		}
+	//	};
+	//	sendPacketPrimitive(sp);
+	//}
+
+	/**
+	 * Put a packet into the transmitter queue, to be sent as soon as the transmitter is free.
+	 */
+	void sendPacketPrimitive(Envelope envelope, IBodyTransmitter bodyTransmitter) {
+		sendPacketPrimitive(new PendingTxPacket(envelope, bodyTransmitter));
 	}
 
-	public void sendPacket(PacketPrio prio, IPacketTransmitter packetSender) {
-		List<IPacketTransmitter> queue;
-		switch(prio) {
-			default:
-				throw new IllegalStateException(prio + "??");
-
-			case HUB:
-				queue = m_txHubQueue;
-				break;
-
-			case NORMAL:
-				queue = m_txQueue;
-				break;
-
-			case PRIO:
-				queue = m_txPrioQueue;
-				break;
-		}
-
-		boolean blocked = false;
+	/**
+	 * Put a packet in the transmitter queue. Drop it if the queue gets too full.
+	 */
+	void sendPacketPrimitive(PendingTxPacket pp) {
 		synchronized(this) {
-			for(;;) {
-				if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
-					throw new IllegalStateException("Cannot send packets when connector is " + m_state);
-				}
-
-				if(queue.size() > 200) {
-					log("Transmitter queue full, blocking");
-					blocked = true;
-					try {
-						wait(5000);
-					} catch(InterruptedException x) {
-						throw new WrappedException(x);
-					}
-				} else {
-					if(blocked) {
-						log("Transmitter queue unblocked");
-						blocked = false;
-					}
-					queue.add(packetSender);
-					notify();
-					return;
-				}
+			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
+				throw new IllegalStateException("Cannot send packets when connector is " + m_state);
 			}
+
+			if(m_txQueue.size() > 20_000) {
+				log("Transmitter queue full, dropping packet");
+				return;
+			}
+			m_txQueue.add(pp);
+			notify();
 		}
 	}
 
@@ -629,46 +601,42 @@ public abstract class HubConnectorBase {
 			.setCode("command.exception")
 			.setDetails(StringTool.strStacktrace(cfx))
 			;
-		sendPacket(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
+		sendPacketPrimitive(ctx.getResponseEnvelope().build(), null);
 	}
 
-	//public void sendCommandErrorPacket(CommandContext ctx, String code, String message, @Nullable String details) {
+	//public void sendCommandErrorPacket(CommandContext ctx, ErrorCode code, Object... params) {
+	//	String message = MessageFormat.format(code.getText(), params);
 	//	CommandError cmdE = CommandError.newBuilder()
-	//		.setId(ctx.getSourceEnvelope().getCmd().getId())
-	//		.setName(ctx.getSourceEnvelope().getCmd().getName())
-	//		.setCode(code)
+	//		.setId(ctx.getSourceEnvelope().getAckable().getCmd().getId())
+	//		.setName(ctx.getSourceEnvelope().getAckable().getCmd().getName())
+	//		.setCode(code.name())
 	//		.setMessage(message)
-	//		.setDetails(details)
+	//		//.setDetails(details)
 	//		.build();
-	//	ctx.getResponseEnvelope().setCommandError(cmdE);
-	//	sendPacket(ctx.getResponseEnvelope().build(), null);
+	//	ctx.getResponseEnvelope().getAckableBuilder()
+	//		.setCommandError(cmdE)
+	//		.build()
+	//		;
+	//
+	//	//ctx.getResponseEnvelope().setCommandError(cmdE);
+	//	sendPacketPrimitive(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
 	//}
 
-	public void sendCommandErrorPacket(CommandContext ctx, ErrorCode code, Object... params) {
-		String message = MessageFormat.format(code.getText(), params);
-		CommandError cmdE = CommandError.newBuilder()
-			.setId(ctx.getSourceEnvelope().getCmd().getId())
-			.setName(ctx.getSourceEnvelope().getCmd().getName())
-			.setCode(code.name())
-			.setMessage(message)
-			//.setDetails(details)
-			.build();
-		ctx.getResponseEnvelope().setCommandError(cmdE);
-		sendPacket(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
-	}
-
-	public void sendCommandErrorPacket(CommandContext ctx, Throwable t) {
-		String message = "Exception in command: " + t.toString();
-		CommandError cmdE = CommandError.newBuilder()
-			.setId(ctx.getSourceEnvelope().getCmd().getId())
-			.setName(ctx.getSourceEnvelope().getCmd().getName())
-			.setCode(ErrorCode.commandException.name())
-			.setMessage(message)
-			.setDetails(StringTool.strStacktrace(t))
-			.build();
-		ctx.getResponseEnvelope().setCommandError(cmdE);
-		sendPacket(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
-	}
+	//public void sendCommandErrorPacket(CommandContext ctx, Throwable t) {
+	//	String message = "Exception in command: " + t.toString();
+	//	CommandError cmdE = CommandError.newBuilder()
+	//		.setId(ctx.getSourceEnvelope().getAckable().getCmd().getId())
+	//		.setName(ctx.getSourceEnvelope().getAckable().getCmd().getName())
+	//		.setCode(ErrorCode.commandException.name())
+	//		.setMessage(message)
+	//		.setDetails(StringTool.strStacktrace(t))
+	//		.build();
+	//	ctx.getResponseEnvelope().getAckableBuilder()
+	//		.setCommandError(cmdE)
+	//		.build()
+	//	;
+	//	sendPacketPrimitive(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
+	//}
 
 	/**
 	 * Force disconnect and enter the next appropriate state, depending on

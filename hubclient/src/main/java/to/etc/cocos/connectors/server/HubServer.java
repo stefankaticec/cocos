@@ -365,7 +365,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 				.setName(packet.getClass().getName())
 			)
 			.build();
-		sendPacket(PacketPrio.NORMAL, jcmd, packet);
+		sendPacketPrimitive(PacketPrio.NORMAL, jcmd, packet);
 	}
 
 	private RemoteCommand getCommandFromID(String clientId, String commandId, String commandName) {

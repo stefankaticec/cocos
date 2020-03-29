@@ -7,6 +7,7 @@ import to.etc.cocos.connectors.client.IClientCommandHandler;
 import to.etc.cocos.connectors.common.HubConnectorBase.PacketPrio;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.CommandOutput;
 import to.etc.cocos.messages.Hubcore.Envelope;
@@ -51,19 +52,19 @@ final public class CommandContext {
 	}
 
 	public String getId() {
-		if(! m_envelope.hasCmd())
+		if(! m_envelope.hasAckable() && ! m_envelope.getAckable().hasCmd())
 			throw new IllegalStateException("This is not a command");
-		return m_envelope.getCmd().getId();
+		return m_envelope.getAckable().getCmd().getId();
 	}
 
 	public void respondJson(PacketPrio prio, @NonNull Object jsonPacket) {
 		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacket(prio, envelope, jsonPacket);
+		m_connector.sendPacketPrimitive(prio, envelope, jsonPacket);
 	}
 
 	public void respond(PacketPrio prio) {
 		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacket(prio, envelope, null);
+		m_connector.sendPacketPrimitive(prio, envelope, null);
 	}
 
 	public Envelope getSourceEnvelope() {
@@ -128,21 +129,24 @@ final public class CommandContext {
 
 	public void sendStdoutPacket(String s) {
 		System.out.println("stdout> " + s);
-		Command cmd = m_envelope.getCmd();
+		Command cmd = m_envelope.getAckable().getCmd();
 		Envelope envelope = Envelope.newBuilder()
 			.setVersion(m_envelope.getVersion())
 			.setSourceId(m_envelope.getTargetId())            // Swap src and dest
 			.setTargetId(m_envelope.getSourceId())
-			.setOutput(CommandOutput.newBuilder()
-				.setCode("stdout")
-				.setId(cmd.getId())
-				.setName(cmd.getName())
-				.setEncoding("utf-8")
-				.setSequence(nextSequenceNumber())
+			.setAckable(AckableMessage.newBuilder()
+				.setOutput(
+					CommandOutput.newBuilder()
+					.setCode("stdout")
+					.setId(cmd.getId())
+					.setName(cmd.getName())
+					.setEncoding("utf-8")
+					.setSequence(nextSequenceNumber())
+				)
 			).build();
 
 		//-- Create the JSON packet body
-		m_connector.sendPacket(PacketPrio.NORMAL, os -> os.sendString(envelope, s));
+		m_connector.sendPacketPrimitive(PacketPrio.NORMAL, os -> os.sendString(envelope, s));
 	}
 
 	public synchronized void setHandler(@Nullable IClientCommandHandler handler) {
