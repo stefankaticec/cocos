@@ -69,13 +69,13 @@ message CommandError {
     string details = 5;
 }
 
-message CommandProgress {
-    string name = 1;
-    string id = 2;
-    string code = 3;
-    string task = 4;
-    string percentageComplete = 5;
-}
+//message CommandProgress {
+//    string name = 1;
+//    string id = 2;
+//    string code = 3;
+//    string task = 4;
+//    string percentageComplete = 5;
+//}
 
 message CommandOutput {
     string name = 1;
@@ -83,6 +83,11 @@ message CommandOutput {
     int32 sequence = 3;
     string code = 4;
     string encoding = 5;
+    int32 progress = 6;
+}
+
+message Ack {
+    int32 sequence = 1;
 }
 
 //-- Event classes
@@ -90,31 +95,38 @@ message ClientDisconnected {}
 
 message ClientConnected {}
 
+
+message AckableMessage {
+    int32 sequence = 1;
+
+    oneof payload {
+        ClientInventory inventory = 10;
+        Command cmd = 11;
+        CommandResponse response = 12;
+        CommandError commandError = 13;
+        CommandOutput output = 14;
+        ClientConnected clientConnected = 15;
+        ClientDisconnected clientDisconnected = 16;
+    }
+}
+
 message Envelope {
      int32 version = 1;
      string sourceId = 2;
      string targetId = 3;
 
      oneof payload {
-         Ping ping = 8;
-         Pong pong = 9;
+         AckableMessage ackable = 5;
 
-         HelloChallenge challenge  = 10;
-         ServerHeloResponse heloServer = 11;
-         ClientHeloResponse heloClient = 12;
-         ClientAuthRequest clientAuth = 13;
-         ClientInventory inventory = 14;
+         Ack ack = 6;
+         Ping ping = 7;
+         Pong pong = 8;
 
-         AuthResponse auth = 20;
-         HubErrorResponse hubError = 21;
-
-         Command cmd = 30;
-         CommandResponse response = 31;
-         CommandError commandError = 32;
-         CommandProgress progress = 33;
-         CommandOutput output = 34;
-
-         ClientConnected clientConnected = 40;
-         ClientDisconnected clientDisconnected = 41;
+         HelloChallenge challenge  = 9;
+         ServerHeloResponse heloServer = 10;
+         ClientHeloResponse heloClient = 11;
+         ClientAuthRequest clientAuth = 12;
+         HubErrorResponse hubError = 13;
+         AuthResponse auth = 14;
      }
 }
