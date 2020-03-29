@@ -202,7 +202,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	 * If the server's authorization was successful we receive this; move to AUTHORIZED status.
 	 */
 	@Override
-	protected void handleAUTH(Envelope auth) throws Exception {
+	protected void handleAUTH(Envelope auth, Peer peerByID) throws Exception {
 		authorized();
 		log("Authenticated successfully");
 	}

@@ -4,13 +4,19 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
+import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.util.StringTool;
 import to.etc.util.TimerUtil;
 
+import java.text.MessageFormat;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.TimerTask;
 
 /**
@@ -38,12 +44,16 @@ public class Peer {
 	@Nullable
 	private TimerTask m_timerTask;
 
+	private Set<Integer> m_unseenSet = new HashSet<>();
+
+	private int m_lastSequenceSeen;
+
 	public Peer(HubConnectorBase connector, String peerId) {
 		m_connector = connector;
 		m_peerId = peerId;
 	}
 
-	public void send(AckableMessage.Builder packetBuilder, IBodyTransmitter bodyTransmitter, Duration expiryDuration) throws Exception {
+	public void send(AckableMessage.Builder packetBuilder, IBodyTransmitter bodyTransmitter, Duration expiryDuration) {
 		long dur = expiryDuration.get(ChronoUnit.MILLIS);
 		long cts = System.currentTimeMillis();
 		long peerDisconnectedDuration = m_connector.getPeerDisconnectedDuration();
@@ -61,7 +71,11 @@ public class Peer {
 				throw new PeerAbsentException(m_peerId);
 			while(m_txQueue.size() > m_connector.getMaxQueuedPackets()) {
 				if(m_connector.isTransmitBlocking()) {
-					wait(10_000);								// Sleep until the #packets decreases
+					try {
+						wait(10_000);                                // Sleep until the #packets decreases
+					} catch(InterruptedException x) {
+						throw new RuntimeException(x);
+					}
 				} else {
 					throw new PeerPacketBufferOverflowException(m_peerId + ": too many queued and unacknowledged packets");
 				}
@@ -159,4 +173,72 @@ public class Peer {
 			}
 		}
 	}
+
+	/**
+	 * Returns T if the packet with the sequence number specified has already been
+	 * seen from this peer. In that case the effect of the packet has already been
+	 * done, so we should ignore it.
+	 *
+	 * Algorithm: we keep a highest sequence number plus a set of values BELOW
+	 * that highest number that is not yet seen. When a new sequence comes in, if
+	 * it is lower than the sequence it is unseen only if it is in that set. In that
+	 * case remove it from that set.
+	 * If the number is > max then we add the missing numbers to the unseen set.
+	 * As we expect all ids to be seen this mechanism will empty the set as seq#s
+	 * arrive.
+	 */
+	public boolean seen(int sequence) {
+		synchronized(this) {
+			if(sequence > m_lastSequenceSeen) {
+				if(sequence - m_lastSequenceSeen > 100)
+					throw new IllegalStateException("Too many missing packet sequences");
+				//-- Add "Unseen" records for all numbers from lastSequence up to sequence
+				for(int i = m_lastSequenceSeen + 1; i < sequence; i++) {
+					m_unseenSet.add(i);
+				}
+				m_lastSequenceSeen = sequence;
+				return false;
+			}
+
+			if(m_unseenSet.remove(sequence)) {
+				return true;
+			}
+			return true;
+		}
+	}
+
+	public void sendCommandErrorPacket(Envelope src, ErrorCode code, Object... params) {
+		String message = MessageFormat.format(code.getText(), params);
+		CommandError cmdE = CommandError.newBuilder()
+			.setId(src.getAckable().getCmd().getId())
+			.setName(src.getAckable().getCmd().getName())
+			.setCode(code.name())
+			.setMessage(message)
+			.build();
+		var b = AckableMessage.newBuilder()
+			.setCommandError(cmdE)
+			;
+		send(b, null, getErrorDuration());
+	}
+
+	public void sendCommandErrorPacket(Envelope src, Throwable t) {
+		String message = "Exception in command: " + t.toString();
+		CommandError cmdE = CommandError.newBuilder()
+			.setId(src.getAckable().getCmd().getId())
+			.setName(src.getAckable().getCmd().getName())
+			.setCode(ErrorCode.commandException.name())
+			.setMessage(message)
+			.setDetails(StringTool.strStacktrace(t))
+			.build();
+		var b = AckableMessage.newBuilder()
+			.setCommandError(cmdE)
+			;
+		send(b, null, getErrorDuration());
+	}
+
+	private Duration getErrorDuration() {
+		return Duration.ofHours(1);
+	}
+
+
 }

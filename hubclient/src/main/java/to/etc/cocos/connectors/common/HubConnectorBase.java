@@ -9,6 +9,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import to.etc.cocos.messages.Hubcore.Ack;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
@@ -177,9 +178,11 @@ public abstract class HubConnectorBase {
 
 	protected abstract void handleCHALLENGE(Envelope heloPacket) throws Exception;
 
-	protected abstract void handleAUTH(Envelope authPacket) throws Exception;
+	protected abstract void handleAUTH(Envelope authPacket, Peer peer) throws Exception;
 
 	protected abstract Peer createPeer(String peerId);
+
+	protected abstract void handleAckable(CommandContext cc, ArrayList<byte[]> body) throws Exception;
 
 	protected HubConnectorBase(String server, int port, String targetId, String myId, String logName) {
 		m_id = nextId();
@@ -599,7 +602,7 @@ public abstract class HubConnectorBase {
 					break;
 
 				case AUTH:
-					handleAUTH(env);
+					handleAUTH(env, getPeerByID(env.getSourceId()));
 					break;
 
 				case ACK:
@@ -640,14 +643,31 @@ public abstract class HubConnectorBase {
 	}
 
 	private void handleAckablePacket(Envelope env, ArrayList<byte[]> body) {
-		CommandContext ctx = new CommandContext(this, env);
+		respondWithAck(env);						// Always ack the packet as we've seen it
 
+		Peer peer = getPeerByID(env.getSourceId());
+		if(peer.seen(env.getAckable().getSequence())) {
+			return;
+		}
+
+		CommandContext ctx = new CommandContext(this, env, peer);
 		try {
-
-		} catch(CommandFailedException cfx) {
-			sendHubErrorPacket(ctx, cfx);
+			handleAckable(ctx, body);
+		//} catch(CommandFailedException cfx) {
+		//	sendHubErrorPacket(ctx, cfx);
 		} catch(Exception x) {
+			Throwable t = x;
+			while(t instanceof InvocationTargetException) {
+				t = ((InvocationTargetException)t).getTargetException();
+			}
+			log("Command exception: " + t);
 
+			//-- If this was a command then respond with a command exception
+			if(env.getAckable().hasCmd()) {
+				peer.sendCommandErrorPacket(ctx.getSourceEnvelope(), t);
+			} else {
+				sendHubErrorPacket(env, t);
+			}
 		}
 	}
 
@@ -661,13 +681,27 @@ public abstract class HubConnectorBase {
 	/**
 	 * Send a HUB error packet using normal send.
 	 */
-	private void sendHubErrorPacket(CommandContext ctx, CommandFailedException cfx) {
-		ctx.getResponseEnvelope().getHubErrorBuilder()
-			.setText(cfx.getMessage())
-			.setCode("command.exception")
-			.setDetails(StringTool.strStacktrace(cfx))
-			;
-		sendPacketPrimitive(ctx.getResponseEnvelope().build(), null);
+	//private void sendHubErrorPacket(CommandContext ctx, Throwable cfx) {
+	//	ctx.getResponseEnvelope().getHubErrorBuilder()
+	//		.setText(cfx.getMessage())
+	//		.setCode("command.exception")
+	//		.setDetails(StringTool.strStacktrace(cfx))
+	//		;
+	//	sendPacketPrimitive(ctx.getResponseEnvelope().build(), null);
+	//}
+
+	/**
+	 * Send a HUB error packet.
+	 */
+	protected void sendHubErrorPacket(Envelope src, Throwable cfx) {
+		Envelope response = responseEnvelope(src)
+			.setHubError(HubErrorResponse.newBuilder()
+				.setText(cfx.getMessage())
+				.setCode("command.exception")
+				.setDetails(StringTool.strStacktrace(cfx))
+				.build()
+			).build();
+		sendPacketPrimitive(response, null);
 	}
 
 	//public void sendCommandErrorPacket(CommandContext ctx, ErrorCode code, Object... params) {
@@ -869,6 +903,13 @@ public abstract class HubConnectorBase {
 	private void respondWithPong(Envelope src) {
 		Envelope response = responseEnvelope(src)
 			.setPong(Pong.newBuilder())
+			.build();
+		sendPacketPrimitive(response, null);
+	}
+
+	private void respondWithAck(Envelope src) {
+		Envelope response = responseEnvelope(src)
+			.setAck(Ack.newBuilder().setSequence(src.getAckable().getSequence()))
 			.build();
 		sendPacketPrimitive(response, null);
 	}

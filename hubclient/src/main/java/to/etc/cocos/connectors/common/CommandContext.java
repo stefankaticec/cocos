@@ -29,6 +29,8 @@ final public class CommandContext {
 
 	private final Builder m_responseEnvelope;
 
+	private Peer m_peer;
+
 	private RemoteCommandStatus m_status = RemoteCommandStatus.SCHEDULED;
 
 	private int m_stdoutPacketNumber;
@@ -39,7 +41,7 @@ final public class CommandContext {
 	@Nullable
 	private String m_cancelReason;
 
-	public CommandContext(HubConnectorBase connector, Envelope envelope) {
+	public CommandContext(HubConnectorBase connector, Envelope envelope, Peer peer) {
 		m_connector = connector;
 		m_envelope = envelope;
 
@@ -49,6 +51,11 @@ final public class CommandContext {
 			.setSourceId(envelope.getTargetId())			// Swap src and dest
 			.setTargetId(envelope.getSourceId())
 			;
+		m_peer = peer;
+	}
+
+	public Peer peer() {
+		return m_peer;
 	}
 
 	public String getId() {

@@ -100,7 +100,6 @@ message AckableMessage {
     int32 sequence = 1;
 
     oneof payload {
-        ClientInventory inventory = 10;
         Command cmd = 11;
         CommandResponse response = 12;
         CommandError commandError = 13;
@@ -128,5 +127,6 @@ message Envelope {
          ClientAuthRequest clientAuth = 12;
          HubErrorResponse hubError = 13;
          AuthResponse auth = 14;
+         ClientInventory inventory = 15;
      }
 }

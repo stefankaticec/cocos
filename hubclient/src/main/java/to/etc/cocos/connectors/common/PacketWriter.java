@@ -63,7 +63,7 @@ final public class PacketWriter {
 		m_os.write(bytes);
 	}
 
-	private void writeJsonObject(Object jsonObject) throws IOException {
+	public void writeJsonObject(Object jsonObject) throws IOException {
 		ByteBufferOutputStream bbos = new ByteBufferOutputStream();
 		m_mapper.writeValue(bbos, jsonObject);
 		bbos.close();

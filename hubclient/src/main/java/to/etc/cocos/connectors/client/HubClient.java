@@ -4,20 +4,22 @@ import com.google.protobuf.ByteString;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.CommandFailedException;
 import to.etc.cocos.connectors.common.HubConnectorBase;
+import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.Peer;
-import to.etc.cocos.connectors.common.ProtocolViolationException;
-import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.connectors.packets.CancelPacket;
 import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.ClientInventory;
 import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,10 +50,37 @@ final public class HubClient extends HubConnectorBase {
 		m_targetCluster = targetClusterAndOrg;
 	}
 
+	@Override
+	public long getPeerDisconnectedDuration() {
+		return 1 * 60 * 60 * 1000L;
+	}
+
+	@Override
+	public boolean isTransmitBlocking() {
+		return true;
+	}
+
+	@Override
+	public int getMaxQueuedPackets() {
+		return 8192;
+	}
+
 	static public HubClient create(IClientAuthenticationHandler handler, String hubServer, int hubServerPort, String targetClusterAndOrg, String myId) {
 		HubClient responder = new HubClient(hubServer, hubServerPort, handler, targetClusterAndOrg, myId);
 		responder.registerJsonCommandAsync(CancelPacket.class, () -> new CancelCommand(responder));
 		return responder;
+	}
+
+	@Override
+	protected void handleAckable(CommandContext cc, ArrayList<byte[]> body) throws Exception {
+		switch(cc.getSourceEnvelope().getAckable().getPayloadCase()) {
+			default:
+				throw new CommandFailedException("Unexpected ackable payload " + cc.getSourceEnvelope().getAckable().getPayloadCase());
+
+			case CMD:
+				handleCommand(cc, body);
+				break;
+		}
 	}
 
 	//@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {
@@ -100,11 +129,11 @@ final public class HubClient extends HubConnectorBase {
 	}
 
 	private void handleCommand(CommandContext ctx, List<byte[]> data) throws Exception {
-		Command cmd = ctx.getSourceEnvelope().getCmd();
+		Command cmd = ctx.getSourceEnvelope().getAckable().getCmd();
 		IClientCommandHandler commandHandler = findCommandHandler(cmd.getName());
 		if(null == commandHandler) {
-			ctx.error("No command handler for " + cmd.getName());
-			sendCommandErrorPacket(ctx, ErrorCode.commandNotFound, cmd.getName());
+			error("No command handler for " + cmd.getName());
+			ctx.peer().sendCommandErrorPacket(ctx.getSourceEnvelope(), ErrorCode.commandNotFound, cmd.getName());
 			return;
 		}
 		ctx.log("Running handler for " + cmd.getName() + " and command " + cmd.getId());
@@ -122,7 +151,7 @@ final public class HubClient extends HubConnectorBase {
 		} catch(Exception x) {
 			ctx.log("Command " + cmd.getName() + " failed: " + x);
 			x.printStackTrace();
-			sendCommandErrorPacket(ctx, x);
+			ctx.peer().sendCommandErrorPacket(ctx.getSourceEnvelope(), x);
 		}
 	}
 
@@ -164,18 +193,18 @@ final public class HubClient extends HubConnectorBase {
 	 * If the authorization was successful we receive this; move to AUTHORIZED status.
 	 */
 	@Override
-	protected void handleAUTH(Envelope src) throws Exception {
+	protected void handleAUTH(Envelope src, Peer peer) throws Exception {
 		authorized();
 		log("Authenticated successfully");
 
 		//-- Immediately send the inventory packet
 		JsonPacket inventory = m_authHandler.getInventory();
-		cc.getResponseEnvelope()
-			.setInventory(Hubcore.ClientInventory.newBuilder()
+		Envelope response = responseEnvelope(src)
+			.setInventory(ClientInventory.newBuilder()
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
 			)
-			;
-		cc.respondJson(PacketPrio.HUB, inventory);
+			.build();
+		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory));
 	}
 
 	@Override protected void onErrorPacket(Envelope env) {
