@@ -15,7 +15,6 @@ import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.messages.Hubcore.Pong;
 import to.etc.hubserver.protocol.CommandNames;
-import to.etc.hubserver.protocol.HubException;
 import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
@@ -932,23 +931,23 @@ public abstract class HubConnectorBase {
 		return null == body ? "(void)" : body.getClass().getName();
 	}
 
-	static private void unwrapAndRethrowException(CommandContext cc, Throwable t) throws Exception {
-		while(t instanceof InvocationTargetException) {
-			t = ((InvocationTargetException)t).getTargetException();
-		}
-
-		if(t instanceof HubException) {
-			cc.respondWithHubErrorPacket(PacketPrio.HUB, (HubException) t);
-		}  if(t instanceof RuntimeException) {
-			throw (RuntimeException) t;
-		} else if(t instanceof Error) {
-			throw (Error) t;
-		} else if(t instanceof Exception) {
-			throw (Exception) t;
-		} else {
-			throw new RuntimeException(t);
-		}
-	}
+	//static private void unwrapAndRethrowException(CommandContext cc, Throwable t) throws Exception {
+	//	while(t instanceof InvocationTargetException) {
+	//		t = ((InvocationTargetException)t).getTargetException();
+	//	}
+	//
+	//	if(t instanceof HubException) {
+	//		cc.respondWithHubErrorPacket(PacketPrio.HUB, (HubException) t);
+	//	}  if(t instanceof RuntimeException) {
+	//		throw (RuntimeException) t;
+	//	} else if(t instanceof Error) {
+	//		throw (Error) t;
+	//	} else if(t instanceof Exception) {
+	//		throw (Exception) t;
+	//	} else {
+	//		throw new RuntimeException(t);
+	//	}
+	//}
 
 
 	@Nullable

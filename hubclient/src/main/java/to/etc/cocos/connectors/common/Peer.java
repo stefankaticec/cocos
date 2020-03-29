@@ -53,7 +53,7 @@ public class Peer {
 		m_peerId = peerId;
 	}
 
-	public void send(AckableMessage.Builder packetBuilder, IBodyTransmitter bodyTransmitter, Duration expiryDuration) {
+	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration) {
 		long dur = expiryDuration.get(ChronoUnit.MILLIS);
 		long cts = System.currentTimeMillis();
 		long peerDisconnectedDuration = m_connector.getPeerDisconnectedDuration();

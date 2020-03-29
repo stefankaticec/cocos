@@ -1,10 +1,8 @@
 package to.etc.cocos.connectors.common;
 
-import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.client.IClientCommandHandler;
-import to.etc.cocos.connectors.common.HubConnectorBase.PacketPrio;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
@@ -12,10 +10,8 @@ import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.CommandOutput;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.Builder;
-import to.etc.cocos.messages.Hubcore.HubErrorResponse;
-import to.etc.hubserver.protocol.ErrorCode;
-import to.etc.hubserver.protocol.HubException;
-import to.etc.util.StringTool;
+
+import java.time.Duration;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -64,16 +60,16 @@ final public class CommandContext {
 		return m_envelope.getAckable().getCmd().getId();
 	}
 
-	public void respondJson(PacketPrio prio, @NonNull Object jsonPacket) {
-		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacketPrimitive(prio, envelope, jsonPacket);
-	}
-
-	public void respond(PacketPrio prio) {
-		final Envelope envelope = m_responseEnvelope.build();
-		m_connector.sendPacketPrimitive(prio, envelope, null);
-	}
-
+	//public void respondJson(PacketPrio prio, @NonNull Object jsonPacket) {
+	//	final Envelope envelope = m_responseEnvelope.build();
+	//	m_connector.sendPacketPrimitive(prio, envelope, jsonPacket);
+	//}
+	//
+	//public void respond(PacketPrio prio) {
+	//	final Envelope envelope = m_responseEnvelope.build();
+	//	m_connector.sendPacketPrimitive(prio, envelope, null);
+	//}
+	//
 	public Envelope getSourceEnvelope() {
 		return m_envelope;
 	}
@@ -94,25 +90,25 @@ final public class CommandContext {
 		m_connector.error(s);
 	}
 
-	public void respondWithHubErrorPacket(PacketPrio prio, ErrorCode code, String details) {
-		getResponseEnvelope().setHubError(HubErrorResponse.newBuilder()
-			.setCode(code.name())
-			.setText(code.getText())
-			.setDetails(details)
-			.build()
-		);
-		respond(prio);
-	}
-
-	public void respondWithHubErrorPacket(PacketPrio prio, HubException t) {
-		getResponseEnvelope().setHubError(HubErrorResponse.newBuilder()
-			.setCode(t.getCode().name())
-			.setText(t.getMessage())
-			.setDetails(StringTool.strStacktrace(t))
-			.build()
-		);
-		respond(prio);
-	}
+	//public void respondWithHubErrorPacket(PacketPrio prio, ErrorCode code, String details) {
+	//	getResponseEnvelope().setHubError(HubErrorResponse.newBuilder()
+	//		.setCode(code.name())
+	//		.setText(code.getText())
+	//		.setDetails(details)
+	//		.build()
+	//	);
+	//	respond(prio);
+	//}
+	//
+	//public void respondWithHubErrorPacket(PacketPrio prio, HubException t) {
+	//	getResponseEnvelope().setHubError(HubErrorResponse.newBuilder()
+	//		.setCode(t.getCode().name())
+	//		.setText(t.getMessage())
+	//		.setDetails(StringTool.strStacktrace(t))
+	//		.build()
+	//	);
+	//	respond(prio);
+	//}
 
 	public RemoteCommandStatus getStatus() {
 		synchronized(m_connector) {
@@ -130,30 +126,27 @@ final public class CommandContext {
 		return m_stdoutPacketNumber++;
 	}
 
-	public void respondCommandErrorPacket(Exception x) {
-		getConnector().sendCommandErrorPacket(this, x);
-	}
+	//public void respondCommandErrorPacket(Exception x) {
+	//	getConnector().sendCommandErrorPacket(this, x);
+	//}
 
 	public void sendStdoutPacket(String s) {
 		System.out.println("stdout> " + s);
 		Command cmd = m_envelope.getAckable().getCmd();
-		Envelope envelope = Envelope.newBuilder()
-			.setVersion(m_envelope.getVersion())
-			.setSourceId(m_envelope.getTargetId())            // Swap src and dest
-			.setTargetId(m_envelope.getSourceId())
-			.setAckable(AckableMessage.newBuilder()
-				.setOutput(
-					CommandOutput.newBuilder()
+
+		//-- Create the JSON packet body
+		AckableMessage.Builder ackable = AckableMessage.newBuilder()
+			.setOutput(
+				CommandOutput.newBuilder()
 					.setCode("stdout")
 					.setId(cmd.getId())
 					.setName(cmd.getName())
 					.setEncoding("utf-8")
 					.setSequence(nextSequenceNumber())
-				)
-			).build();
 
-		//-- Create the JSON packet body
-		m_connector.sendPacketPrimitive(PacketPrio.NORMAL, os -> os.sendString(envelope, s));
+			);
+
+		peer().send(ackable, new StringBodyTransmitter(s), Duration.ofHours(1));
 	}
 
 	public synchronized void setHandler(@Nullable IClientCommandHandler handler) {

@@ -8,6 +8,7 @@ import to.etc.util.ByteBufferOutputStream;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Sends packets in the format required between repeater and clients.
@@ -52,6 +53,16 @@ final public class PacketWriter {
 	//		m_os.write(bytes);
 	//	}
 	//}
+
+	public void writeStringObject(@Nullable String text) throws IOException {
+		if(null == text) {
+			writeInt(0);								// Send an empty body.
+		} else {
+			byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+			writeInt(bytes.length);
+			m_os.write(bytes);
+		}
+	}
 
 	/**
 	 * Send the packet header, then marshal the packet envelope.
