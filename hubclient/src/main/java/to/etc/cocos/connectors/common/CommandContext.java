@@ -19,7 +19,7 @@ import java.time.Duration;
  */
 @NonNullByDefault
 final public class CommandContext {
-	private final HubConnectorBase m_connector;
+	private final HubConnectorBase<?> m_connector;
 
 	private final Hubcore.Envelope m_envelope;
 
@@ -37,7 +37,7 @@ final public class CommandContext {
 	@Nullable
 	private String m_cancelReason;
 
-	public CommandContext(HubConnectorBase connector, Envelope envelope, Peer peer) {
+	public CommandContext(HubConnectorBase<?> connector, Envelope envelope, Peer peer) {
 		m_connector = connector;
 		m_envelope = envelope;
 
@@ -78,7 +78,7 @@ final public class CommandContext {
 		return m_responseEnvelope;
 	}
 
-	public HubConnectorBase getConnector() {
+	public HubConnectorBase<?> getConnector() {
 		return m_connector;
 	}
 

@@ -31,7 +31,7 @@ import java.util.TimerTask;
 public class Peer {
 	static private final long SEND_RETRY_TIME = 5 * 1000L;
 
-	private final HubConnectorBase m_connector;
+	private final HubConnectorBase<?> m_connector;
 
 	private final String m_peerId;
 
@@ -48,7 +48,7 @@ public class Peer {
 
 	private int m_lastSequenceSeen;
 
-	public Peer(HubConnectorBase connector, String peerId) {
+	public Peer(HubConnectorBase<?> connector, String peerId) {
 		m_connector = connector;
 		m_peerId = peerId;
 	}

@@ -15,6 +15,7 @@ import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.messages.Hubcore.Pong;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.ByteBufferInputStream;
 import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
@@ -38,6 +39,7 @@ import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +58,7 @@ import java.util.concurrent.ThreadFactory;
  * Created on 10-1-19.
  */
 @NonNullByDefault
-public abstract class HubConnectorBase {
+public abstract class HubConnectorBase<T extends Peer> {
 	static private final int MAX_PACKET_SIZE = 1024 * 1024;
 
 	static private final Logger LOG = LoggerFactory.getLogger(HubConnectorBase.class);
@@ -145,7 +147,7 @@ public abstract class HubConnectorBase {
 	 * All (recently active) peers by their ID. This only contains the server for
 	 * a client, but for a server it contains all clients.
 	 */
-	private final Map<String, Peer> m_peerMap = new HashMap<>();
+	private final Map<String, T> m_peerMap = new HashMap<>();
 
 	private ThreadFactory m_threadFactory = new ThreadFactory() {
 		@Override
@@ -179,7 +181,15 @@ public abstract class HubConnectorBase {
 
 	protected abstract void handleAUTH(Envelope authPacket, Peer peer) throws Exception;
 
-	protected abstract Peer createPeer(String peerId);
+	protected abstract void handleCLAUTH(Envelope env) throws Exception;
+
+	protected void handleCLINVE(Envelope env, ArrayList<byte[]> body, Peer peer) throws Exception {
+		throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
+	}
+
+	protected abstract T createPeer(String peerId);
+
+	//protected abstract void handleUnackablePackets(Envelope env, ArrayList<byte[]> body) throws Exception;
 
 	protected abstract void handleAckable(CommandContext cc, ArrayList<byte[]> body) throws Exception;
 
@@ -579,6 +589,8 @@ public abstract class HubConnectorBase {
 			switch(env.getPayloadCase()) {
 				default:
 					throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
+					//handleUnackablePackets(env, body);
+					//break;
 
 				case HUBERROR:
 					HubErrorResponse error = env.getHubError();
@@ -604,6 +616,10 @@ public abstract class HubConnectorBase {
 					handleAUTH(env, getPeerByID(env.getSourceId()));
 					break;
 
+				case CLIENTAUTH:
+					handleCLAUTH(env);
+					break;
+
 				case ACK:
 					handleAckPacket(env);
 					break;
@@ -614,6 +630,10 @@ public abstract class HubConnectorBase {
 
 				case PING:
 					respondWithPong(env);
+					break;
+
+				case INVENTORY:
+					handleCLINVE(env, body, getPeerByID(env.getSourceId()));
 					break;
 			}
 		} catch(Exception px) {
@@ -702,6 +722,21 @@ public abstract class HubConnectorBase {
 			).build();
 		sendPacketPrimitive(response, null);
 	}
+
+	/**
+	 * Send a HUB error packet.
+	 */
+	protected void sendHubErrorPacket(Envelope src, ErrorCode code, Object... params) {
+		String message = MessageFormat.format(code.getText(), params);
+		Envelope response = responseEnvelope(src)
+			.setHubError(HubErrorResponse.newBuilder()
+				.setText(message)
+				.setCode(code.name())
+				.build()
+			).build();
+		sendPacketPrimitive(response, null);
+	}
+
 
 	//public void sendCommandErrorPacket(CommandContext ctx, ErrorCode code, Object... params) {
 	//	String message = MessageFormat.format(code.getText(), params);
@@ -921,7 +956,7 @@ public abstract class HubConnectorBase {
 			;
 	}
 
-	private String getPacketType(Envelope env) {
+	protected String getPacketType(Envelope env) {
 		if(env.getPayloadCase() == PayloadCase.ACKABLE)
 			return env.getAckable().getPayloadCase().name();
 		return env.getPayloadCase().name();
@@ -974,5 +1009,9 @@ public abstract class HubConnectorBase {
 				Class<?> bodyClass = ClassUtil.loadClass(getClass().getClassLoader(), clzz);
 				return getMapper().readerFor(bodyClass).readValue(new ByteBufferInputStream(data.toArray(new byte[data.size()][])));
 		}
+	}
+
+	protected Map<String, T> getPeerMap() {
+		return m_peerMap;
 	}
 }

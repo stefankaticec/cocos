@@ -19,11 +19,11 @@ import java.nio.charset.StandardCharsets;
 final public class PacketWriter {
 	private OutputStream m_os;
 
-	private final HubConnectorBase m_connector;
+	private final HubConnectorBase<?> m_connector;
 
 	final private ObjectMapper m_mapper;
 
-	public PacketWriter(HubConnectorBase connector, ObjectMapper mapper) {
+	public PacketWriter(HubConnectorBase<?> connector, ObjectMapper mapper) {
 		m_connector = connector;
 		m_mapper = mapper;
 	}

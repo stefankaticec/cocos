@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  * Created on 23-1-19.
  */
 @NonNullByDefault
-final public class HubClient extends HubConnectorBase {
+final public class HubClient extends HubConnectorBase<Peer> {
 	private final String m_clientVersion = "HubClient 1.0";
 
 	private final String m_targetCluster;
@@ -69,6 +69,17 @@ final public class HubClient extends HubConnectorBase {
 		HubClient responder = new HubClient(hubServer, hubServerPort, handler, targetClusterAndOrg, myId);
 		responder.registerJsonCommandAsync(CancelPacket.class, () -> new CancelCommand(responder));
 		return responder;
+	}
+
+	//@Override
+	//protected void handleUnackablePackets(Envelope env, ArrayList<byte[]> body) throws Exception {
+	//	throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
+	//}
+
+
+	@Override
+	protected void handleCLAUTH(Envelope env) throws Exception {
+		throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
 	}
 
 	@Override

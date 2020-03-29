@@ -7,6 +7,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.HubConnectorBase;
+import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.Peer;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
@@ -22,8 +23,11 @@ import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.AckableMessage;
+import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
 import to.etc.cocos.messages.Hubcore.AuthResponse;
 import to.etc.cocos.messages.Hubcore.ClientAuthRequest;
+import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.CommandOutput;
 import to.etc.cocos.messages.Hubcore.CommandResponse;
@@ -50,7 +54,7 @@ import java.util.stream.Collectors;
  * Created on 13-1-19.
  */
 @NonNullByDefault
-final public class HubServer extends HubConnectorBase implements IRemoteClientHub {
+final public class HubServer extends HubConnectorBase<RemoteClient> implements IRemoteClientHub {
 	private final String m_serverVersion = "1.0";
 
 	private final String m_clusterPassword;
@@ -61,7 +65,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 
 	private CopyOnWriteArrayList<IRemoteCommandListener> m_commandListeners = new CopyOnWriteArrayList<>();
 
-	private Map<String, RemoteClient> m_remoteClientMap = new HashMap<>();
+	//private Map<String, RemoteClient> m_remoteClientMap = new HashMap<>();
 
 	private final PublishSubject<IServerEvent> m_serverEventSubject;
 
@@ -119,10 +123,52 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 		return m_serverEventSubject;
 	}
 
+	@Override
+	public long getPeerDisconnectedDuration() {
+		return Duration.ofMinutes(15).toMillis();
+	}
+
+	@Override
+	public boolean isTransmitBlocking() {
+		return false;
+	}
+
+	@Override
+	public int getMaxQueuedPackets() {
+		return 32;
+	}
+
 	@Override protected void onErrorPacket(Envelope env) {
 		HubErrorResponse hubError = env.getHubError();
 		log("HUB error: " + hubError.getCode() + " " + hubError.getText());
 		forceDisconnect("HUB error received");
+	}
+
+	@Override
+	protected void handleAckable(CommandContext cc, ArrayList<byte[]> body) throws Exception {
+		switch(cc.getSourceEnvelope().getAckable().getPayloadCase()) {
+			default:
+				throw new ProtocolViolationException("Unexpected packet type=" + cc.getSourceEnvelope().getAckable().getPayloadCase());
+
+			case CLIENTCONNECTED:
+				handleCLCONN(cc);
+				break;
+			case CLIENTDISCONNECTED:
+				handleCLDISC(cc);
+				break;
+
+			case COMMANDERROR:
+				handleCommandError(cc);
+				break;
+
+			case RESPONSE:
+				handleCommandFinished(cc, body);
+				break;
+
+			case OUTPUT:
+				handleCommandOutput(cc, body);
+				break;
+		}
 	}
 
 	//@Override protected void handlePacketReceived(CommandContext ctx, List<byte[]> data) throws Exception {
@@ -210,20 +256,20 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	/**
 	 * Client authentication request.
 	 */
-	@Synchronous
-	private void handleCLAUTH(CommandContext cc) throws Exception {
-		ClientAuthRequest clau = cc.getSourceEnvelope().getClientAuth();
-		cc.log("Client authentication request from " + clau.getClientId());
+	@Override
+	protected void handleCLAUTH(Envelope env) throws Exception {
+		ClientAuthRequest clau = env.getClientAuth();
+		log("Client authentication request from " + clau.getClientId());
 		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion())) {
-			cc.respondWithHubErrorPacket(PacketPrio.HUB, ErrorCode.authenticationFailure, "");
+			sendHubErrorPacket(env, ErrorCode.authenticationFailure, "");
 			return;
 		}
 
 		//-- Respond with an AUTH packet.
-		cc.getResponseEnvelope()
-			.setAuth(AuthResponse.newBuilder().build())
-			;
-		cc.respond(PacketPrio.HUB);
+		Envelope auth = responseEnvelope(env)
+			.setAuth(AuthResponse.newBuilder())
+			.build();
+		sendPacketPrimitive(auth, null);
 	}
 
 	/**
@@ -233,7 +279,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	private void handleCLCONN(CommandContext cc) throws Exception {
 		String id = cc.getSourceEnvelope().getSourceId();
 		synchronized(this) {
-			RemoteClient rc = m_remoteClientMap.computeIfAbsent(id, a -> new RemoteClient(this, id));
+			RemoteClient rc = (RemoteClient) cc.peer();
 			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientConnected(rc)));
 		}
 		cc.log("Client (re)connected: " + id);
@@ -245,12 +291,15 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	@Synchronous
 	private void handleCLDISC(CommandContext cc) throws Exception {
 		String id = cc.getSourceEnvelope().getSourceId();
+		cc.peer().setDisconnected();
 		synchronized(this) {
-			RemoteClient rc = m_remoteClientMap.remove(id);
-			if(null == rc) {
-				cc.error("Unexpected disconnected event for unknown client " + id);
-				return;
-			}
+			//
+			//RemoteClient rc = m_remoteClientMap.remove(id);
+			//if(null == rc) {
+			//	cc.error("Unexpected disconnected event for unknown client " + id);
+			//	return;
+			//}
+			RemoteClient rc = (RemoteClient) cc.peer();
 			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientDisconnected(rc)));
 		}
 		cc.log("Client disconnected: " + id);
@@ -259,28 +308,24 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	/**
 	 * Client Inventory: a client has updated its inventory.
 	 */
-	@Synchronous
-	private void handleCLINVE(CommandContext cc, List<byte[]> data) throws Exception {
-		String dataFormat = cc.getSourceEnvelope().getInventory().getDataFormat();
+	@Override
+	protected void handleCLINVE(Envelope env, ArrayList<byte[]> body, Peer peer) throws Exception {
+		String dataFormat = env.getInventory().getDataFormat();
 		if(! CommandNames.isJsonDataFormat(dataFormat))
 			throw new ProtocolViolationException("Inventory packet must be in JSON format (not '" + dataFormat + "')");
-		Object o = decodeBody(dataFormat, data);
+		Object o = decodeBody(dataFormat, body);
 		if(null == o)
 			throw new IllegalStateException("Missing inventory packet for inventory command");
 		if(! (o instanceof JsonPacket))
 			throw new ProtocolViolationException("Inventory packet " + o.getClass().getName() + " does not extend JsonPacket");
 		JsonPacket packet = (JsonPacket) o;
 
-		cc.log("Got client inventory packet " + packet);
-		String id = cc.getSourceEnvelope().getSourceId();
+		log("Got client inventory packet " + packet);
+		String id = env.getSourceId();
 		synchronized(this) {
-			RemoteClient rc = m_remoteClientMap.get(id);
-			if(null == rc) {
-				cc.error("Unexpected client inventory event for unknown client " + id);
-				return;
-			}
+			RemoteClient rc = (RemoteClient) peer;
 			rc.inventoryReceived(packet);
-			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientInventoryPacketReceived(rc, packet)));
+			getEventExecutor().execute(() -> callListeners(a -> a.clientInventoryPacketReceived(rc, packet)));
 		}
 	}
 
@@ -331,13 +376,13 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 
 	@Override
 	public synchronized List<IRemoteClient> getClientList() {
-		return new ArrayList<>(m_remoteClientMap.values());
+		return new ArrayList<>(getPeerMap().values());
 	}
 
 	@Override
 	@Nullable
 	public synchronized RemoteClient findClient(String clientId) {
-		return m_remoteClientMap.get(clientId);
+		return getPeerMap().get(clientId);
 	}
 
 	@Override
@@ -353,17 +398,25 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 				throw new IllegalStateException("Non-unique command id used!!");
 		}
 
-		Envelope jcmd = Envelope.newBuilder()
-			.setSourceId(getMyId())
-			.setTargetId(command.getClient().getClientID())
-			.setVersion(1)
-			.setCmd(Hubcore.Command.newBuilder()
+		Builder message = AckableMessage.newBuilder()
+			.setCmd(Command.newBuilder()
 				.setDataFormat(CommandNames.getJsonDataFormat(packet))
 				.setId(command.getCommandId())
 				.setName(packet.getClass().getName())
-			)
-			.build();
-		sendPacketPrimitive(PacketPrio.NORMAL, jcmd, packet);
+			);
+		command.getClient().send(message, new JsonBodyTransmitter(packet), Duration.ofMinutes(5));
+		//
+		//Envelope jcmd = Envelope.newBuilder()
+		//	.setSourceId(getMyId())
+		//	.setTargetId(command.getClient().getClientID())
+		//	.setVersion(1)
+		//	.setCmd(Hubcore.Command.newBuilder()
+		//		.setDataFormat(CommandNames.getJsonDataFormat(packet))
+		//		.setId(command.getCommandId())
+		//		.setName(packet.getClass().getName())
+		//	)
+		//	.build();
+		//sendPacketPrimitive(PacketPrio.NORMAL, jcmd, packet);
 	}
 
 	private RemoteCommand getCommandFromID(String clientId, String commandId, String commandName) {
@@ -372,7 +425,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 			if(null != cmd)
 				return cmd;
 
-			RemoteClient remoteClient = m_remoteClientMap.get(clientId);
+			RemoteClient remoteClient = findClient(clientId);
 			if(null == remoteClient) {
 				throw new IllegalStateException("Got command " + commandName + " for remote client " + clientId + " - but I cannot find that client");
 			}
@@ -398,7 +451,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	@Override
 	public IRemoteCommand findCommand(String clientId, String commandKey) {
 		synchronized(this) {
-			RemoteClient remoteClient = m_remoteClientMap.get(clientId);
+			RemoteClient remoteClient = findClient(clientId);
 			if(null == remoteClient)
 				return null;
 			RemoteCommand command = remoteClient.findCommandByKey(commandKey);
@@ -407,7 +460,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	}
 
 	private void handleCommandError(CommandContext ctx) {
-		CommandError err = ctx.getSourceEnvelope().getCommandError();
+		CommandError err = ctx.getSourceEnvelope().getAckable().getCommandError();
 		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command error: " + err.getCode() + " " + err.getMessage());
 
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), err.getId(), err.getName());
@@ -420,7 +473,7 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 	}
 
 	private void handleCommandFinished(CommandContext ctx, List<byte[]> data) throws IOException {
-		CommandResponse cr = ctx.getSourceEnvelope().getResponse();
+		CommandResponse cr = ctx.getSourceEnvelope().getAckable().getResponse();
 		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command result: " + cr.getName());
 
 		//-- Decode any body
@@ -443,13 +496,13 @@ final public class HubServer extends HubConnectorBase implements IRemoteClientHu
 
 	private void handleCommandOutput(CommandContext ctx, List<byte[]> data) {
 		//-- Command output propagated as a string. Create the string by decoding the output.
-		CommandOutput output = ctx.getSourceEnvelope().getOutput();
+		CommandOutput output = ctx.getSourceEnvelope().getAckable().getOutput();
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), output.getId(), output.getName());
 		command.appendOutput(data, output.getCode());
 	}
 
 	@Override
-	protected Peer createPeer(String peerId) {
+	protected RemoteClient createPeer(String peerId) {
 		return new RemoteClient(this, peerId);
 	}
 }
