@@ -415,7 +415,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		initiatePacketSending(packet);
 	}
 
-	private void immediateSendHubException(Envelope source, HubException x) {
+	void immediateSendHubException(Envelope source, HubException x) {
 		log("sending hub exception " + x);
 
 		PacketResponseBuilder rb = new PacketResponseBuilder(this)

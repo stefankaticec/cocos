@@ -19,6 +19,7 @@ import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.messages.Hubcore.ServerHeloResponse;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
+import to.etc.hubserver.protocol.HubException;
 import to.etc.util.StringTool;
 
 import java.io.IOException;
@@ -81,6 +82,8 @@ final class PacketMachine {
 		}
 		try {
 			packetState.handlePacket(envelope, payload, length);
+		} catch(HubException x) {			// cannot do that here: we might not have a full packet.
+			m_socketHandler.immediateSendHubException(envelope, x);
 		} finally {
 			if(null != payload) {
 				payload.release();
