@@ -1,6 +1,5 @@
 package to.etc.cocos.hub;
 
-import com.google.protobuf.ByteString;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelFuture;
@@ -17,22 +16,14 @@ import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.Server;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.cocos.messages.Hubcore;
-import to.etc.cocos.messages.Hubcore.AuthResponse;
-import to.etc.cocos.messages.Hubcore.ClientHeloResponse;
-import to.etc.cocos.messages.Hubcore.ClientInventory;
 import to.etc.cocos.messages.Hubcore.Envelope;
-import to.etc.cocos.messages.Hubcore.HelloChallenge;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
-import to.etc.cocos.messages.Hubcore.ServerHeloResponse;
 import to.etc.hubserver.protocol.CommandNames;
-import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -46,6 +37,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private final Hub m_central;
 
 	final private PacketAssemblyMachine m_packetAssembler;
+
+	final private PacketMachine m_packetStateMachine;
 
 	@NonNull
 	private final SocketChannel m_channel;
@@ -63,18 +56,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	@Nullable
 	private String m_resourceId;
-
-	@NonNull
-	final private String m_tmpClientId = StringTool.generateGUID();
-
-	@Nullable
-	private byte[] m_challenge;
-
-
-	private IPacketHandler m_packetState = this::psExpectHeloResponse;
-
-	@Nullable
-	private Object m_packetStateData;
 
 	/*
 	 * Packet transmitter buffers.
@@ -96,7 +77,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_central = central;
 		m_channel = socketChannel;
 		m_remoteAddress = socketChannel.remoteAddress().getAddress().getHostAddress();
-		m_packetAssembler = new PacketAssemblyMachine(this::handlePacket, socketChannel.alloc());
+		m_packetStateMachine = new PacketMachine(central, this);
+		m_packetAssembler = new PacketAssemblyMachine(m_packetStateMachine::handlePacket, socketChannel.alloc());
 	}
 
 	@Override protected void channelRead0(ChannelHandlerContext context, ByteBuf data) throws Exception {
@@ -122,22 +104,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		ctx.channel().closeFuture().addListener(future -> {
 			remoteDisconnected(ctx);
 		});
-
-		//-- Send HELO with challenge
-		byte[] challenge = m_challenge = m_central.getChallenge();
-		PacketResponseBuilder response = new PacketResponseBuilder(this);
-		response.getEnvelope()
-			.setSourceId("")							// from HUB
-			.setTargetId("unknown-client")				// We have no client ID yet
-			.setVersion(1)
-			.setChallenge(
-				HelloChallenge.newBuilder()
-					.setChallenge(ByteString.copyFrom(challenge))
-					.setServerVersion(Hub.VERSION)
-			)
-		;
-		setPacketState(this::psExpectHeloResponse);
-		response.send();
+		m_packetStateMachine.sendChallenge();
 	}
 
 	//@Override public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
@@ -150,15 +117,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	//	m_intBuf.release();
 	//}
 
-	public String getTmpClientId() {
-		return m_tmpClientId;
-	}
-
 	public synchronized AbstractConnection getConnection() {
 		AbstractConnection connection = m_connection;
 		if(null == connection)
 			throw new IllegalStateException("The party is no longer connected to this connection.");
 		return connection;
+	}
+
+	synchronized void setConnection(AbstractConnection connection) {
+		m_connection = connection;
 	}
 
 	Client getClientConnection() {
@@ -169,217 +136,18 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		return (Server) getConnection();
 	}
 
-	/*----------------------------------------------------------------------*/
-	/*	CODING:	Packet reader states.										*/
-	/*----------------------------------------------------------------------*/
-	/*----------------------------------------------------------------------*/
-	/*	CODING:	Command state handler.										*/
-	/*----------------------------------------------------------------------*/
-	/**
-	 * Starting state: the remote must send a HELO command to start off the protocol.
-	 */
-	private void psExpectHeloResponse(Hubcore.Envelope envelope, ByteBuf payload, int length) throws Exception {
-		if(envelope.hasHeloClient()) {
-			handleClientHello(envelope, envelope.getHeloClient(), payload, length);
-		} else if(envelope.hasHeloServer()) {
-			handleServerHello(envelope, envelope.getHeloServer(), payload, length);
-		} else
-			throw new ProtocolViolationException("No client nor server part in CHALLENGE response, got " + envelope.getPayloadCase());
-	}
-
-	/**
-	 * The server helo response contains the challenge response for authorisation.
-	 */
-	private void handleServerHello(Envelope envelope, ServerHeloResponse heloServer, ByteBuf payload, int length) throws Exception {
-		//-- We must have an empty body
-		if(length != 0)
-			throw new ProtocolViolationException("Non-empty payload on server hello");
-
-		String sourceId = envelope.getSourceId();
-		String[] split = sourceId.split("@");
-		if(split.length != 2)
-			throw new ProtocolViolationException("The server ID is invalid");
-		String serverName = split[0];
-		String clusterName = split[1];
-
-		byte[] signature = heloServer.getChallengeResponse().toByteArray();
-		if(! m_central.checkServerSignature(clusterName, serverName, Objects.requireNonNull(m_challenge), signature))
-			throw new FatalHubException(ErrorCode.authenticationFailure);
-
-		//-- Authorized -> respond with AUTH packet.
-		Cluster cluster = getDirectory().getCluster(clusterName);
-		Server server = cluster.registerServer(serverName, Arrays.asList("*"));
-		setHelloInformation(sourceId, cluster, null);
-		server.newConnection(this);
-		log("new connection for server " + server.getFullId() + " in state " + server.getState());
-
-		//-- From now on this channel services the specified server
-		m_connection = server;
-		setPacketState(server::packetReceived);
-
-		//-- send back AUTH packet
-		PacketResponseBuilder rb = new PacketResponseBuilder(this)
-			.fromEnvelope(envelope)
-			;
-		rb.getEnvelope().getAuthBuilder()
-			.build();
-		rb.after(server::startInventorySend).send();
-	}
-
-	/*----------------------------------------------------------------------*/
-	/*	CODING:	Client handler.												*/
-	/*----------------------------------------------------------------------*/
-	/**
-	 * Handles the client HELO response. It stores the inventory packet, and
-	 * then forwards the HELO request as an CLAUTH command to the remote server.
-	 */
-	private void handleClientHello(Envelope envelope, ClientHeloResponse heloClient, ByteBuf payload, int length) {
-		//-- We must have an empty body
-		if(length != 0)
-			throw new ProtocolViolationException("Non-empty payload on client hello");
-
-		/*
-		 * Format is either clusterid or resource#clusterid.
-		 */
-		String targetId = envelope.getTargetId();
-		String[] split = targetId.split("#");
-		Server server;
-		Cluster cluster;
-		String orgId;
-		switch(split.length) {
-			default:
-				throw new FatalHubException(ErrorCode.targetNotFound, targetId);
-
-			case 1:
-				cluster = getDirectory().getCluster(split[0]);
-				server = cluster.getRandomServer();
-				if(null == server)
-					throw new FatalHubException(ErrorCode.clusterNotFound, split[0]);
-				orgId = null;
-				break;
-
-			case 2:
-				cluster = getDirectory().getCluster(split[1]);
-				orgId = split[0];
-				server = cluster.findServiceServer(orgId);
-				if(null == server)
-					throw new FatalHubException(ErrorCode.targetNotFound, split[0]);
-				break;
-		}
-
-		//-- Forward the packet to the remote server
-		setHelloInformation(envelope.getSourceId(), cluster, orgId);
-		getDirectory().registerTmpClient(m_tmpClientId, this);
-
-		PacketResponseBuilder b = new PacketResponseBuilder(server.getHandler());
-		b.getEnvelope()
-			.setSourceId(m_tmpClientId)						// From tmp client ID
-			.setTargetId(server.getFullId())				// To the selected server
-			.setVersion(1)
-			.setClientAuth(Hubcore.ClientAuthRequest.newBuilder()
-				.setChallenge(ByteString.copyFrom(m_challenge))
-				.setChallengeResponse(envelope.getHeloClient().getChallengeResponse())
-				.setClientId(m_myId)
-				.setClientVersion(envelope.getHeloClient().getClientVersion())
-			);
-		setPacketState(this::waitForServerAuth, new BeforeClientData(cluster, orgId, envelope.getSourceId()));
-		b.send();
-	}
-
-	private void waitForServerAuth(Envelope envelope, @Nullable ByteBuf payload, int length) {
-		throw new ProtocolViolationException("Not expecting a packet while waiting for client authentication by the server");
-	}
-
 	/**
 	 * Called only when we're a temp client, this checks whether the server
 	 * accepted our auth request.
 	 */
 	public void tmpGotResponseFrom(Server server, Envelope envelope, ByteBuf payload, int length) {
-		//-- Expecting an AUTH or ERROR response.
-		if(envelope.hasHubError()) {
-			HubErrorResponse error = envelope.getHubError();
-			PacketResponseBuilder b = new PacketResponseBuilder(this)
-				.forwardTo(envelope);
-			b.getEnvelope().setHubError(error);
-			b.send();
-
-			//-- REMOVE CLIENT
-			getDirectory().unregisterTmpClient(this);
-		} else if(envelope.hasAuth()) {
-			//-- We're authenticated! Yay!
-			log("CLIENT authenticated!!");
-			registerClient(getPacketStateData(BeforeClientData.class));		// ORDERED
-			setPacketState(this::psExpectClientInventory);					// ORDERED
-
-			AuthResponse auth = envelope.getAuth();
-			PacketResponseBuilder b = new PacketResponseBuilder(this)
-				.forwardTo(envelope);
-			b.getEnvelope().setAuth(auth);
-			b.send();
-		} else {
-			throw new ProtocolViolationException("Expected server:auth, got " + envelope.getPayloadCase());
-		}
+		m_packetStateMachine.tmpGotResponseFrom(server, envelope);
 	}
 
-	private void psExpectClientInventory(Envelope envelope, @Nullable ByteBuf payload, int length) throws IOException {
-		if(! envelope.hasInventory()) {
-			throw new ProtocolViolationException("Expecting inventory, got " + envelope.getPayloadCase());
-		}
-		log("Client inventory received");
-		if(length == 0)
-			throw new ProtocolViolationException("The inventory packet data is missing");
-		ClientInventory inventory = envelope.getInventory();
-		String dataFormat = inventory.getDataFormat();
-		if(null == dataFormat || dataFormat.trim().length() == 0)
-			throw new ProtocolViolationException("The inventory packet data format is missing");
-
-		getClientConnection().updateInventory(dataFormat, Objects.requireNonNull(payload), length);
-
-		//-- Now enter passthrough mode.
-		setPacketState(getClientConnection()::packetReceived);
-	}
-
-	private synchronized void registerClient(BeforeClientData data) {
+	synchronized void registerClient(BeforeClientData data) {
+		log("CLIENT authenticated!!");
 		m_connection = getCluster().registerAuthorizedClient(this);
 	}
-
-	/**
-	 * State handler that handles the packet level dialogue.
-	 */
-	private void handlePacket(Envelope envelope, @Nullable ByteBuf payload, int length) throws Exception {
-		IPacketHandler packetState;
-		synchronized(this) {
-			packetState = m_packetState;
-		}
-		try {
-			packetState.handlePacket(envelope, payload, length);
-		} finally {
-			if(null != payload) {
-				payload.release();
-			}
-		}
-	}
-
-	private synchronized void setPacketState(IPacketHandler handler) {
-		m_packetState = handler;
-		m_packetStateData = null;
-	}
-
-	private synchronized void setPacketState(IPacketHandler handler, Object data) {
-		m_packetState = handler;
-		m_packetStateData = data;
-	}
-
-	private synchronized <T> T getPacketStateData(Class<T> clz) {
-		Object data = m_packetStateData;
-		if(null == data) {
-			throw new IllegalStateException("Invalid packet state data: expected " + clz.getClass().getName() + " but got null");
-		}
-		if(clz.isInstance(data))
-			return (T) data;
-		throw new IllegalStateException("Invalid packet state data: expected " + clz.getClass().getName() + " but got " + data.getClass().getName());
-	}
-
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	All kinds of disconnect handling							*/
@@ -424,7 +192,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 
 		//-- Clean up
-		getDirectory().unregisterTmpClient(this);				// Be sure not to be registered anymore
+		m_packetStateMachine.unregisterTmpClient();
 		if(null != cluster)
 			cluster.runEvents();
 	}
@@ -724,7 +492,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		return m_cluster;
 	}
 
-	private synchronized void setHelloInformation(String clientId, Cluster cluster, String resourceId) {
+	synchronized void setHelloInformation(String clientId, Cluster cluster, String resourceId) {
 		if(m_myId != null || m_cluster != null || m_resourceId != null) {
 			throw new IllegalStateException("Client, cluster or resource ID already defined!!");
 		}

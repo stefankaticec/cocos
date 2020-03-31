@@ -71,7 +71,7 @@ final public class ConnectionDirectory {
 		m_tmpClientMap.put(tmpClientId, centralSocketHandler);
 	}
 
-	public synchronized void unregisterTmpClient(CentralSocketHandler sh) {
-		m_tmpClientMap.remove(sh.getTmpClientId());
+	public synchronized void unregisterTmpClient(String tmpClientId) {
+		m_tmpClientMap.remove(tmpClientId);
 	}
 }
