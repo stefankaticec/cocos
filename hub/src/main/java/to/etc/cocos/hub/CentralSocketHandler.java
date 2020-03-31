@@ -45,7 +45,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@NonNull
 	private final Hub m_central;
 
-	private PacketAssemblyMachine m_packetAssembler;
+	final private PacketAssemblyMachine m_packetAssembler;
 
 	@NonNull
 	private final SocketChannel m_channel;

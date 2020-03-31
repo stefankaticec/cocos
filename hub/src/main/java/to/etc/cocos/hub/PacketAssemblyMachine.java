@@ -15,6 +15,11 @@ import to.etc.hubserver.protocol.CommandNames;
 import java.util.Objects;
 
 /**
+ * This state machine assembles packets, consisting of an envelope and an optional
+ * payload from data arriving over the socket. As data arrives it gets collected
+ * until we have all the necessary parts, after that it will call the packetReceived
+ * handler passed with the fully assembled packet.
+ *
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 31-03-20.
  */
