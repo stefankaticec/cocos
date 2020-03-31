@@ -189,7 +189,8 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		byte[] challenge = ba.toByteArray();
 		byte[] response = m_authHandler.createAuthenticationResponse(getMyId(), challenge);
 
-		Envelope reply = responseEnvelope(src)
+		Envelope reply = responseEnvelope(src, src.getTargetId())
+			.setTargetId(m_targetCluster)
 			.setHeloClient(Hubcore.ClientHeloResponse.newBuilder()
 				.setChallengeResponse(ByteString.copyFrom(response))
 				.setClientVersion(m_clientVersion)
@@ -210,7 +211,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 
 		//-- Immediately send the inventory packet
 		JsonPacket inventory = m_authHandler.getInventory();
-		Envelope response = responseEnvelope(src)
+		Envelope response = responseEnvelope(src, getMyId())
 			.setInventory(ClientInventory.newBuilder()
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
 			)

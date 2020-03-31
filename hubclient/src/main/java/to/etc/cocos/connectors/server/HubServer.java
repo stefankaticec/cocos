@@ -11,7 +11,6 @@ import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.Peer;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
-import to.etc.cocos.connectors.common.Synchronous;
 import to.etc.cocos.connectors.ifaces.EvCommandError;
 import to.etc.cocos.connectors.ifaces.EvCommandFinished;
 import to.etc.cocos.connectors.ifaces.IClientAuthenticator;
@@ -150,13 +149,6 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			default:
 				throw new ProtocolViolationException("Unexpected packet type=" + cc.getSourceEnvelope().getAckable().getPayloadCase());
 
-			case CLIENTCONNECTED:
-				handleCLCONN(cc);
-				break;
-			case CLIENTDISCONNECTED:
-				handleCLDISC(cc);
-				break;
-
 			case COMMANDERROR:
 				handleCommandError(cc);
 				break;
@@ -233,7 +225,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		md.update(challenge);
 		byte[] digest = md.digest();
 
-		Envelope reply = responseEnvelope(src)
+		Envelope reply = responseEnvelope(src, getMyId())
 			.setHeloServer(Hubcore.ServerHeloResponse.newBuilder()
 				.setChallengeResponse(ByteString.copyFrom(digest))
 				.setServerVersion(m_serverVersion)
@@ -266,7 +258,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		}
 
 		//-- Respond with an AUTH packet.
-		Envelope auth = responseEnvelope(env)
+		Envelope auth = responseEnvelope(env, env.getSourceId())
 			.setAuth(AuthResponse.newBuilder())
 			.build();
 		sendPacketPrimitive(auth, null);
@@ -275,24 +267,27 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	/**
 	 * Client connected event. Add the client, then start sending events.
 	 */
-	@Synchronous
-	private void handleCLCONN(CommandContext cc) throws Exception {
-		String id = cc.getSourceEnvelope().getSourceId();
+	@Override
+	protected void handleCLCONN(Envelope env) throws Exception {
+		String id = env.getSourceId();
 		synchronized(this) {
-			RemoteClient rc = (RemoteClient) cc.peer();
-			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientConnected(rc)));
-			cc.peer().setConnected();
+			RemoteClient rc = getOrCreatePeer(id);
+			getEventExecutor().execute(() -> callListeners(a -> a.clientConnected(rc)));
+			rc.setConnected();
 		}
-		cc.log("Client (re)connected: " + id);
+		log("Client (re)connected: " + id);
 	}
 
 	/**
 	 * Client disconnected event. Remove the client, then start sending events.
 	 */
-	@Synchronous
-	private void handleCLDISC(CommandContext cc) throws Exception {
-		String id = cc.getSourceEnvelope().getSourceId();
-		cc.peer().setDisconnected();
+	@Override
+	protected void handleCLDISC(Envelope env) throws Exception {
+		String id = env.getSourceId();
+		RemoteClient peer = findClient(id);
+		if(null == peer)
+			return;
+		peer.setDisconnected();
 		synchronized(this) {
 			//
 			//RemoteClient rc = m_remoteClientMap.remove(id);
@@ -300,10 +295,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			//	cc.error("Unexpected disconnected event for unknown client " + id);
 			//	return;
 			//}
-			RemoteClient rc = (RemoteClient) cc.peer();
-			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientDisconnected(rc)));
+			getEventExecutor().execute(() -> callListeners(a -> a.clientDisconnected(peer)));
 		}
-		cc.log("Client disconnected: " + id);
+		log("Client disconnected: " + id);
 	}
 
 	/**

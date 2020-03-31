@@ -183,6 +183,14 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	protected abstract void handleCLAUTH(Envelope env) throws Exception;
 
+	protected void handleCLCONN(Envelope env) throws Exception {
+		throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
+	}
+
+	protected void handleCLDISC(Envelope env) throws Exception {
+		throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
+	}
+
 	protected void handleCLINVE(Envelope env, ArrayList<byte[]> body, Peer peer) throws Exception {
 		throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
 	}
@@ -613,11 +621,19 @@ public abstract class HubConnectorBase<T extends Peer> {
 					break;
 
 				case AUTH:
-					handleAUTH(env, getPeerByID(env.getSourceId()));
+					handleAUTH(env, getOrCreatePeer(env.getSourceId()));
 					break;
 
 				case CLIENTAUTH:
 					handleCLAUTH(env);
+					break;
+
+				case CLIENTCONNECTED:
+					handleCLCONN(env);
+					break;
+
+				case CLIENTDISCONNECTED:
+					handleCLDISC(env);
 					break;
 
 				case ACK:
@@ -633,7 +649,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 					break;
 
 				case INVENTORY:
-					handleCLINVE(env, body, getPeerByID(env.getSourceId()));
+					handleCLINVE(env, body, getOrCreatePeer(env.getSourceId()));
 					break;
 			}
 		} catch(Exception px) {
@@ -642,6 +658,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 				t = ((InvocationTargetException)t).getTargetException();
 			}
 			log("Fatal Packet Execute exception: " + t);
+			t.printStackTrace();
 			forceDisconnect(t.toString());
 		}
 	}
@@ -664,7 +681,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 	private void handleAckablePacket(Envelope env, ArrayList<byte[]> body) {
 		respondWithAck(env);						// Always ack the packet as we've seen it
 
-		Peer peer = getPeerByID(env.getSourceId());
+		Peer peer = getOrCreatePeer(env.getSourceId());
 		if(peer.seen(env.getAckable().getSequence())) {
 			return;
 		}
@@ -690,7 +707,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		}
 	}
 
-	private Peer getPeerByID(String id) {
+	protected T getOrCreatePeer(String id) {
 		synchronized(this) {
 			return m_peerMap.computeIfAbsent(id, a -> createPeer(id));
 		}
@@ -713,7 +730,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 * Send a HUB error packet.
 	 */
 	protected void sendHubErrorPacket(Envelope src, Throwable cfx) {
-		Envelope response = responseEnvelope(src)
+		Envelope response = responseEnvelope(src, src.getSourceId())
 			.setHubError(HubErrorResponse.newBuilder()
 				.setText(cfx.getMessage())
 				.setCode("command.exception")
@@ -728,7 +745,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 */
 	protected void sendHubErrorPacket(Envelope src, ErrorCode code, Object... params) {
 		String message = MessageFormat.format(code.getText(), params);
-		Envelope response = responseEnvelope(src)
+		Envelope response = responseEnvelope(src, src.getSourceId())
 			.setHubError(HubErrorResponse.newBuilder()
 				.setText(message)
 				.setCode(code.name())
@@ -935,23 +952,25 @@ public abstract class HubConnectorBase<T extends Peer> {
 	static private final byte[] NULLBODY = new byte[0];
 
 	private void respondWithPong(Envelope src) {
-		Envelope response = responseEnvelope(src)
+		Envelope response = responseEnvelope(src, "")
 			.setPong(Pong.newBuilder())
 			.build();
 		sendPacketPrimitive(response, null);
 	}
 
 	private void respondWithAck(Envelope src) {
-		Envelope response = responseEnvelope(src)
+		Envelope response = responseEnvelope(src, src.getSourceId())
 			.setAck(Ack.newBuilder().setSequence(src.getAckable().getSequence()))
 			.build();
 		sendPacketPrimitive(response, null);
 	}
 
-	protected Envelope.Builder responseEnvelope(Envelope src) {
+	protected Envelope.Builder responseEnvelope(Envelope src, String targetId) {
+		if(m_myId == null || m_myId.length() == 0)
+			throw new IllegalStateException("Missing MyID");
 		return Envelope.newBuilder()
 			.setVersion(1)
-			.setTargetId(src.getSourceId())
+			.setTargetId(targetId)
 			.setSourceId(m_myId)
 			;
 	}

@@ -103,8 +103,6 @@ message AckableMessage {
         CommandResponse response = 12;
         CommandError commandError = 13;
         CommandOutput output = 14;
-        ClientConnected clientConnected = 15;
-        ClientDisconnected clientDisconnected = 16;
     }
 }
 
@@ -127,5 +125,7 @@ message Envelope {
          HubErrorResponse hubError = 13;
          AuthResponse auth = 14;
          ClientInventory inventory = 15;
+         ClientConnected clientConnected = 16;
+         ClientDisconnected clientDisconnected = 17;
      }
 }

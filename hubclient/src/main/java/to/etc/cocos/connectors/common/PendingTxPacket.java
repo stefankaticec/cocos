@@ -3,6 +3,7 @@ package to.etc.cocos.connectors.common;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 
 /**
  * A packet that needs to be transmitted and acknowledged.
@@ -24,6 +25,10 @@ final class PendingTxPacket {
 	private long m_retryAt;
 
 	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt) {
+		if(envelope.getSourceId().length() == 0)
+			throw new IllegalStateException("Missing source ID");
+		//if(envelope.getTargetId().length() == 0)
+		//	throw new IllegalStateException("Missing target ID");
 		m_envelope = envelope;
 		m_bodyTransmitter = bodyTransmitter;
 		m_submittedAt = submittedAt;
@@ -32,6 +37,10 @@ final class PendingTxPacket {
 	}
 
 	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter) {
+		if(envelope.getSourceId().length() == 0)
+			throw new IllegalStateException("Missing source ID");
+		//if(envelope.getTargetId().length() == 0)
+		//	throw new IllegalStateException("Missing target ID");
 		m_envelope = envelope;
 		m_bodyTransmitter = bodyTransmitter;
 		m_submittedAt = 0;
@@ -64,5 +73,17 @@ final class PendingTxPacket {
 	}
 
 	public void callExpired() {
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder sb = new StringBuilder();
+		sb.append(m_envelope.getSourceId()).append("->").append(m_envelope.getTargetId()).append(" ");
+		if(m_envelope.getPayloadCase() == PayloadCase.ACKABLE) {
+			sb.append(m_envelope.getAckable().getPayloadCase().name());
+		} else {
+			sb.append(m_envelope.getPayloadCase().name());
+		}
+		return sb.toString();
 	}
 }

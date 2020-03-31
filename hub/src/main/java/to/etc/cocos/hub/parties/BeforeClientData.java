@@ -1,9 +1,12 @@
 package to.etc.cocos.hub.parties;
 
 /**
+ * Should be removed, functionally unused.
+ *
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 07-07-19.
  */
+@Deprecated
 public class BeforeClientData {
 	private final Cluster m_cluster;
 
