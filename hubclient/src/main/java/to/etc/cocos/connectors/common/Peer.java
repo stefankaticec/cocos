@@ -12,7 +12,6 @@ import to.etc.util.TimerUtil;
 
 import java.text.MessageFormat;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -51,21 +50,16 @@ public class Peer {
 	private boolean m_connected;
 
 	public Peer(HubConnectorBase<?> connector, String peerId) {
+		if(peerId.isBlank())
+			throw new IllegalStateException("Invalid peer ID");
 		m_connector = connector;
 		m_peerId = peerId;
 	}
 
 	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration) {
-		long dur = expiryDuration.get(ChronoUnit.MILLIS);
+		long dur = expiryDuration.toMillis();
 		long cts = System.currentTimeMillis();
 		long peerDisconnectedDuration = m_connector.getPeerDisconnectedDuration();
-
-		Envelope env = Hubcore.Envelope.newBuilder()
-			.setAckable(packetBuilder)
-			.setSourceId(m_connector.getMyId())
-			.setTargetId(m_peerId)
-			.setVersion(1)
-			.build();
 
 		PendingTxPacket p;
 		synchronized(this) {
@@ -86,6 +80,13 @@ public class Peer {
 			}
 
 			packetBuilder.setSequence(m_txSequence++);							// Assign sequence # to ack
+			Envelope env = Hubcore.Envelope.newBuilder()
+				.setAckable(packetBuilder)
+				.setSourceId(m_connector.getMyId())
+				.setTargetId(m_peerId)
+				.setVersion(1)
+				.build();
+
 			p = new PendingTxPacket(env, bodyTransmitter, cts, cts + dur, cts + SEND_RETRY_TIME);
 			m_txQueue.add(p);
 			startTimer();

@@ -225,7 +225,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		md.update(challenge);
 		byte[] digest = md.digest();
 
-		Envelope reply = responseEnvelope(src, getMyId())
+		Envelope reply = responseEnvelope(src, src.getSourceId())
 			.setHeloServer(Hubcore.ServerHeloResponse.newBuilder()
 				.setChallengeResponse(ByteString.copyFrom(digest))
 				.setServerVersion(m_serverVersion)
@@ -240,7 +240,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	 * If the server's authorization was successful we receive this; move to AUTHORIZED status.
 	 */
 	@Override
-	protected void handleAUTH(Envelope auth, Peer peerByID) throws Exception {
+	protected void handleAUTH(Envelope auth) throws Exception {
 		authorized();
 		log("Authenticated successfully");
 	}

@@ -179,7 +179,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	protected abstract void handleCHALLENGE(Envelope heloPacket) throws Exception;
 
-	protected abstract void handleAUTH(Envelope authPacket, Peer peer) throws Exception;
+	protected abstract void handleAUTH(Envelope authPacket) throws Exception;
 
 	protected abstract void handleCLAUTH(Envelope env) throws Exception;
 
@@ -577,6 +577,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			//log("state " + getState());
 			if(isRunning()) {
 				error("reader terminated because of " + x);
+				x.printStackTrace();
 				disconnectReason = x.toString();
 			}
 		} finally {
@@ -591,6 +592,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 	private void executePacket() {
 		Envelope env = m_packetReader.getEnvelope();
 		log("Received packet: " + getPacketType(env));
+
+		if(env.getSourceId().equals(getMyId()))
+			throw new IllegalStateException("?? Packet source is myself?");
 
 		try {
 			ArrayList<byte[]> body = new ArrayList<>(m_packetReader.getReceiveBufferList());
@@ -621,7 +625,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 					break;
 
 				case AUTH:
-					handleAUTH(env, getOrCreatePeer(env.getSourceId()));
+					handleAUTH(env);
 					break;
 
 				case CLIENTAUTH:
@@ -683,9 +687,11 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 		Peer peer = getOrCreatePeer(env.getSourceId());
 		if(peer.seen(env.getAckable().getSequence())) {
+			log("Ignoring repeated packet with sequence# " + env.getAckable().getSequence());
 			return;
 		}
 
+		peer.setConnected();
 		CommandContext ctx = new CommandContext(this, env, peer);
 		try {
 			handleAckable(ctx, body);
@@ -708,6 +714,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	protected T getOrCreatePeer(String id) {
+		if(id.isBlank())
+			throw new IllegalStateException("Invalid peer ID");
 		synchronized(this) {
 			return m_peerMap.computeIfAbsent(id, a -> createPeer(id));
 		}

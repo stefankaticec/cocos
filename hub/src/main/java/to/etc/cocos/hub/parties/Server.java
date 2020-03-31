@@ -33,7 +33,7 @@ public class Server extends AbstractConnection {
 	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) {
 		if(!isUsable())
 			throw new FatalHubException(ErrorCode.serverDisconnected);
-		log("Packet received(S): " + envelope.getPayloadCase());
+		log("Packet received(S): " + Hub.getPacketType(envelope));
 
 		String targetId = envelope.getTargetId();
 		if(targetId.length() == 0) {
@@ -62,7 +62,7 @@ public class Server extends AbstractConnection {
 	private void handleHubCommand (Envelope envelope){
 		if(envelope.hasPong())
 			return;
-		log("HUB command packet received: " + envelope.getPayloadCase());
+		log("HUB command packet received: " + Hub.getPacketType(envelope));
 	}
 
 	public PacketResponseBuilder packetBuilder(String clientID) {
@@ -123,7 +123,7 @@ public class Server extends AbstractConnection {
 	}
 
 	public void packetFromClient(Client client, Envelope envelope, @Nullable ByteBuf payload, int length) {
-		log("RX from client " + client.getFullId() + ": " + envelope.getPayloadCase());
+		log("RX from client " + client.getFullId() + ": " + Hub.getPacketType(envelope));
 		TxPacket p = new TxPacket(envelope, client, null == payload ? null : new ByteBufPacketSender(payload), null);
 		ReferenceCountUtil.retain(payload);
 		sendPacket(p);

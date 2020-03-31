@@ -154,7 +154,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		try {
 			commandHandler.execute(ctx, data, throwable -> {
 				synchronized(this) {
-					System.err.println("Command " + ctx.getId() + " completion handler called: " + throwable);
+					log("Command " + ctx.getId() + " completion handler called with exception=" + throwable);
 					ctx.setStatus(throwable == null ? RemoteCommandStatus.FINISHED : RemoteCommandStatus.FAILED);
 					m_commandMap.remove(ctx.getId());
 				}
@@ -205,13 +205,13 @@ final public class HubClient extends HubConnectorBase<Peer> {
 	 * If the authorization was successful we receive this; move to AUTHORIZED status.
 	 */
 	@Override
-	protected void handleAUTH(Envelope src, Peer peer) throws Exception {
+	protected void handleAUTH(Envelope src) throws Exception {
 		authorized();
 		log("Authenticated successfully");
 
 		//-- Immediately send the inventory packet
 		JsonPacket inventory = m_authHandler.getInventory();
-		Envelope response = responseEnvelope(src, getMyId())
+		Envelope response = responseEnvelope(src, src.getTargetId())
 			.setInventory(ClientInventory.newBuilder()
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
 			)

@@ -91,6 +91,6 @@ final public class TxPacket {
 
 	@Override
 	public String toString() {
-		return m_type.name() + m_id + ": " + m_envelope.getSourceId() + " -> " + m_envelope.getTargetId() + " " + m_envelope.getPayloadCase();
+		return m_type.name() + m_id + ": " + m_envelope.getSourceId() + " -> " + m_envelope.getTargetId() + " " + Hub.getPacketType(m_envelope);
 	}
 }

@@ -97,7 +97,7 @@ final class PacketMachine {
 		} else if(envelope.hasHeloServer()) {
 			handleServerHello(envelope, envelope.getHeloServer(), payload, length);
 		} else
-			throw new ProtocolViolationException("No client nor server part in CHALLENGE response, got " + envelope.getPayloadCase());
+			throw new ProtocolViolationException("No client nor server part in CHALLENGE response, got " + Hub.getPacketType(envelope));
 	}
 
 	/**
@@ -222,7 +222,7 @@ final class PacketMachine {
 			b.getEnvelope().setAuth(auth);
 			b.send();
 		} else {
-			throw new ProtocolViolationException("Expected server:auth, got " + envelope.getPayloadCase());
+			throw new ProtocolViolationException("Expected server:auth, got " + Hub.getPacketType(envelope));
 		}
 	}
 
@@ -232,7 +232,7 @@ final class PacketMachine {
 
 	private void psExpectClientInventory(Envelope envelope, @Nullable ByteBuf payload, int length) throws IOException {
 		if(! envelope.hasInventory()) {
-			throw new ProtocolViolationException("Expecting inventory, got " + envelope.getPayloadCase());
+			throw new ProtocolViolationException("Expecting inventory, got " + Hub.getPacketType(envelope));
 		}
 		m_socketHandler.log("Client inventory received");
 		if(length == 0)

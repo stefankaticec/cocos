@@ -42,7 +42,7 @@ final public class Client extends AbstractConnection {
 	 * Called when a server has a packet for a client. This sends the packet to the client.
 	 */
 	public void packetFromServer(Server server, Envelope envelope, @Nullable ByteBuf payload, int length) {
-		log("RX from server " + server.getFullId() + ": " + envelope.getPayloadCase());
+		log("RX from server " + server.getFullId() + ": " + Hub.getPacketType(envelope));
 		TxPacket p = new TxPacket(envelope, server, null == payload ? null : new ByteBufPacketSender(payload), null);
 		ReferenceCountUtil.retain(payload);
 		sendPacket(p);
@@ -67,7 +67,7 @@ final public class Client extends AbstractConnection {
 	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) {
 		if(!isUsable())
 			throw new IllegalStateException("Received data from a defunct client??");
-		log("Packet received(C): " + envelope.getPayloadCase());
+		log("Packet received(C): " + Hub.getPacketType(envelope));
 
 		String targetId = envelope.getTargetId();
 		if(targetId.length() == 0) {

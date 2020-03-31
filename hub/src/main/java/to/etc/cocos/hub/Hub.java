@@ -18,6 +18,8 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
+import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.function.FunctionEx;
 import to.etc.log.EtcLoggerFactory;
 import to.etc.util.ConsoleUtil;
@@ -248,5 +250,12 @@ final public class Hub {
 
 	void log(String message) {
 		ConsoleUtil.consoleLog("hub", message);
+	}
+
+
+	static public String getPacketType(Envelope env) {
+		if(env.getPayloadCase() == PayloadCase.ACKABLE)
+			return env.getAckable().getPayloadCase().name();
+		return env.getPayloadCase().name();
 	}
 }

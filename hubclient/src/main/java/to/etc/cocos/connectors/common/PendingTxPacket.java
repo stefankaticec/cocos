@@ -27,6 +27,8 @@ final class PendingTxPacket {
 	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt) {
 		if(envelope.getSourceId().length() == 0)
 			throw new IllegalStateException("Missing source ID");
+		if(envelope.getSourceId().equals(envelope.getTargetId()))
+			throw new IllegalStateException("Source and target IDs are the same: " + envelope.getSourceId());
 		//if(envelope.getTargetId().length() == 0)
 		//	throw new IllegalStateException("Missing target ID");
 		m_envelope = envelope;
@@ -39,6 +41,9 @@ final class PendingTxPacket {
 	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter) {
 		if(envelope.getSourceId().length() == 0)
 			throw new IllegalStateException("Missing source ID");
+		if(envelope.getSourceId().equals(envelope.getTargetId()))
+			throw new IllegalStateException("Source and target IDs are the same: " + envelope.getSourceId());
+
 		//if(envelope.getTargetId().length() == 0)
 		//	throw new IllegalStateException("Missing target ID");
 		m_envelope = envelope;
