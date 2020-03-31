@@ -162,29 +162,21 @@ abstract public class AbstractConnection {
 	 * Schedule a packet to be sent with normal priority.
 	 */
 	public void sendPacket(TxPacket packet) {
-		CentralSocketHandler handler;
-		synchronized(this) {
-			m_txPacketQueue.add(packet);					// Will be picked up when current packet tx finishes.
-			handler = m_handler;
-			packet.setPacketRemoveFromQueue(() -> {
-				synchronized(this) {
-					m_txPacketQueue.remove(packet);
-				}
-			}, TxPacketType.CON);
-		}
-		if(null != handler) {
-			handler.tryScheduleSend(this, packet);			// If the transmitter is empty start it
-		}
+		sendPacket(m_txPacketQueue, packet);
 	}
 
 	public void sendPacketPrio(TxPacket packet) {
+		sendPacket(m_txPacketQueuePrio, packet);
+	}
+
+	private void sendPacket(List<TxPacket> queue, TxPacket packet) {
 		CentralSocketHandler handler;
 		synchronized(this) {
-			m_txPacketQueuePrio.add(packet);
+			queue.add(packet);
 			handler = m_handler;
 			packet.setPacketRemoveFromQueue(() -> {
 				synchronized(this) {
-					m_txPacketQueuePrio.remove(packet);
+					queue.remove(packet);
 				}
 			}, TxPacketType.CON);
 		}
@@ -225,14 +217,10 @@ abstract public class AbstractConnection {
 		return new PacketResponseBuilder(this);
 	}
 
-	public PacketResponseBuilder packetBuilder(Envelope source) {
-		PacketResponseBuilder b = new PacketResponseBuilder(this);
-		b.fromEnvelope(source);
-		return b;
-	}
-
+	/**
+	 * Return a next ackablePacket sequence ID.
+	 */
 	public synchronized int nextSequence() {
 		return m_nextSequenceId++;
-
 	}
 }

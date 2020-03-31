@@ -95,7 +95,6 @@ message ClientDisconnected {}
 
 message ClientConnected {}
 
-
 message AckableMessage {
     int32 sequence = 1;
 

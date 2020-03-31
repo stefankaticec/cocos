@@ -52,7 +52,7 @@ final public class TxPacket {
 				try {
 					onAfter.execute();
 				} catch(Exception x) {
-					throw WrappedException.wrap(x);					// I really get sick with those idiots creating these horrible API's.
+					throw WrappedException.wrap(x);
 				}
 			});
 		}
@@ -61,11 +61,6 @@ final public class TxPacket {
 	static private synchronized int nextId() {
 		return ++m_nextId;
 	}
-
-
-	//public TxPacket(Envelope envelope, AbstractConnection onBehalfOf) {
-	//	this(envelope, onBehalfOf, null);
-	//}
 
 	public Envelope getEnvelope() {
 		return m_envelope;
