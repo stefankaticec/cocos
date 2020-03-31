@@ -48,6 +48,8 @@ public class Peer {
 
 	private int m_lastSequenceSeen;
 
+	private boolean m_connected;
+
 	public Peer(HubConnectorBase<?> connector, String peerId) {
 		m_connector = connector;
 		m_peerId = peerId;
@@ -67,12 +69,14 @@ public class Peer {
 
 		PendingTxPacket p;
 		synchronized(this) {
-			if(cts - m_peerLastPresent >= peerDisconnectedDuration)			// Not seen for too long a time -> refuse packet
-				throw new PeerAbsentException(m_peerId);
+			if(! m_connected) {
+				if(cts - m_peerLastPresent >= peerDisconnectedDuration)			// Not seen for too long a time -> refuse packet
+					throw new PeerAbsentException(m_peerId);
+			}
 			while(m_txQueue.size() > m_connector.getMaxQueuedPackets()) {
 				if(m_connector.isTransmitBlocking()) {
 					try {
-						wait(10_000);                                // Sleep until the #packets decreases
+						wait(10_000);								// Sleep until the #packets decreases
 					} catch(InterruptedException x) {
 						throw new RuntimeException(x);
 					}
@@ -81,7 +85,7 @@ public class Peer {
 				}
 			}
 
-			packetBuilder.setSequence(m_txSequence++);						// Assign sequence # to ack
+			packetBuilder.setSequence(m_txSequence++);							// Assign sequence # to ack
 			p = new PendingTxPacket(env, bodyTransmitter, cts, cts + dur, cts + SEND_RETRY_TIME);
 			m_txQueue.add(p);
 			startTimer();
@@ -240,5 +244,17 @@ public class Peer {
 		return Duration.ofHours(1);
 	}
 
+	public void setConnected() {
+		synchronized(this) {
+			m_connected = true;
+			m_peerLastPresent = System.currentTimeMillis();
+		}
+	}
 
+	public void setDisconnected() {
+		synchronized(this) {
+			m_connected = false;
+			m_peerLastPresent = System.currentTimeMillis();
+		}
+	}
 }

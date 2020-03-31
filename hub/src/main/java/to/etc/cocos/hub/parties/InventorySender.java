@@ -5,6 +5,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import to.etc.cocos.hub.IExecute;
 import to.etc.cocos.hub.PacketResponseBuilder;
 import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.ClientInventory;
 
 import java.util.Collections;
@@ -67,7 +68,10 @@ final class InventorySender {
 			case 0:
 				//-- send client connected
 				PacketResponseBuilder b = m_server.packetBuilder(client.getFullId());
-				b.getEnvelope().setClientConnected(Hubcore.ClientConnected.getDefaultInstance());
+				b.getEnvelope()
+					.setAckable(AckableMessage.newBuilder()
+						.setClientConnected(Hubcore.ClientConnected.getDefaultInstance())
+					);
 				b.after(this::sendNextPacket);
 				b.send();
 				break;

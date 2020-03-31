@@ -45,8 +45,9 @@ abstract public class AbstractConnection {
 	/** Priority packets to send */
 	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
 
-	abstract public void log(String s);
+	private int m_nextSequenceId = 13;
 
+	abstract public void log(String s);
 
 	public AbstractConnection(Cluster cluster, Hub systemContext, String id) {
 		m_cluster = cluster;
@@ -230,4 +231,8 @@ abstract public class AbstractConnection {
 		return b;
 	}
 
+	public synchronized int nextSequence() {
+		return m_nextSequenceId++;
+
+	}
 }

@@ -281,6 +281,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		synchronized(this) {
 			RemoteClient rc = (RemoteClient) cc.peer();
 			cc.getConnector().getEventExecutor().execute(() -> callListeners(a -> a.clientConnected(rc)));
+			cc.peer().setConnected();
 		}
 		cc.log("Client (re)connected: " + id);
 	}

@@ -11,6 +11,7 @@ import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.PacketResponseBuilder;
 import to.etc.cocos.hub.TxPacket;
 import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
@@ -75,18 +76,35 @@ public class Server extends AbstractConnection {
 		return b;
 	}
 
+	public PacketResponseBuilder packetBuilderAckable(String clientID) {
+		PacketResponseBuilder b = packetBuilder();
+		b.getEnvelope()
+			.setSourceId(clientID)
+			.setTargetId(getFullId())
+			.setVersion(1)
+		;
+		return b;
+	}
+
+
 	/**
 	 * Send a "client unregistered" packet to the remote.
 	 */
 	public void sendEventClientUnregistered(String fullId) {
 		PacketResponseBuilder b = packetBuilder(fullId);
-		b.getEnvelope().setClientDisconnected(Hubcore.ClientDisconnected.getDefaultInstance());
+		b.getEnvelope()
+			.setAckable(AckableMessage.newBuilder()
+				.setClientDisconnected(Hubcore.ClientDisconnected.getDefaultInstance())
+			);
 		b.send();
 	}
 
 	public void sendEventClientRegistered(String clientId) {
 		PacketResponseBuilder b = packetBuilder(clientId);
-		b.getEnvelope().setClientConnected(Hubcore.ClientConnected.getDefaultInstance());
+		b.getEnvelope()
+			.setAckable(AckableMessage.newBuilder()
+				.setClientConnected(Hubcore.ClientConnected.getDefaultInstance())
+			);
 		b.send();
 	}
 

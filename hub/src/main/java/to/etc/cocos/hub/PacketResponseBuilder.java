@@ -6,6 +6,8 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.Builder;
 
+import java.util.Objects;
+
 /**
  * This is the normal packet builder, sending packets after
  * the connection has been established.
@@ -81,17 +83,20 @@ final public class PacketResponseBuilder {
 	}
 
 	public void send() {
+		AbstractConnection connection = Objects.requireNonNull(m_connection, "No connection present when sending packet");
+
+		if(getEnvelope().hasAckable()) {
+			getEnvelope().getAckableBuilder().setSequence(connection.nextSequence());
+		}
+
 		CentralSocketHandler socketHandler = m_socketHandler;
-		AbstractConnection connection = m_connection;
 		if(null != socketHandler) {
 			TxPacket p = new TxPacket(m_envelope.build(), connection, m_bodySender, m_onAfter);
 			socketHandler.immediateSendPacket(p);
 			//socketHandler.immediateSendResponse(this, m_onAfter);
-		} else if(null != connection) {
+		} else {
 			TxPacket p = new TxPacket(m_envelope.build(), connection, m_bodySender, m_onAfter);
 			connection.sendPacket(p);
-		} else {
-			throw new IllegalStateException("Response builder not attached to anything");
 		}
 	}
 
