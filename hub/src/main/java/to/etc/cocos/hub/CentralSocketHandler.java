@@ -45,6 +45,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@NonNull
 	private final Hub m_central;
 
+	private PacketAssemblyMachine m_packetAssembler;
+
 	@NonNull
 	private final SocketChannel m_channel;
 
@@ -68,29 +70,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	@Nullable
 	private byte[] m_challenge;
 
-	private ByteBuf m_intBuf;
-
-	@NonNull
-	final private byte[] m_lenBuf = new byte[4];
-
-	private int pshLength;
-
-	@Nullable
-	private byte[] m_envelopeBuffer;
-
-	private int m_envelopeOffset;
-
-	private Envelope m_envelope;
-
-	private int m_payloadLength;
-
-	@Nullable
-	private ByteBuf m_payloadBuffer;
-
-	/**
-	 * PacketReaderState: the state for the engine that reads bytes and converts them into packet data.
-	 */
-	private IReadHandler m_prState = this::prReadHeaderLong;
 
 	private IPacketHandler m_packetState = this::psExpectHeloResponse;
 
@@ -117,17 +96,17 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_central = central;
 		m_channel = socketChannel;
 		m_remoteAddress = socketChannel.remoteAddress().getAddress().getHostAddress();
+		m_packetAssembler = new PacketAssemblyMachine(this::handlePacket, socketChannel.alloc());
 	}
 
 	@Override protected void channelRead0(ChannelHandlerContext context, ByteBuf data) throws Exception {
 		//-- Keep reading data from the buffer until empty and handle it.
-
 		try {
 			while(data.readableBytes() > 0) {
-				m_prState.handleRead(context, data);
+				m_packetAssembler.handleRead(context, data);
 			}
-		} catch(HubException x) {
-			immediateSendHubException(x);
+		//} catch(HubException x) {			// cannot do that here: we might not have a full packet.
+		//	immediateSendHubException(x);
 		} catch(ProtocolViolationException px) {
 			throw px;
 		} catch(Exception x) {
@@ -161,15 +140,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		response.send();
 	}
 
-	@Override public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
-		super.handlerAdded(ctx);
-		m_intBuf = ctx.alloc().buffer(4);
-	}
-
-	@Override public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-		super.handlerRemoved(ctx);
-		m_intBuf.release();
-	}
+	//@Override public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+	//	super.handlerAdded(ctx);
+	//	m_intBuf = ctx.alloc().buffer(4);
+	//}
+	//
+	//@Override public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+	//	super.handlerRemoved(ctx);
+	//	m_intBuf.release();
+	//}
 
 	public String getTmpClientId() {
 		return m_tmpClientId;
@@ -193,117 +172,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Packet reader states.										*/
 	/*----------------------------------------------------------------------*/
-	/**
-	 * PacketReader: read the header and check it once read.
-	 */
-	private void prReadHeaderLong(ChannelHandlerContext context, ByteBuf source) {
-		m_intBuf.writeBytes(source);
-		if(m_intBuf.readableBytes() >= 4) {
-			//-- Compare against header
-			for(byte b : CommandNames.HEADER) {
-				if(b != m_intBuf.readByte()) {
-					throw new ProtocolViolationException("Packet header incorrect");
-				}
-			}
-
-			//-- It worked. Next thing is the envelope length.
-			m_prState = this::prReadEnvelopeLength;
-		}
-	}
-
-	/**
-	 * Read the length bytes for the envelope.
-	 */
-	private void prReadEnvelopeLength(ChannelHandlerContext context, ByteBuf source) {
-		m_intBuf.writeBytes(source);
-		if(m_intBuf.readableBytes() >= 4) {
-			int length = m_intBuf.readInt();
-			if(length < 0 || length >= CommandNames.MAX_ENVELOPE_LENGTH) {
-				throw new ProtocolViolationException("Envelope length " + length + " is out of limits");
-			}
-			pshLength = length;
-			m_envelopeBuffer = new byte[length];
-			m_envelopeOffset = 0;
-			m_prState = this::prReadEnvelope;
-		}
-	}
-
-	/**
-	 * With the length from the previous step, collect the envelope data into a byte array
-	 * and when finished convert it into the Envelope class.
-	 */
-	private void prReadEnvelope(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf) throws Exception {
-		int available = byteBuf.readableBytes();
-		if(available == 0)
-			return;
-		int todo = pshLength - m_envelopeOffset;
-		if(todo > available) {
-			todo = available;
-		}
-
-		byteBuf.readBytes(m_envelopeBuffer, m_envelopeOffset, todo);
-		m_envelopeOffset += todo;
-
-		//-- All data read?
-		if(m_envelopeOffset < pshLength)
-			return;
-
-		//-- Create the Envelope
-		try {
-			m_envelope = Hubcore.Envelope.parseFrom(m_envelopeBuffer);
-		} finally {
-			m_envelopeBuffer = null;
-		}
-
-		m_prState = this::prReadPayloadLength;
-	}
-
-	/**
-	 * Envelope has been fully obtained and decoded as an Envelope. What follows is the payload length.
-	 */
-	private void prReadPayloadLength(ChannelHandlerContext channelHandlerContext, ByteBuf source) throws Exception {
-		m_intBuf.writeBytes(source);
-		if(m_intBuf.readableBytes() >= 4) {
-			int length = m_intBuf.readInt();
-			if(length < 0 || length >= CommandNames.MAX_DATA_LENGTH) {
-				throw new ProtocolViolationException("Packet payload length " + length + " is out of limits");
-			}
-			pshLength = m_payloadLength = length;
-			if(length == 0) {
-				//-- Nothing to do: we're just set for another packet.
-				m_prState = this::prReadHeaderLong;
-				m_payloadBuffer = null;
-				handlePacket(null, 0);
-			} else {
-				m_payloadBuffer = alloc().buffer(length, CommandNames.MAX_DATA_LENGTH);
-				m_prState = this::prReadPayload;
-			}
-		}
-	}
-
-	/**
-	 * Copy payload bytes to the payload buffer for this channel until all bytes have been transferred.
-	 */
-	private void prReadPayload(ChannelHandlerContext channelHandlerContext, ByteBuf source) throws Exception {
-		int available = source.readableBytes();
-		if(available == 0)
-			return;
-		int todo = pshLength;
-		if(todo > available) {
-			todo = available;
-		}
-		ByteBuf outb = m_payloadBuffer;
-		if(null == outb)
-			throw new IllegalStateException("No payload buffer in readPayload phase");
-		outb.writeBytes(source, todo);
-		pshLength -= todo;
-		if(pshLength == 0) {
-			m_prState = this::prReadHeaderLong;
-			m_payloadBuffer = null;
-			handlePacket(outb, m_payloadLength);
-		}
-	}
-
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Command state handler.										*/
 	/*----------------------------------------------------------------------*/
@@ -400,7 +268,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 
 		//-- Forward the packet to the remote server
-		setHelloInformation(m_envelope.getSourceId(), cluster, orgId);
+		setHelloInformation(envelope.getSourceId(), cluster, orgId);
 		getDirectory().registerTmpClient(m_tmpClientId, this);
 
 		PacketResponseBuilder b = new PacketResponseBuilder(server.getHandler());
@@ -414,7 +282,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				.setClientId(m_myId)
 				.setClientVersion(envelope.getHeloClient().getClientVersion())
 			);
-		setPacketState(this::waitForServerAuth, new BeforeClientData(cluster, orgId, m_envelope.getSourceId()));
+		setPacketState(this::waitForServerAuth, new BeforeClientData(cluster, orgId, envelope.getSourceId()));
 		b.send();
 	}
 
@@ -478,13 +346,13 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * State handler that handles the packet level dialogue.
 	 */
-	private void handlePacket(@Nullable ByteBuf payload, int length) throws Exception {
+	private void handlePacket(Envelope envelope, @Nullable ByteBuf payload, int length) throws Exception {
 		IPacketHandler packetState;
 		synchronized(this) {
 			packetState = m_packetState;
 		}
 		try {
-			packetState.handlePacket(m_envelope, payload, length);
+			packetState.handlePacket(envelope, payload, length);
 		} finally {
 			if(null != payload) {
 				payload.release();
@@ -779,11 +647,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		initiatePacketSending(packet);
 	}
 
-	private void immediateSendHubException(HubException x) {
+	private void immediateSendHubException(Envelope source, HubException x) {
 		log("sending hub exception " + x);
 
 		PacketResponseBuilder rb = new PacketResponseBuilder(this)
-			.fromEnvelope(m_envelope)
+			.fromEnvelope(source)
 			;
 		rb.getEnvelope()
 			.setHubError(HubErrorResponse.newBuilder()
@@ -863,6 +731,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_myId = clientId;
 		m_cluster = cluster;
 		m_resourceId = resourceId;
+	}
+
+	/**
+	 * This channel has become inactive and reached the end of its life. Release all resources.
+	 */
+	@Override
+	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+		super.channelInactive(ctx);
+		m_packetAssembler.destroy();
 	}
 
 	public ByteBufAllocator alloc() {
