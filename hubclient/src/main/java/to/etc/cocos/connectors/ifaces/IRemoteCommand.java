@@ -1,9 +1,11 @@
 package to.etc.cocos.connectors.ifaces;
 
-import io.reactivex.Observable;
+import io.reactivex.rxjava3.core.Observable;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+
+;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>

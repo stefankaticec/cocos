@@ -1,6 +1,6 @@
 package to.etc.cocos.connectors.ifaces;
 
-import io.reactivex.Observable;
+import io.reactivex.rxjava3.core.Observable;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
