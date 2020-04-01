@@ -1,8 +1,8 @@
 package to.etc.cocos.connectors.server;
 
 import com.google.protobuf.ByteString;
-import io.reactivex.Observable;
-import io.reactivex.subjects.PublishSubject;
+import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;

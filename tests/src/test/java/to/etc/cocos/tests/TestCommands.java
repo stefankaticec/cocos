@@ -1,6 +1,6 @@
 package to.etc.cocos.tests;
 
-import io.reactivex.subjects.PublishSubject;
+import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.client.JsonSystemCommand;
