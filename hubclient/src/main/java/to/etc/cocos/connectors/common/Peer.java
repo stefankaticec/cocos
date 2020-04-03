@@ -7,6 +7,7 @@ import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.util.DateUtil;
 import to.etc.util.StringTool;
 import to.etc.util.TimerUtil;
 
@@ -28,13 +29,21 @@ import java.util.TimerTask;
  */
 @NonNullByDefault
 public class Peer {
+	/**
+	 * How much time do we "remember" that we've seen a packet (minimal).
+	 */
+	static private final long SEENSET_KEEPTIME = 60 * 1000;
+
+
 	static private final long SEND_RETRY_TIME = 5 * 1000L;
+
+	static private final long SEQUENCE_OFFSET = DateUtil.dateFor(2020, 3, 1).getTime();
 
 	private final HubConnectorBase<?> m_connector;
 
 	private final String m_peerId;
 
-	private int m_txSequence = 12;
+	private int m_txSequence;
 
 	private final List<PendingTxPacket> m_txQueue = new ArrayList<>();
 
@@ -42,6 +51,18 @@ public class Peer {
 
 	@Nullable
 	private TimerTask m_timerTask;
+
+	private int m_seenSetIndex;
+
+	private long m_lastSeenWrap;
+
+	private int m_seenSetCount;
+
+	private Set<Integer>[] m_seenSets = new Set[] {
+		new HashSet<Integer>(),
+		new HashSet<Integer>(),
+		new HashSet<Integer>()
+	};
 
 	private Set<Integer> m_unseenSet = new HashSet<>();
 
@@ -54,6 +75,8 @@ public class Peer {
 			throw new IllegalStateException("Invalid peer ID");
 		m_connector = connector;
 		m_peerId = peerId;
+		long seq = (System.currentTimeMillis() - SEQUENCE_OFFSET) / 1000;	// #of seconds since SEQUENCE_OFFSET initializes sequence ID to make packets unique
+		m_txSequence = (int) seq;
 	}
 
 	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration) {
@@ -184,29 +207,56 @@ public class Peer {
 	 * seen from this peer. In that case the effect of the packet has already been
 	 * done, so we should ignore it.
 	 *
-	 * Algorithm: we keep a highest sequence number plus a set of values BELOW
-	 * that highest number that is not yet seen. When a new sequence comes in, if
-	 * it is lower than the sequence it is unseen only if it is in that set. In that
-	 * case remove it from that set.
-	 * If the number is > max then we add the missing numbers to the unseen set.
-	 * As we expect all ids to be seen this mechanism will empty the set as seq#s
-	 * arrive.
+	 * Our sequences are initially time based (so they are large) but after that
+	 * initial large number they are usually sequential. But if the peer restarts
+	 * it will reinit the sequence number to a large number again, and this will leave
+	 * a large gap. This makes it hard to use a simple method to detect which
+	 * sequences have been seen. We can make a reasonably effective mechanism if
+	 * we knew which acks the receiver has seen- but we do not (yet) have that info.
+	 *
+	 * So, as our sequences are gappy we need to somehow keep the things we've seen
+	 * in memory during the time which we can expect retransmits. To do this we need
+	 * kind of a thingy that cleans up the sequence#s we've seen once they are older
+	 * than this RETRANSMIT_TIME.
+	 *
+	 * For now we use the following mechanism:
+	 * We have three Set&lt;int&gt; in a round-robin list. One of the sets is current,
+	 * defined by the m_seenIndex variable. New packets that come in are put into that
+	 * current set always if they have not yet been seen.
+	 *
+	 * To check whether a set is seen we test the current set AND the set before it.
+	 * If it is in either the packet is seen. And if not we put it in current to mark
+	 * it as seen.
+	 *
+	 * Clearing "too old" sequences is done by incrementing the current seenSet index
+	 * every RETRANSMIT_TIME. The current set then becomes the old set, and the set
+	 * that was before the old set is the set of ids to remove: they are just cleared.
 	 */
 	public boolean seen(int sequence) {
 		synchronized(this) {
-			if(sequence > m_lastSequenceSeen) {
-				if(sequence - m_lastSequenceSeen > 100)
-					throw new IllegalStateException("Too many missing packet sequences");
-				//-- Add "Unseen" records for all numbers from lastSequence up to sequence
-				for(int i = m_lastSequenceSeen + 1; i < sequence; i++) {
-					m_unseenSet.add(i);
-				}
-				m_lastSequenceSeen = sequence;
-				return false;
-			}
-
-			if(m_unseenSet.remove(sequence)) {
+			Integer seq = Integer.valueOf(sequence);
+			int ix = m_seenSetIndex;
+			if(m_seenSets[ix].contains(seq))
 				return true;
+			ix--;									// Move to "older" set
+			if(ix < 0)								// Handle wraparound for round-robin
+				ix = 2;
+			if(m_seenSets[ix].contains(seq))
+				return true;
+
+			m_seenSets[m_seenSetIndex].add(seq);	// Has now been seen
+
+			//-- Time for a wraparound?
+			if(m_seenSetCount++ > 100) {
+				m_seenSetIndex = 0;
+				long cts = System.currentTimeMillis();
+				if(cts >= m_lastSeenWrap) {
+					m_seenSetIndex++;
+					if(m_seenSetIndex > 2)
+						m_seenSetIndex = 0;
+					m_seenSets[ix].clear();			 // ix pointed to the old set, but it is now the expired set
+					m_lastSeenWrap = cts + SEENSET_KEEPTIME;
+				}
 			}
 			return true;
 		}
