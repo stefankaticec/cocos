@@ -258,7 +258,7 @@ public class Peer {
 					m_lastSeenWrap = cts + SEENSET_KEEPTIME;
 				}
 			}
-			return true;
+			return false;
 		}
 	}
 
