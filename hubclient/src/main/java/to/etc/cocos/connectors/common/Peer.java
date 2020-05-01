@@ -2,6 +2,7 @@ package to.etc.cocos.connectors.common;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.connectors.ifaces.RemoteClientNotPresentException;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.CommandError;
@@ -13,6 +14,7 @@ import to.etc.util.TimerUtil;
 
 import java.text.MessageFormat;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -88,7 +90,7 @@ public class Peer {
 		synchronized(this) {
 			if(! m_connected) {
 				if(cts - m_peerLastPresent >= peerDisconnectedDuration)			// Not seen for too long a time -> refuse packet
-					throw new PeerAbsentException(m_peerId);
+					throw new RemoteClientNotPresentException("Client " + m_peerId + " is not currently connected");
 			}
 			while(m_txQueue.size() > m_connector.getMaxQueuedPackets()) {
 				if(m_connector.isTransmitBlocking()) {
@@ -300,6 +302,14 @@ public class Peer {
 			m_connected = true;
 			m_peerLastPresent = System.currentTimeMillis();
 		}
+	}
+
+	public synchronized boolean isConnected() {
+		return m_connected;
+	}
+
+	public synchronized LocalDateTime getLastPresent() {
+		return DateUtil.toLocalDateTime(m_peerLastPresent);
 	}
 
 	public void setDisconnected() {

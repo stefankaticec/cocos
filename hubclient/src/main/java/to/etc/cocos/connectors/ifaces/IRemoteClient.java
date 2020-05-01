@@ -6,6 +6,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -24,4 +25,8 @@ public interface IRemoteClient {
 	IRemoteCommand sendJsonCommand(String uniqueCommandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception;
 
 	Observable<ServerCommandEventBase> getEventPublisher();
+
+	boolean isConnected();
+
+	LocalDateTime getLastPresent();
 }
