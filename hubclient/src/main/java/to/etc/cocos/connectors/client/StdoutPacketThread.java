@@ -216,6 +216,7 @@ final public class StdoutPacketThread implements AutoCloseable {
 			m_lock.lock();
 			try {
 				//-- 1. Do we have output?
+				packetData = null;						// Assume no.
 				int length = m_output.length();
 				if(length > 0) {
 					long cts = System.currentTimeMillis();
@@ -226,14 +227,18 @@ final public class StdoutPacketThread implements AutoCloseable {
 						m_output.setLength(0);
 						m_lastPacketTime = cts;
 						m_bufferEmptied.signal();
-					} else {
-						try {
-							m_dataAvailable.await(1, TimeUnit.SECONDS);
-						} catch(InterruptedException x) {
-						}
 					}
-				} else if(m_finished) {
+				} else if(m_finished) {					// Only exit with finished when all data is sent.
 					return;
+				}
+
+				if(null == packetData) {				// No data to send -> sleep waiting for data
+					try {
+						m_dataAvailable.await(1, TimeUnit.SECONDS);
+					} catch(InterruptedException x) {
+						System.err.println("Writer loop interrupted");
+						throw new RuntimeException("Interrupted");
+					}
 				}
 			} finally {
 				m_lock.unlock();
@@ -243,6 +248,7 @@ final public class StdoutPacketThread implements AutoCloseable {
 				if(packetData.contains("\u0000"))
 					System.err.println("OUTPUT BUFFER CONTAINS NUL CHARACTERS");
 				m_cctx.sendStdoutPacket(packetData);
+				packetData = null;
 			}
 		}
 	}
