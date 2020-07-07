@@ -9,6 +9,7 @@ import to.etc.cocos.hub.ByteBufPacketSender;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.TxPacket;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.util.ByteBufferOutputStream;
@@ -18,6 +19,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Represents a client (daemon).
@@ -64,14 +67,14 @@ final public class Client extends AbstractConnection {
 		});
 	}
 
-	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) {
+	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) throws Exception {
 		if(!isUsable())
 			throw new IllegalStateException("Received data from a defunct client??");
 		log("Packet received(C): " + Hub.getPacketType(envelope));
 
 		String targetId = envelope.getTargetId();
 		if(targetId.length() == 0) {
-			handleHubCommand(envelope);
+			handleHubCommand(envelope, payload, length);
 		} else {
 			Server server = decodeServerTargetID(envelope.getTargetId());
 			server.packetFromClient(this, envelope, payload, length);
@@ -125,9 +128,10 @@ final public class Client extends AbstractConnection {
 
 
 
-	private void handleHubCommand(Envelope envelope) {
-
-
+	private void handleHubCommand(Envelope envelope, @Nullable ByteBuf payload, int length) throws Exception {
+		if(envelope.getPayloadCase() == PayloadCase.INVENTORY) {
+			updateInventory(envelope.getInventory().getDataFormat(), requireNonNull(payload), length);
+		}
 	}
 
 	public synchronized List<ByteBufferPacket> getInventoryPacketList() {

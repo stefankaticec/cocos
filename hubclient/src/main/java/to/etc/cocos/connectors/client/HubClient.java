@@ -219,6 +219,19 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory));
 	}
 
+	public void updateInventory() {
+		JsonPacket inventory = m_authHandler.getInventory();
+		var response = Envelope.newBuilder()
+			.setVersion(1)
+			.setTargetId("")
+			.setSourceId(getMyId())
+			.setInventory(ClientInventory.newBuilder()
+				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
+			)
+			.build();
+		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory));
+	}
+
 	@Override protected void onErrorPacket(Envelope env) {
 		HubErrorResponse hubError = env.getHubError();
 		log("HUB error: " + hubError.getCode() + " " + hubError.getText());
@@ -233,7 +246,6 @@ final public class HubClient extends HubConnectorBase<Peer> {
 	public int getRunningCommands() {
 		return m_commandMap.values().size();
 	}
-
 
 
 }
