@@ -54,6 +54,8 @@ final public class StdoutPacketThread implements AutoCloseable {
 
 	private StringBuilder m_output = new StringBuilder(65536);
 
+	private String m_lastOutput = "";
+
 	///** The last time we pushed a packet */
 	//private long m_nextPushTime;
 
@@ -69,6 +71,10 @@ final public class StdoutPacketThread implements AutoCloseable {
 		m_decoder = streamEncoding.newDecoder();
 		m_dataAvailable = m_lock.newCondition();
 		m_bufferEmptied = m_lock.newCondition();
+	}
+
+	public String getLastOutput() {
+		return m_lastOutput;
 	}
 
 	public void start() {
@@ -225,6 +231,7 @@ final public class StdoutPacketThread implements AutoCloseable {
 					if(isPacketSendTime(cts, length)) {
 						packetData = m_output.toString();
 						m_output.setLength(0);
+						m_lastOutput = packetData;
 						m_lastPacketTime = cts;
 						m_bufferEmptied.signal();
 					}
