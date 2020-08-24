@@ -156,11 +156,10 @@ public class Peer {
 		List<PendingTxPacket> expireList = new ArrayList<>();
 		boolean connected = m_connector.getState() == ConnectorState.AUTHENTICATED;
 		synchronized(this) {
-			for(int i = m_txQueue.size() - 1; i >= 0; i--) {
-				PendingTxPacket p = m_txQueue.get(i);
-				if(p.getExpiresAt() >= cts) {
+			for(PendingTxPacket p : new ArrayList<>(m_txQueue)) {
+				if(p.getExpiresAt() <= cts) {
 					expireList.add(p);
-					m_txQueue.remove(i);
+					m_txQueue.remove(p);
 				} else if(cts >= p.getRetryAt()) {
 					p.setRetryAt(cts + SEND_RETRY_TIME);
 					if(connected) {
