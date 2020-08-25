@@ -77,11 +77,13 @@ final public class RemoteCommand implements IRemoteCommand {
 			@Override
 			public void errorEvent(EvCommandError errorEvent) throws Exception {
 				m_eventPublisher.onNext(errorEvent);
+				m_eventPublisher.onComplete();
 			}
 
 			@Override
 			public void completedEvent(EvCommandFinished ev) throws Exception {
 				m_eventPublisher.onNext(ev);
+				m_eventPublisher.onComplete();
 			}
 
 			@Override
