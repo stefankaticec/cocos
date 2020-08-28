@@ -19,7 +19,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TimerTask;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * One of the communication peers. A client has only one peer (the server it talks with), but a server
@@ -52,7 +53,7 @@ public class Peer {
 	private long m_peerLastPresent;
 
 	@Nullable
-	private TimerTask m_timerTask;
+	private ScheduledFuture<?> m_timerTask;
 
 	private int m_seenSetIndex;
 
@@ -183,22 +184,16 @@ public class Peer {
 			if(m_timerTask != null)										// Already timer task present?
 				return;
 
-			TimerTask tt = m_timerTask = new TimerTask() {
-				@Override
-				public void run() {
-					checkTimeouts();
-				}
-			};
-			TimerUtil.getTimer().schedule(tt, SEND_RETRY_TIME, SEND_RETRY_TIME);
+			m_timerTask = TimerUtil.getTimer().scheduleAtFixedRate(() -> checkTimeouts(), SEND_RETRY_TIME, SEND_RETRY_TIME, TimeUnit.MILLISECONDS);
 		}
 	}
 
 	private void cancelTimer() {
 		synchronized(this) {
-			TimerTask tt = m_timerTask;
+			ScheduledFuture<?> tt = m_timerTask;
 			if(null != tt) {
 				m_timerTask = null;
-				tt.cancel();
+				tt.cancel(true);
 			}
 		}
 	}
