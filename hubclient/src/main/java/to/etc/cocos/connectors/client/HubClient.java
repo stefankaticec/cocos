@@ -247,5 +247,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		return m_commandMap.values().size();
 	}
 
-
+	public CommandContext getCommand(String commandId) {
+		return m_commandMap.get(commandId);
+	}
 }
