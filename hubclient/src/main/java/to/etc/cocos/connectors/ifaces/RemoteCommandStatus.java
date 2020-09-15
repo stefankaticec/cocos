@@ -8,5 +8,6 @@ public enum RemoteCommandStatus {
 	SCHEDULED,
 	RUNNING,
 	FAILED,
-	FINISHED
+	FINISHED,
+	UNKNOWN
 }

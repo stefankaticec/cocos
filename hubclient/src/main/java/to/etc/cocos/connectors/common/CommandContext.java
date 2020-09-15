@@ -12,6 +12,7 @@ import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.Builder;
 
 import java.time.Duration;
+import java.time.Instant;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -36,6 +37,13 @@ final public class CommandContext {
 
 	@Nullable
 	private String m_cancelReason;
+
+	@Nullable
+	private Instant m_startedAt;
+
+	@Nullable
+	private Instant m_finishedAt;
+
 
 	public CommandContext(HubConnectorBase<?> connector, Envelope envelope, Peer peer) {
 		m_connector = connector;
@@ -88,6 +96,24 @@ final public class CommandContext {
 
 	public void error(String s) {
 		m_connector.error(s);
+	}
+
+	public synchronized void markAsStarted() {
+		m_startedAt = Instant.now();
+	}
+
+	public synchronized void markAsFinished() {
+		m_finishedAt = Instant.now();
+	}
+
+	@Nullable
+	public synchronized Instant getStartedAt() {
+		return m_startedAt;
+	}
+
+	@Nullable
+	public synchronized Instant getFinishedAt() {
+		return m_finishedAt;
 	}
 
 	//public void respondWithHubErrorPacket(PacketPrio prio, ErrorCode code, String details) {
