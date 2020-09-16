@@ -21,6 +21,7 @@ import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 import to.etc.util.StringTool;
+import to.etc.util.TimerUtil;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
@@ -47,7 +48,9 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A connector to a Hub server. This connector keeps a single connection to the Hub server
@@ -249,6 +252,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			Thread wt = m_writerThread = new Thread(this::writerMain, "cw#" + m_id);
 			wt.setDaemon(true);
 			wt.setDaemon(true);
+			internalStart();
 			wt.start();
 		}
 	}
@@ -1041,4 +1045,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 	protected Map<String, T> getPeerMap() {
 		return m_peerMap;
 	}
+
+	protected void internalStart() {}
 }
