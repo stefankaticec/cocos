@@ -156,11 +156,9 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		cleanupOldCommands();
 		try {
 			commandHandler.execute(ctx, data, throwable -> {
-				synchronized(this) {
-					log("Command " + ctx.getId() + " completion handler called with exception=" + throwable);
-					ctx.setStatus(throwable == null ? RemoteCommandStatus.FINISHED : RemoteCommandStatus.FAILED);
-					ctx.markAsFinished();
-				}
+				ctx.markAsFinished();
+				ctx.setStatus(throwable == null ? RemoteCommandStatus.FINISHED : RemoteCommandStatus.FAILED);
+				log("Command " + ctx.getId() + " completion handler called with exception=" + throwable);
 			});
 		} catch(Exception x) {
 			ctx.log("Command " + cmd.getName() + " failed: " + x);
@@ -253,6 +251,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 	public CommandContext getCommand(String commandId) {
 		return m_commandMap.get(commandId);
 	}
+
 	private void cleanupOldCommands() {
 		new ArrayList<>(m_commandMap.values()).forEach(x->{
 			var finished = x.getFinishedAt();

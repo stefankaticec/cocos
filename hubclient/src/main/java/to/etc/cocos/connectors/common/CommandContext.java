@@ -98,22 +98,30 @@ final public class CommandContext {
 		m_connector.error(s);
 	}
 
-	public synchronized void markAsStarted() {
-		m_startedAt = Instant.now();
+	public void markAsStarted() {
+		synchronized(m_connector) {
+			m_startedAt = Instant.now();
+		}
 	}
 
-	public synchronized void markAsFinished() {
-		m_finishedAt = Instant.now();
+	public void markAsFinished() {
+		synchronized(m_connector) {
+			m_finishedAt = Instant.now();
+		}
 	}
 
 	@Nullable
-	public synchronized Instant getStartedAt() {
-		return m_startedAt;
+	public Instant getStartedAt() {
+		synchronized(m_connector) {
+			return m_startedAt;
+		}
 	}
 
 	@Nullable
-	public synchronized Instant getFinishedAt() {
-		return m_finishedAt;
+	public Instant getFinishedAt() {
+		synchronized(m_connector) {
+			return m_finishedAt;
+		}
 	}
 
 	//public void respondWithHubErrorPacket(PacketPrio prio, ErrorCode code, String details) {
@@ -175,16 +183,20 @@ final public class CommandContext {
 		peer().send(ackable, new StringBodyTransmitter(s), Duration.ofHours(1));
 	}
 
-	public synchronized void setHandler(@Nullable IClientCommandHandler handler) {
-		if(m_cancelReason != null) {
-			throw new CommandFailedException("The command was cancelled: " + m_cancelReason);
+	public void setHandler(@Nullable IClientCommandHandler handler) {
+		synchronized(m_connector) {
+			if(m_cancelReason != null) {
+				throw new CommandFailedException("The command was cancelled: " + m_cancelReason);
+			}
+			m_handler = handler;
 		}
-		m_handler = handler;
 	}
 
 	@Nullable
-	public synchronized IClientCommandHandler prepareCancellation(String cancelReason) {
-		m_cancelReason = cancelReason;
-		return m_handler;
+	public IClientCommandHandler prepareCancellation(String cancelReason) {
+		synchronized(m_connector) {
+			m_cancelReason = cancelReason;
+			return m_handler;
+		}
 	}
 }
