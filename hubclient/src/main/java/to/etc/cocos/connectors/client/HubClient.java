@@ -32,6 +32,7 @@ import java.util.function.Supplier;
  */
 @NonNullByDefault
 final public class HubClient extends HubConnectorBase<Peer> {
+	private static final int KEEP_COMMAND_FOR_MILIS = 1_000 * 60 * 60;
 	private final String m_clientVersion = "HubClient 1.0";
 
 	private final String m_targetCluster;
@@ -151,12 +152,14 @@ final public class HubClient extends HubConnectorBase<Peer> {
 
 		m_commandMap.put(ctx.getId(), ctx);
 		ctx.setHandler(commandHandler);
+		ctx.markAsStarted();
+		cleanupOldCommands();
 		try {
 			commandHandler.execute(ctx, data, throwable -> {
 				synchronized(this) {
 					log("Command " + ctx.getId() + " completion handler called with exception=" + throwable);
 					ctx.setStatus(throwable == null ? RemoteCommandStatus.FINISHED : RemoteCommandStatus.FAILED);
-					m_commandMap.remove(ctx.getId());
+					ctx.markAsFinished();
 				}
 			});
 		} catch(Exception x) {
@@ -247,5 +250,17 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		return m_commandMap.values().size();
 	}
 
-
+	public CommandContext getCommand(String commandId) {
+		return m_commandMap.get(commandId);
+	}
+	private void cleanupOldCommands() {
+		new ArrayList<>(m_commandMap.values()).forEach(x->{
+			var finished = x.getFinishedAt();
+			if(finished != null) {
+				if(finished.toEpochMilli() + KEEP_COMMAND_FOR_MILIS < System.currentTimeMillis()) {
+					m_commandMap.remove(x.getId());
+				}
+			}
+		});
+	}
 }
