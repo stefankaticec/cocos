@@ -43,6 +43,8 @@ final public class HubClient extends HubConnectorBase<Peer> {
 
 	private final Map<String, CommandContext> m_commandMap = new ConcurrentHashMap<>();
 
+	private final List<CommandContext> m_runningCommandList = new ArrayList<>();
+
 	private HubClient(String hubServer, int hubServerPort, IClientAuthenticationHandler authHandler, String targetClusterAndOrg, String myId) {
 		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
 		m_authHandler = authHandler;
@@ -151,11 +153,17 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		ctx.log("Running handler for " + cmd.getName() + " and command " + cmd.getId());
 
 		m_commandMap.put(ctx.getId(), ctx);
+		synchronized(this) {
+			m_runningCommandList.add(ctx);
+		}
 		ctx.setHandler(commandHandler);
 		ctx.markAsStarted();
 		cleanupOldCommands();
 		try {
 			commandHandler.execute(ctx, data, throwable -> {
+				synchronized(this) {
+					m_runningCommandList.remove(ctx);
+				}
 				ctx.markAsFinished();
 				ctx.setStatus(throwable == null ? RemoteCommandStatus.FINISHED : RemoteCommandStatus.FAILED);
 				log("Command " + ctx.getId() + " completion handler called with exception=" + throwable);
@@ -245,7 +253,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 	}
 
 	public int getRunningCommands() {
-		return m_commandMap.values().size();
+		return m_runningCommandList.size();
 	}
 
 	public CommandContext getCommand(String commandId) {
