@@ -33,7 +33,8 @@
 
         <maven-javadoc-plugin.version>3.0.1</maven-javadoc-plugin.version>
         <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
-        <maven-surefire.version>2.22.0</maven-surefire.version>
+        <maven-surefire.version>2.22.2</maven-surefire.version>
+        <maven-failsafe-plugin.version>2.22.2</maven-failsafe-plugin.version>
         <maven-source-plugin.version>3.0.1</maven-source-plugin.version>
         <maven-war-plugin.version>3.0.0</maven-war-plugin.version>
         <maven-install-plugin.version>2.5.2</maven-install-plugin.version>
@@ -41,7 +42,6 @@
         <maven-pmd-plugin.version>3.6</maven-pmd-plugin.version>
         <maven-enforcer-plugin.version>1.4.1</maven-enforcer-plugin.version>
         <maven-shade-plugin.version>2.4.3</maven-shade-plugin.version>
-        <maven-failsafe-plugin.version>2.22.2</maven-failsafe-plugin.version>
         <plexus-compiler-eclipse.version>2.8.5</plexus-compiler-eclipse.version>
         <findbugs-maven-plugin.version>3.0.4</findbugs-maven-plugin.version>
         <appassembler-maven-plugin.version>1.10</appassembler-maven-plugin.version>
@@ -156,7 +156,7 @@
             <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
-                <version>4.12</version>
+                <version>4.13.1</version>
                 <scope>test</scope>
             </dependency>
 
