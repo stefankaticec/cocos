@@ -514,7 +514,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	@Override
 	protected void internalStart() {
-		m_timeoutTask = TimerUtil.getTimer().scheduleAtFixedRate(()-> cancelTimedOutCommands(), 2, 1, TimeUnit.SECONDS);
+		m_timeoutTask = TimerUtil.getTimer().scheduleAtFixedRate(()-> cancelTimedOutCommands(), 2, 1, TimeUnit.MINUTES);
 	}
 
 	private void cancelTimedOutCommands() {
