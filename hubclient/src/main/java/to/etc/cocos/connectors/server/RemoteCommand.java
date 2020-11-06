@@ -45,6 +45,7 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	private final String m_description;
 
+	private long m_startedAt;
 	private long m_finishedAt;
 
 	private RemoteCommandStatus m_status = RemoteCommandStatus.SCHEDULED;
@@ -73,6 +74,7 @@ final public class RemoteCommand implements IRemoteCommand {
 		m_commandTimeout = commandTimeout;
 		m_commandKey = commandKey;
 		m_description = description;
+		m_startedAt = System.currentTimeMillis();
 		addListener(new IRemoteCommandListener() {
 			@Override
 			public void errorEvent(EvCommandError errorEvent) throws Exception {
@@ -182,6 +184,10 @@ final public class RemoteCommand implements IRemoteCommand {
 		m_finishedAt = finishedAt;
 	}
 
+	public long getStartedAt() {
+		return m_startedAt;
+	}
+
 	@Override
 	public PublishSubject<ServerCommandEventBase> observeEvents() {
 		return m_eventPublisher;
@@ -244,5 +250,9 @@ final public class RemoteCommand implements IRemoteCommand {
 	@Override
 	public String toString() {
 		return m_commandId + ":" + m_description;
+	}
+
+	public boolean hasTimedOut() {
+		return m_startedAt + getCommandTimeout().toMillis() < System.currentTimeMillis();
 	}
 }

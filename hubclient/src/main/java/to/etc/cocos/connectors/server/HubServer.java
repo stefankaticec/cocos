@@ -35,6 +35,7 @@ import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.function.ConsumerEx;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.util.TimerUtil;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -46,6 +47,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -71,6 +74,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	private final Map<String, RemoteCommand> m_commandMap = new HashMap<>();
 
 	private final Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
+
+	@Nullable
+	private ScheduledFuture<?> m_timeoutTask;
 
 	private HubServer(String hubServer, int hubServerPort, String clusterPassword, IClientAuthenticator authenticator, String id) {
 		super(hubServer, hubServerPort, "", id, "Server");
@@ -434,6 +440,11 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	@Override
 	public void close() throws Exception {
 		terminateAndWait();
+		var timeout = m_timeoutTask;
+		if(timeout != null) {
+			m_timeoutTask = null;
+			timeout.cancel(true);
+		}
 	}
 
 	@Nullable
@@ -499,5 +510,23 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	@Override
 	protected RemoteClient createPeer(String peerId) {
 		return new RemoteClient(this, peerId);
+	}
+
+	@Override
+	protected void internalStart() {
+		m_timeoutTask = TimerUtil.getTimer().scheduleAtFixedRate(()-> cancelTimedOutCommands(), 2, 1, TimeUnit.MINUTES);
+	}
+
+	private void cancelTimedOutCommands() {
+		for(RemoteCommand val : m_commandMap.values()) {
+			if(val.hasTimedOut()) {
+				try {
+					val.cancel("Timeout");
+				}catch(Exception e){
+					System.out.println("Exception cancelling "+ val);
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 }
