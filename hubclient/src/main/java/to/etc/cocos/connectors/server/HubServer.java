@@ -233,7 +233,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			).build()
 			;
 
-		sendPacketPrimitive(reply, null);
+		sendPacketPrimitive(reply, null, () -> {
+			forceDisconnect("Challenge response send failed");
+		});
 	}
 
 	/**
@@ -261,7 +263,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		Envelope auth = responseEnvelope(env, env.getSourceId())
 			.setAuth(AuthResponse.newBuilder())
 			.build();
-		sendPacketPrimitive(auth, null);
+		sendPacketPrimitive(auth, null, () -> {
+			forceDisconnect("Client Auth response packet send failed");
+		});
 	}
 
 	/**
@@ -399,7 +403,16 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 				.setId(command.getCommandId())
 				.setName(packet.getClass().getName())
 			);
-		command.getClient().send(message, new JsonBodyTransmitter(packet), Duration.ofMinutes(5));
+		command.getClient().send(message, new JsonBodyTransmitter(packet), Duration.ofMinutes(5), () -> {
+			//-- Abort the command
+			log("Command send failed for " + command + " " + packet.getClass().getSimpleName());
+			for(IRemoteCommandListener listener : command.getListeners()) {
+				listener.errorEvent(new EvCommandError(command, CommandError.newBuilder().setCode(ErrorCode.commandSendError.name()).build()));
+				command.setFinishedAt(System.currentTimeMillis());
+			}
+
+
+		});
 		//
 		//Envelope jcmd = Envelope.newBuilder()
 		//	.setSourceId(getMyId())

@@ -45,7 +45,9 @@ final public class SynchronousJsonCommandHandler<T extends JsonPacket> implement
 					.setId(cmd.getId())
 					.setDataFormat(CommandNames.getJsonDataFormat(result))
 				);
-			ctx.peer().send(ack, new JsonBodyTransmitter(result), Duration.ofHours(2));
+			ctx.peer().send(ack, new JsonBodyTransmitter(result), Duration.ofHours(2), () -> {
+				System.err.println("ERROR: Command response send failed for " + cmd);
+			});
 		} catch(Exception | Error x) {
 			error = x;
 			throw x;

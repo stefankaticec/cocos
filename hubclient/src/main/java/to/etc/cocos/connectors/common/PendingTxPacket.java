@@ -4,6 +4,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
+import to.etc.xml.StackedContentHandler.IExecute;
 
 /**
  * A packet that needs to be transmitted and acknowledged.
@@ -24,7 +25,10 @@ final class PendingTxPacket {
 
 	private long m_retryAt;
 
-	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt) {
+	final private IExecute m_onSendFailure;
+
+	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt, IExecute onSendFailure) {
+		m_onSendFailure = onSendFailure;
 		if(envelope.getSourceId().length() == 0)
 			throw new IllegalStateException("Missing source ID");
 		if(envelope.getSourceId().equals(envelope.getTargetId()))
@@ -38,7 +42,7 @@ final class PendingTxPacket {
 		m_retryAt = retryAt;
 	}
 
-	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter) {
+	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, IExecute onSendFailure) {
 		if(envelope.getSourceId().length() == 0)
 			throw new IllegalStateException("Missing source ID");
 		if(envelope.getSourceId().equals(envelope.getTargetId()))
@@ -50,6 +54,7 @@ final class PendingTxPacket {
 		m_bodyTransmitter = bodyTransmitter;
 		m_submittedAt = 0;
 		m_expiresAt = 0;
+		m_onSendFailure = onSendFailure;
 	}
 
 	public Envelope getEnvelope() {
@@ -77,7 +82,8 @@ final class PendingTxPacket {
 		m_retryAt = retryAt;
 	}
 
-	public void callExpired() {
+	public void callExpired() throws Exception {
+		m_onSendFailure.execute();
 	}
 
 	@Override
@@ -86,6 +92,7 @@ final class PendingTxPacket {
 		sb.append(m_envelope.getSourceId()).append("->").append(m_envelope.getTargetId()).append(" ");
 		if(m_envelope.getPayloadCase() == PayloadCase.ACKABLE) {
 			sb.append(m_envelope.getAckable().getPayloadCase().name());
+			sb.append(" seq#").append(m_envelope.getAckable().getSequence());
 		} else {
 			sb.append(m_envelope.getPayloadCase().name());
 		}

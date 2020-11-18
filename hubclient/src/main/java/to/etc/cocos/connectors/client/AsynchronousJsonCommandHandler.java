@@ -56,7 +56,9 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 							.setId(cmd.getId())
 							.setDataFormat(CommandNames.getJsonDataFormat(result))
 						);
-					ctx.peer().send(ack, new JsonBodyTransmitter(result), Duration.ofHours(2));
+					ctx.peer().send(ack, new JsonBodyTransmitter(result), Duration.ofHours(2), () -> {
+						System.err.println("ERROR Command response send failed");
+					});
 				//} catch(HubException hx) {
 				//	asyError = hx;
 				//	ctx.log("Command " + cmd.getName() + " failed: " + hx);

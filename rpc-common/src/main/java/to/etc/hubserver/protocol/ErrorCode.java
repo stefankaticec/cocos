@@ -13,7 +13,8 @@ public enum ErrorCode {
 	serverDisconnected("This server is no longer active"),
 	clientNotFound("Client {0} not found in the client table"),
 	commandNotFound("The command {0} is unknown"),
-	commandException("Unexpected exception: {0}")
+	commandException("Unexpected exception: {0}"),
+	commandSendError("The command could not be sent")
 	;
 
 	private String m_text;

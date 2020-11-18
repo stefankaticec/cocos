@@ -21,6 +21,7 @@ import to.etc.util.ClassUtil;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 import to.etc.util.StringTool;
+import to.etc.xml.StackedContentHandler.IExecute;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
@@ -466,6 +467,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 */
 	private void transmitPacket(PendingTxPacket pp) {
 		try {
+			log("Transmitting packet "  + pp);
 			OutputStream os;
 			synchronized(this) {
 				os = m_os;
@@ -477,7 +479,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			m_writer.sendBody(pp.getBodyTransmitter());
 			os.flush();
 		} catch(Exception x) {
-			error("Send for packet " + pp + " failed: " + x);
+			error("Transmit for packet " + pp + " failed: " + x);
 			forceDisconnect("Packet send failed");
 			m_txQueue.clear();
 		}
@@ -497,8 +499,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	/**
 	 * Put a packet into the transmitter queue, to be sent as soon as the transmitter is free.
 	 */
-	protected void sendPacketPrimitive(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter) {
-		sendPacketPrimitive(new PendingTxPacket(envelope, bodyTransmitter));
+	protected void sendPacketPrimitive(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, IExecute onSendFailure) {
+		sendPacketPrimitive(new PendingTxPacket(envelope, bodyTransmitter, onSendFailure));
 	}
 
 	/**
@@ -750,19 +752,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 		}
 	}
 
-
-	/**
-	 * Send a HUB error packet using normal send.
-	 */
-	//private void sendHubErrorPacket(CommandContext ctx, Throwable cfx) {
-	//	ctx.getResponseEnvelope().getHubErrorBuilder()
-	//		.setText(cfx.getMessage())
-	//		.setCode("command.exception")
-	//		.setDetails(StringTool.strStacktrace(cfx))
-	//		;
-	//	sendPacketPrimitive(ctx.getResponseEnvelope().build(), null);
-	//}
-
 	/**
 	 * Send a HUB error packet.
 	 */
@@ -774,7 +763,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 				.setDetails(StringTool.strStacktrace(cfx))
 				.build()
 			).build();
-		sendPacketPrimitive(response, null);
+		sendPacketPrimitive(response, null, () -> {});
 	}
 
 	/**
@@ -788,43 +777,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 				.setCode(code.name())
 				.build()
 			).build();
-		sendPacketPrimitive(response, null);
+		sendPacketPrimitive(response, null, () -> {});
 	}
-
-
-	//public void sendCommandErrorPacket(CommandContext ctx, ErrorCode code, Object... params) {
-	//	String message = MessageFormat.format(code.getText(), params);
-	//	CommandError cmdE = CommandError.newBuilder()
-	//		.setId(ctx.getSourceEnvelope().getAckable().getCmd().getId())
-	//		.setName(ctx.getSourceEnvelope().getAckable().getCmd().getName())
-	//		.setCode(code.name())
-	//		.setMessage(message)
-	//		//.setDetails(details)
-	//		.build();
-	//	ctx.getResponseEnvelope().getAckableBuilder()
-	//		.setCommandError(cmdE)
-	//		.build()
-	//		;
-	//
-	//	//ctx.getResponseEnvelope().setCommandError(cmdE);
-	//	sendPacketPrimitive(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
-	//}
-
-	//public void sendCommandErrorPacket(CommandContext ctx, Throwable t) {
-	//	String message = "Exception in command: " + t.toString();
-	//	CommandError cmdE = CommandError.newBuilder()
-	//		.setId(ctx.getSourceEnvelope().getAckable().getCmd().getId())
-	//		.setName(ctx.getSourceEnvelope().getAckable().getCmd().getName())
-	//		.setCode(ErrorCode.commandException.name())
-	//		.setMessage(message)
-	//		.setDetails(StringTool.strStacktrace(t))
-	//		.build();
-	//	ctx.getResponseEnvelope().getAckableBuilder()
-	//		.setCommandError(cmdE)
-	//		.build()
-	//	;
-	//	sendPacketPrimitive(PacketPrio.NORMAL, ctx.getResponseEnvelope().build(), null);
-	//}
 
 	/**
 	 * Force disconnect and enter the next appropriate state, depending on
@@ -992,14 +946,19 @@ public abstract class HubConnectorBase<T extends Peer> {
 		Envelope response = responseEnvelope(src, "")
 			.setPong(Pong.newBuilder())
 			.build();
-		sendPacketPrimitive(response, null);
+		sendPacketPrimitive(response, null, () -> {
+			log("Pong send failed!?");
+		});
 	}
 
 	private void respondWithAck(Envelope src) {
 		Envelope response = responseEnvelope(src, src.getSourceId())
 			.setAck(Ack.newBuilder().setSequence(src.getAckable().getSequence()))
 			.build();
-		sendPacketPrimitive(response, null);
+		sendPacketPrimitive(response, null, () -> {
+			log("Ack send failed -> disconnecting");
+			forceDisconnect("Ack send failed");
+		});
 	}
 
 	protected Envelope.Builder responseEnvelope(Envelope src, String targetId) {

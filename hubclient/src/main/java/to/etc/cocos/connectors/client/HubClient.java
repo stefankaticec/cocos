@@ -207,7 +207,9 @@ final public class HubClient extends HubConnectorBase<Peer> {
 			).build()
 			;
 
-		sendPacketPrimitive(reply, null);
+		sendPacketPrimitive(reply, null, ()-> {
+			forceDisconnect("Challenge response packet send failed");
+		});
 	}
 
 	/**
@@ -225,7 +227,9 @@ final public class HubClient extends HubConnectorBase<Peer> {
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
 			)
 			.build();
-		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory));
+		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory), () -> {
+			forceDisconnect("AUTH response inventory packet send failed");
+		});
 	}
 
 	public void updateInventory() {
@@ -238,7 +242,9 @@ final public class HubClient extends HubConnectorBase<Peer> {
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
 			)
 			.build();
-		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory));
+		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory), () -> {
+			forceDisconnect("Inventory update packet send failed");
+		});
 	}
 
 	@Override protected void onErrorPacket(Envelope env) {

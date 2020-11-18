@@ -180,7 +180,9 @@ final public class CommandContext {
 
 			);
 
-		peer().send(ackable, new StringBodyTransmitter(s), Duration.ofHours(1));
+		peer().send(ackable, new StringBodyTransmitter(s), Duration.ofHours(1), () -> {
+			m_connector.log("STDOUT packet send failed");
+		});
 	}
 
 	public void setHandler(@Nullable IClientCommandHandler handler) {
