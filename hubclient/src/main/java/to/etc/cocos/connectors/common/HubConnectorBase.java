@@ -572,6 +572,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			th.start();
 			synchronized(this) {
 				m_state = ConnectorState.CONNECTED;
+				m_lastPacketReceived = System.currentTimeMillis();
 			}
 		} catch(Exception x) {
 			forceDisconnect("Connection failed: " + x);
