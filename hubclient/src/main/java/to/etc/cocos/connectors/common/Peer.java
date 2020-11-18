@@ -11,6 +11,7 @@ import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.DateUtil;
 import to.etc.util.StringTool;
 import to.etc.util.TimerUtil;
+import to.etc.xml.StackedContentHandler.IExecute;
 
 import java.text.MessageFormat;
 import java.time.Duration;
@@ -82,7 +83,7 @@ public class Peer {
 		m_txSequence = (int) seq;
 	}
 
-	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration) {
+	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration, IExecute onSendFailure) {
 		long dur = expiryDuration.toMillis();
 		long cts = System.currentTimeMillis();
 		long peerDisconnectedDuration = m_connector.getPeerDisconnectedDuration();
@@ -113,7 +114,7 @@ public class Peer {
 				.setVersion(1)
 				.build();
 
-			p = new PendingTxPacket(env, bodyTransmitter, cts, cts + dur, cts + SEND_RETRY_TIME);
+			p = new PendingTxPacket(env, bodyTransmitter, cts, cts + dur, cts + SEND_RETRY_TIME, onSendFailure);
 			m_txQueue.add(p);
 			startTimer();
 		}
@@ -138,6 +139,7 @@ public class Peer {
 			for(int i = m_txQueue.size() - 1; i >= 0; i--) {
 				PendingTxPacket p = m_txQueue.get(i);
 				if(p.getEnvelope().getAckable().getSequence() == sequenceNr) {
+					m_connector.log("Ack received for " + p);
 					m_txQueue.remove(i);
 					if(m_txQueue.size() == 0)							// Nothing else to do -> cancel timer
 						cancelTimer();
@@ -146,6 +148,7 @@ public class Peer {
 				}
 			}
 		}
+		m_connector.log("Unhandled ack received, sequence# " + sequenceNr);
 	}
 
 	/**
@@ -173,7 +176,12 @@ public class Peer {
 		if(expireList.size() > 0) {
 			m_connector.getEventExecutor().execute(() -> {
 				for(PendingTxPacket txPacket : expireList) {
-					txPacket.callExpired();
+					try {
+						txPacket.callExpired();
+					} catch(Exception x) {
+						m_connector.log("Packet " + txPacket + " expired, the handler threw " + x);
+						x.printStackTrace();
+					}
 				}
 			});
 		}
@@ -269,7 +277,9 @@ public class Peer {
 		var b = AckableMessage.newBuilder()
 			.setCommandError(cmdE)
 			;
-		send(b, null, getErrorDuration());
+		send(b, null, getErrorDuration(), () -> {
+			m_connector.log("Command error packet send failed: " + src.getTargetId() + " " + code);
+		});
 	}
 
 	public void sendCommandErrorPacket(Envelope src, Throwable t) {
@@ -284,7 +294,9 @@ public class Peer {
 		var b = AckableMessage.newBuilder()
 			.setCommandError(cmdE)
 			;
-		send(b, null, getErrorDuration());
+		send(b, null, getErrorDuration(), () -> {
+			m_connector.log("Command error packet send failed: " + src.getTargetId() + " error to send was: " + t);
+		});
 	}
 
 	private Duration getErrorDuration() {
