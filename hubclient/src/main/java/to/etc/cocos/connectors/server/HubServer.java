@@ -413,18 +413,6 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 
 		});
-		//
-		//Envelope jcmd = Envelope.newBuilder()
-		//	.setSourceId(getMyId())
-		//	.setTargetId(command.getClient().getClientID())
-		//	.setVersion(1)
-		//	.setCmd(Hubcore.Command.newBuilder()
-		//		.setDataFormat(CommandNames.getJsonDataFormat(packet))
-		//		.setId(command.getCommandId())
-		//		.setName(packet.getClass().getName())
-		//	)
-		//	.build();
-		//sendPacketPrimitive(PacketPrio.NORMAL, jcmd, packet);
 	}
 
 	private RemoteCommand getCommandFromID(String clientId, String commandId, String commandName) {
