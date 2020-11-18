@@ -7,11 +7,11 @@ import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.function.IExecute;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.DateUtil;
 import to.etc.util.StringTool;
 import to.etc.util.TimerUtil;
-import to.etc.xml.StackedContentHandler.IExecute;
 
 import java.text.MessageFormat;
 import java.time.Duration;
