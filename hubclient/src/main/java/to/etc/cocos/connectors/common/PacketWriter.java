@@ -32,28 +32,6 @@ final public class PacketWriter {
 		m_os = os;
 	}
 
-	//public void send(Envelope envelope, Object jsonBody) throws Exception {
-	//	m_connector.log("sending " + envelope.getPayloadCase());
-	//	sendEnvelope(envelope);
-	//	if(null == jsonBody) {
-	//		writeInt(0);								// Send an empty body.
-	//	} else {
-	//		writeJsonObject(jsonBody);
-	//	}
-	//}
-	//
-	//public void sendString(Envelope envelope, String text) throws Exception {
-	//	m_connector.log("sending string " + envelope.getPayloadCase());
-	//	sendEnvelope(envelope);
-	//	if(null == text) {
-	//		writeInt(0);								// Send an empty body.
-	//	} else {
-	//		byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-	//		writeInt(bytes.length);
-	//		m_os.write(bytes);
-	//	}
-	//}
-
 	public void writeStringObject(@Nullable String text) throws IOException {
 		if(null == text) {
 			writeInt(0);								// Send an empty body.

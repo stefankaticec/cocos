@@ -88,12 +88,14 @@ public abstract class HubConnectorBase<T extends Peer> {
 	/** The endpoint ID */
 	final private String m_targetId;
 
-	/**
-	 * Time, in seconds, between reconnect attempts
-	 */
-	private int m_reconnectInterval = 60;
-
 	private ConnectorState m_state = ConnectorState.STOPPED;
+
+	/**
+	 * The time, in seconds, between PING messages. This should correspond to the equally named value in the hub.
+	 * When the receiver does not receive data for 2 * pinginterval seconds it must assume that the connection is dead
+	 * and reconnect.
+	 */
+	private int m_pingInterval = 120;
 
 	/** While not null the reader thread is active */
 	@Nullable
@@ -106,6 +108,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 	private long m_nextReconnect;
 
 	private int m_reconnectCount;
+
+	/** Set to the TS that the last packet was received, to check for PING timeouts */
+	private long m_lastPacketReceived;
 
 	@Nullable
 	private Socket m_socket;
@@ -403,6 +408,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 						PendingTxPacket pp = m_txQueue.remove(0);
 						action = () -> transmitPacket(pp);
 					} else {
+						if(checkPingTimeout())
+							return true;
 						sleepWait(10_000L);
 						return true;
 					}
@@ -429,6 +436,24 @@ public abstract class HubConnectorBase<T extends Peer> {
 		}
 		action.run();
 		return true;
+	}
+
+	/**
+	 * Called regularly in CONNECTED mode when there is nothing to TX, this
+	 * checks whether we received a packet within the ping timeout period. If
+	 * not the connection is terminated with an error.
+	 *
+	 * @return true if there was a timeout and the connection was closed
+	 *
+	 */
+	private synchronized boolean checkPingTimeout() {
+		long fence = System.currentTimeMillis() - (m_pingInterval * 2 * 1000);		// Data must have been received after this
+		if(m_lastPacketReceived < fence) {
+			log("Ping timeout: no data received for " + (m_pingInterval * 2) + " seconds - disconnecting");
+			forceDisconnect("Ping timeout");
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -516,6 +541,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			SSLSocketFactory ssf = getSocketFactory();
 			SSLSocket s = (SSLSocket) ssf.createSocket(m_server, m_port);
 			s.startHandshake();
+			s.setSoTimeout(m_pingInterval * 2 * 1000);						// If we do not receive anything for PINGINTERVAL seconds timeout
 
 			m_socket = s;
 			m_is = s.getInputStream();
@@ -566,6 +592,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 						break;
 				}
 				m_packetReader.readPacket(is);
+				synchronized(this) {
+					m_lastPacketReceived = System.currentTimeMillis();
+				}
 				executePacket();
 			}
 		} catch(SocketEofException eofx) {
