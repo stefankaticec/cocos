@@ -142,8 +142,9 @@ abstract public class AbstractConnection {
 	public synchronized void channelClosed() {
 		m_state = ConnectionState.DISCONNECTED;
 		m_handler = null;
+		CentralSocketHandler handler = m_handler;
 		m_cluster.unregister(this);
-		log("channel closed");
+		log("channel closed " + (handler == null ? "(null channel)" : handler.getId()));
 	}
 
 	@NonNull public CentralSocketHandler getHandler() {

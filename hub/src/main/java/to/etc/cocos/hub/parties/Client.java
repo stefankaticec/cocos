@@ -69,7 +69,7 @@ final public class Client extends AbstractConnection {
 
 	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) throws Exception {
 		if(!isUsable())
-			throw new IllegalStateException("Received data from a defunct client??");
+			throw new IllegalStateException("Received data from defunct client " + getFullId() + " in state=" + getState());
 		log("Packet received(C): " + Hub.getPacketType(envelope));
 
 		String targetId = envelope.getTargetId();
@@ -105,7 +105,7 @@ final public class Client extends AbstractConnection {
 						cluster = getDirectory().getCluster(split[0]);
 						server = cluster.getRandomServer();
 						if(null == server)
-							throw new FatalHubException(ErrorCode.clusterNotFound, split[0]);
+							throw new FatalHubException(ErrorCode.clusterHasNoServers, split[0]);
 						return server;
 
 					case 2:

@@ -10,6 +10,7 @@ public enum ErrorCode {
 	clusterNotFound("Cluster {0} not found"),
 	authenticationFailure("Authentication failure"),
 	targetNotFound("Target organisation {0} not found"),
+	clusterHasNoServers("The cluster {0} has no connected servers"),
 	serverDisconnected("This server is no longer active"),
 	clientNotFound("Client {0} not found in the client table"),
 	commandNotFound("The command {0} is unknown"),

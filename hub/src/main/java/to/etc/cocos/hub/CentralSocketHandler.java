@@ -186,7 +186,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			m_cluster = null;
 
 			if(null != connection) {
-				log("Channel disconnected");
+				log("Channel " + ctx.channel().id() + " disconnected");
 				connection.channelClosed();					// Deregister from hub and post event
 			}
 		}
@@ -195,6 +195,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_packetStateMachine.unregisterTmpClient();
 		if(null != cluster)
 			cluster.runEvents();
+	}
+
+	public String getId() {
+		return m_channel.id().toString();
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -351,7 +355,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				//-- We need to send a new packetdisconnect
 				packetToFinish = m_txCurrentPacket;
 				if(null == packetToFinish)
-					throw new IllegalStateException("Null current txpacket at end of send");
+					throw new IllegalStateException("Null current txpacket at end of send on " + getLogInd() + " channel " + m_channel.id());
 				m_txCurrentPacket = null;
 			}
 			//System.out.println(">>> packetToFinish "+ packetToFinish + ", bytebuf=" + byteBuf + " currentpacket=" + m_txCurrentPacket);
@@ -432,7 +436,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		boolean isFatal = x instanceof FatalHubException;
 		if(isFatal) {
 			rb.after(() -> {
-				log("send failed, disconnecting");
+				log("send failed, disconnecting channel " + m_channel.id());
 				m_channel.disconnect();
 			});
 		}

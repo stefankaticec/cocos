@@ -18,6 +18,7 @@ class HubChannelInitializer extends ChannelInitializer<SocketChannel> {
 	private static final String PING = "ping\r\n";
 
 	private Hub m_server;
+
 	private final SslContext m_sslContext;
 
 	public HubChannelInitializer(Hub server, SslContext sslContext) {
@@ -28,7 +29,7 @@ class HubChannelInitializer extends ChannelInitializer<SocketChannel> {
 	@Override
 	protected void initChannel(SocketChannel socketChannel) throws Exception {
 		SslHandler sslHandler = m_sslContext.newHandler(socketChannel.alloc());
-		sslHandler.engine().setEnabledProtocols(new String[] {"TLSv1.2"});
+		sslHandler.engine().setEnabledProtocols(new String[]{"TLSv1.2"});
 
 		ChannelPipeline pipeline = socketChannel.pipeline();
 
@@ -46,29 +47,18 @@ class HubChannelInitializer extends ChannelInitializer<SocketChannel> {
 		CentralSocketHandler mainHandler = new CentralSocketHandler(m_server, socketChannel);
 
 		pipeline.addLast("timeoutHandler", new SimpleUserEventChannelHandler<Object>() {
-			@Override protected void eventReceived(ChannelHandlerContext ctx, Object evt) throws Exception {
+			@Override
+			protected void eventReceived(ChannelHandlerContext ctx, Object evt) throws Exception {
 				if(evt instanceof IdleStateEvent) {
 					IdleStateEvent ie = (IdleStateEvent) evt;
-					if (ie.state() == IdleState.READER_IDLE) {
+					if(ie.state() == IdleState.READER_IDLE) {
 						ctx.close();
-						m_server.log("Disconnect requested");
-					} else if (ie.state() == IdleState.WRITER_IDLE) {
-//							ByteBuf buffer = ctx.alloc().buffer(6);
-//							ChannelFuture future = ctx.channel().write(PING);
-//							buffer.writeCharSequence(PING, Charset.defaultCharset());
-//							ctx.writeAndFlush(buffer);
-//							future.await();
-
+						m_server.log("Channel " + socketChannel.id() + " idle: disconnect requested ");
+					} else if(ie.state() == IdleState.WRITER_IDLE) {
 						mainHandler.sendPing();
-						//ResponseBuilder rb = new ResponseBuilder()
-						//
-						//PacketBuilder b = new PacketBuilder(ctx.alloc(), (byte)0x00, "", m_server.getIdent(), CommandNames.PING_CMD);
-						//ctx.writeAndFlush(b.getCompleted());
-						//m_server.log("ping sent");
 					}
-				}
-				else
-					m_server.log("Event: " + evt.getClass());
+				} else
+					m_server.log("Event: " + evt.getClass() + " on channel " + socketChannel.id());
 			}
 		});
 		pipeline.addLast(mainHandler);
