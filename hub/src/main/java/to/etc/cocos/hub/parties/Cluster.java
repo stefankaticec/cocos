@@ -147,6 +147,12 @@ final public class Cluster {
 		}
 	}
 
+	//need not be synchronized, since getAllServers is.
+	public int getServerCount() {
+		var servers = getAllServers();
+		return servers.size();
+	}
+
 	public void scheduleBroadcastEvent(ConsumerEx<Server> what) {
 		for(Server server : getAllServers()) {
 			try {

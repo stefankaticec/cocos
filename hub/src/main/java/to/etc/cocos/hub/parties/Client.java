@@ -61,8 +61,10 @@ final public class Client extends AbstractConnection {
 		synchronized(this) {
 			m_inventory.put(dataFormat, p);
 		}
+		log("Connected server count: " + getCluster().getServerCount());
 		getCluster().scheduleBroadcastEvent(server -> {
 			String fullId = getFullId();
+			log("Sending inventory to server "+ fullId);
 			server.sendEventClientInventory(fullId, p);
 		});
 	}
