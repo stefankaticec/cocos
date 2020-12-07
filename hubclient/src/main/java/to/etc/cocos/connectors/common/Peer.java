@@ -192,7 +192,7 @@ public class Peer {
 			if(m_timerTask != null)										// Already timer task present?
 				return;
 
-			m_timerTask = TimerUtil.getTimer().scheduleAtFixedRate(() -> checkTimeouts(), SEND_RETRY_TIME, SEND_RETRY_TIME, TimeUnit.MILLISECONDS);
+			m_timerTask = TimerUtil.scheduleAtFixedRate(SEND_RETRY_TIME, SEND_RETRY_TIME, TimeUnit.MILLISECONDS, this::checkTimeouts);
 		}
 	}
 
