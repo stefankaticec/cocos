@@ -73,7 +73,8 @@ abstract public class AbstractConnection {
 	}
 
 	/**
-	 * Accepts a new connection to this, and possibly discards a previous one.
+	 * Accepts a new connection to this, and possibly discards a previous one. If
+	 * this returns false the new connection is refused, and disconnected.
 	 */
 	public boolean newConnection(CentralSocketHandler handler) {
 		synchronized(this) {
@@ -85,12 +86,13 @@ abstract public class AbstractConnection {
 				m_state = ConnectionState.CONNECTED;
 				log("No disconnects. Resetting duplicate state");
 			} else {
+				// jal 20201209 We can have address changes when coming from a cloud. Do not test those.
 				//-- If the new address differs from the current one prefer the current one
-				if(! oldChannel.getRemoteAddress().equals(handler.getRemoteAddress())) {
-					log("New connection from " + handler.getRemoteAddress() + " on channel "+handler.getId()+" discarded: preferring existing connection from " + oldChannel.getRemoteAddress() + " on channel "+ oldChannel.getId());
-					handler.disconnectOnly("Refused because a connection already exists");
-					return false;
-				}
+				//if(! oldChannel.getRemoteAddress().equals(handler.getRemoteAddress())) {
+				//	log("New connection from " + handler.getRemoteAddress() + " on channel "+handler.getId()+" discarded: preferring existing connection from " + oldChannel.getRemoteAddress() + " on channel "+ oldChannel.getId());
+				//	handler.disconnectOnly("Refused because a connection already exists");
+				//	return false;
+				//}
 
 				//-- Most certainly disconnect the old, existing connection
 				disconnectOnly("New connection came in from " + handler.getRemoteAddress());

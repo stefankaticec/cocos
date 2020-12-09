@@ -6,7 +6,6 @@ import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.function.ConsumerEx;
-import to.etc.util.ByteBufferOutputStream;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -81,7 +80,7 @@ final public class Cluster {
 		return null;
 	}
 
-	private synchronized List<Server> getAllServers() {
+	public synchronized List<Server> getAllServers() {
 		return new ArrayList<>(m_serverMap.values());
 	}
 
@@ -147,12 +146,6 @@ final public class Cluster {
 		}
 	}
 
-	//need not be synchronized, since getAllServers is.
-	public int getServerCount() {
-		var servers = getAllServers();
-		return servers.size();
-	}
-
 	public void scheduleBroadcastEvent(ConsumerEx<Server> what) {
 		for(Server server : getAllServers()) {
 			try {
@@ -174,17 +167,17 @@ final public class Cluster {
 		scheduleBroadcastEvent(server -> server.sendEventClientRegistered(clientId));
 	}
 
-	public void scheduleInventoryEvent(Client client, ByteBufferOutputStream payload) {
-		m_systemContext.addEvent(() -> sendClientInventoryEvent(client.getFullId(), payload));
-	}
-
-	private void sendClientInventoryEvent(String fullId, ByteBufferOutputStream payload) {
-		for(Server server : getAllServers()) {
-
-
-
-		}
-
-
-	}
+	//public void scheduleInventoryEvent(Client client, ByteBufferOutputStream payload) {
+	//	m_systemContext.addEvent(() -> sendClientInventoryEvent(client.getFullId(), payload));
+	//}
+	//
+	//private void sendClientInventoryEvent(String fullId, ByteBufferOutputStream payload) {
+	//	for(Server server : getAllServers()) {
+	//
+	//
+	//
+	//	}
+	//
+	//
+	//}
 }

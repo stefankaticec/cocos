@@ -126,9 +126,8 @@ final class PacketMachine {
 		Cluster cluster = m_hub.getDirectory().getCluster(clusterName);
 		Server server = cluster.registerServer(serverName, Arrays.asList("*"));
 		m_socketHandler.setHelloInformation(sourceId, cluster, null);
-		var response = server.newConnection(m_socketHandler);
-		if(!response) {
-			m_socketHandler.log("Refusing connection.");
+		if(!server.newConnection(m_socketHandler)) {
+			m_socketHandler.log("Connection was refused.");
 			return;
 		}
 		m_socketHandler.log("new connection for server " + server.getFullId() + " in state " + server.getState());
