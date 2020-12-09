@@ -75,7 +75,7 @@ abstract public class AbstractConnection {
 	/**
 	 * Accepts a new connection to this, and possibly discards a previous one.
 	 */
-	public void newConnection(CentralSocketHandler handler) {
+	public boolean newConnection(CentralSocketHandler handler) {
 		synchronized(this) {
 			log("New connection from " + handler.getRemoteAddress());
 			CentralSocketHandler oldChannel = m_handler;
@@ -83,12 +83,13 @@ abstract public class AbstractConnection {
 				//-- No disconnects - reset duplicate state
 				m_dupConnCount = 0;
 				m_state = ConnectionState.CONNECTED;
+				log("No disconnects. Resetting duplicate state");
 			} else {
 				//-- If the new address differs from the current one prefer the current one
 				if(! oldChannel.getRemoteAddress().equals(handler.getRemoteAddress())) {
-					log("New connection from " + handler.getRemoteAddress() + " discarded: preferring existing connection from " + oldChannel.getRemoteAddress());
+					log("New connection from " + handler.getRemoteAddress() + " on channel "+handler.getId()+" discarded: preferring existing connection from " + oldChannel.getRemoteAddress() + " on channel "+ oldChannel.getId());
 					handler.disconnectOnly("Refused because a connection already exists");
-					return;
+					return false;
 				}
 
 				//-- Most certainly disconnect the old, existing connection
@@ -118,9 +119,9 @@ abstract public class AbstractConnection {
 					}
 				}
 			}
-
 			m_handler = handler;
 		}
+		return true;
 	}
 
 	/**

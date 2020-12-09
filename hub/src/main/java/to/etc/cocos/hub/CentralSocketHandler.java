@@ -146,7 +146,12 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 	synchronized void registerClient(BeforeClientData data) {
 		log("CLIENT authenticated!!");
-		m_connection = getCluster().registerAuthorizedClient(this);
+		var connection = getCluster().registerAuthorizedClient(this);
+		if(connection != null) {
+			m_connection = connection;
+		} else {
+			log("New connection was refused on channel with id: "+ getId());
+		}
 	}
 
 	/*----------------------------------------------------------------------*/
@@ -176,7 +181,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * The channel disconnected, possibly because of a remote disconnect.
 	 */
 	private void remoteDisconnected(ChannelHandlerContext ctx) {
-		log("remote disconnect received");
+		log("remote disconnect received: "+ctx.channel().id());
 		AbstractConnection connection;
 		Cluster cluster;
 		synchronized(this) {

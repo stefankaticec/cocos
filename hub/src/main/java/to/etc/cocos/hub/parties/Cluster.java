@@ -52,11 +52,14 @@ final public class Cluster {
 		return m_clientMap.get(clientId);
 	}
 
+	@Nullable
 	public Client registerAuthorizedClient(CentralSocketHandler socketHandler) {
 		Client client;
 		synchronized(this) {
 			client = m_clientMap.computeIfAbsent(socketHandler.getMyID(), a -> new Client(this, m_systemContext, a));
-			client.newConnection(socketHandler);
+			if(!client.newConnection(socketHandler)) {
+				return null;
+			}
 			m_orderedActionList.add(() -> sendClientRegisteredEvent(socketHandler.getMyID()));
 		}
 		runEvents();
@@ -142,6 +145,12 @@ final public class Cluster {
 			Runnable runnable = m_orderedActionList.removeFirst();
 			m_systemContext.addEvent(runnable);
 		}
+	}
+
+	//need not be synchronized, since getAllServers is.
+	public int getServerCount() {
+		var servers = getAllServers();
+		return servers.size();
 	}
 
 	public void scheduleBroadcastEvent(ConsumerEx<Server> what) {

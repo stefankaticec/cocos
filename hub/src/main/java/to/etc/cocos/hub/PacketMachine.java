@@ -126,7 +126,11 @@ final class PacketMachine {
 		Cluster cluster = m_hub.getDirectory().getCluster(clusterName);
 		Server server = cluster.registerServer(serverName, Arrays.asList("*"));
 		m_socketHandler.setHelloInformation(sourceId, cluster, null);
-		server.newConnection(m_socketHandler);
+		var response = server.newConnection(m_socketHandler);
+		if(!response) {
+			m_socketHandler.log("Refusing connection.");
+			return;
+		}
 		m_socketHandler.log("new connection for server " + server.getFullId() + " in state " + server.getState());
 
 		//-- From now on this channel services the specified server
