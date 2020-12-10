@@ -166,6 +166,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			case OUTPUT:
 				handleCommandOutput(cc, body);
 				break;
+			case FIRSTCONNECTED:
+				handleFirstConnected(cc, body);
+				break;
 		}
 	}
 
@@ -471,6 +474,10 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command error: " + err.getCode() + " " + err.getMessage());
 
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), err.getId(), err.getName());
+		failCommand(err, command);
+	}
+
+	private void failCommand(CommandError err, RemoteCommand command) {
 		synchronized(this) {
 			command.setStatus(RemoteCommandStatus.FAILED);
 			EvCommandError ev = new EvCommandError(command, err);
@@ -506,6 +513,24 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		CommandOutput output = ctx.getSourceEnvelope().getAckable().getOutput();
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), output.getId(), output.getName());
 		command.appendOutput(data, output.getCode());
+	}
+
+	private void handleFirstConnected(CommandContext ctx, List<byte[]> data) {
+		String source = ctx.getSourceEnvelope().getSourceId();
+		for(RemoteCommand cmd : new ArrayList<>(m_commandMap.values())) {
+			if(cmd.getClient().getClientID().equalsIgnoreCase(source)) {
+				try {
+					CommandError err = CommandError.newBuilder()
+						.setCode("140")
+						.setMessage("Client (re)started")
+						.build();
+					failCommand(err, cmd);
+				} catch(Exception e) {
+					log("Cancelling command " + cmd + " failed.");
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 
 	@Override

@@ -503,7 +503,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 * Put a packet into the transmitter queue, to be sent as soon as the transmitter is free.
 	 */
 	protected void sendPacketPrimitive(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, IExecute onSendFailure) {
-		sendPacketPrimitive(new PendingTxPacket(envelope, bodyTransmitter, onSendFailure));
+		sendPacketPrimitive(new PendingTxPacket(envelope, bodyTransmitter, onSendFailure, null));
 	}
 
 	/**

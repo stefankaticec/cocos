@@ -60,6 +60,10 @@ message CommandResponse {
     string dataFormat = 3;
 }
 
+message FirstConnected {
+    string value = 1;
+}
+
 //-- A command failure notification. This finishes the command
 message CommandError {
     string name = 1;
@@ -103,6 +107,7 @@ message AckableMessage {
         CommandResponse response = 12;
         CommandError commandError = 13;
         CommandOutput output = 14;
+        FirstConnected firstConnected = 15;
     }
 }
 
