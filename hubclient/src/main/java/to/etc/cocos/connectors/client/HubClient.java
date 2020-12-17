@@ -12,13 +12,17 @@ import to.etc.cocos.connectors.common.Peer;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.connectors.packets.CancelPacket;
 import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.AckableMessage;
+import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
 import to.etc.cocos.messages.Hubcore.ClientInventory;
 import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
+import to.etc.cocos.messages.Hubcore.PeerRestarted;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +48,8 @@ final public class HubClient extends HubConnectorBase<Peer> {
 	private final Map<String, CommandContext> m_commandMap = new ConcurrentHashMap<>();
 
 	private final List<CommandContext> m_runningCommandList = new ArrayList<>();
+
+	private volatile boolean m_restartPacketSent;
 
 	private HubClient(String hubServer, int hubServerPort, IClientAuthenticationHandler authHandler, String targetClusterAndOrg, String myId) {
 		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
@@ -230,6 +236,17 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory), () -> {
 			forceDisconnect("AUTH response inventory packet send failed");
 		});
+		if(!m_restartPacketSent) {
+			var peer = getOrCreatePeer(src.getSourceId());
+			peer.setConnected();
+			Builder packet = AckableMessage.newBuilder()
+				.setPeerRestarted(PeerRestarted.newBuilder());
+			peer.send(
+				packet, null, Duration.ofMinutes(5),
+				() -> forceDisconnect("Couldn't send PeerRestarted packet."),
+				() -> m_restartPacketSent = true
+			);
+		}
 	}
 
 	public void updateInventory() {

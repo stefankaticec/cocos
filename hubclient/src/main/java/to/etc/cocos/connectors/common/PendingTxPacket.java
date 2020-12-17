@@ -23,11 +23,14 @@ final class PendingTxPacket {
 
 	private final long m_expiresAt;
 
+	@Nullable
+	private final IExecute m_onAcknowledged;
+
 	private long m_retryAt;
 
 	final private IExecute m_onSendFailure;
 
-	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt, IExecute onSendFailure) {
+	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt, IExecute onSendFailure, @Nullable IExecute onAcknowledged) {
 		m_onSendFailure = onSendFailure;
 		if(envelope.getSourceId().length() == 0)
 			throw new IllegalStateException("Missing source ID");
@@ -40,9 +43,10 @@ final class PendingTxPacket {
 		m_submittedAt = submittedAt;
 		m_expiresAt = expiresAt;
 		m_retryAt = retryAt;
+		m_onAcknowledged = onAcknowledged;
 	}
 
-	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, IExecute onSendFailure) {
+	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, IExecute onSendFailure, @Nullable IExecute onAcknowledged) {
 		if(envelope.getSourceId().length() == 0)
 			throw new IllegalStateException("Missing source ID");
 		if(envelope.getSourceId().equals(envelope.getTargetId()))
@@ -55,6 +59,7 @@ final class PendingTxPacket {
 		m_submittedAt = 0;
 		m_expiresAt = 0;
 		m_onSendFailure = onSendFailure;
+		m_onAcknowledged = onAcknowledged;
 	}
 
 	public Envelope getEnvelope() {
@@ -97,5 +102,12 @@ final class PendingTxPacket {
 			sb.append(m_envelope.getPayloadCase().name());
 		}
 		return sb.toString();
+	}
+
+	public void callAcked() throws Exception {
+		var a = m_onAcknowledged;
+		if(a != null) {
+			a.execute();
+		}
 	}
 }

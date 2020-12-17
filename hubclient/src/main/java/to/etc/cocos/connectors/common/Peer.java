@@ -84,6 +84,10 @@ public class Peer {
 	}
 
 	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration, IExecute onSendFailure) {
+		send(packetBuilder, bodyTransmitter, expiryDuration, onSendFailure, null);
+	}
+
+	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration, IExecute onSendFailure, @Nullable IExecute onAck) {
 		long dur = expiryDuration.toMillis();
 		long cts = System.currentTimeMillis();
 		long peerDisconnectedDuration = m_connector.getPeerDisconnectedDuration();
@@ -114,7 +118,7 @@ public class Peer {
 				.setVersion(1)
 				.build();
 
-			p = new PendingTxPacket(env, bodyTransmitter, cts, cts + dur, cts + SEND_RETRY_TIME, onSendFailure);
+			p = new PendingTxPacket(env, bodyTransmitter, cts, cts + dur, cts + SEND_RETRY_TIME, onSendFailure, onAck);
 			m_txQueue.add(p);
 			startTimer();
 		}
@@ -141,6 +145,12 @@ public class Peer {
 				if(p.getEnvelope().getAckable().getSequence() == sequenceNr) {
 					m_connector.log("Ack received for " + p);
 					m_txQueue.remove(i);
+					try {
+						p.callAcked();
+					} catch(Exception x) {
+						m_connector.log("Packet " + p + " completed, success handler threw exception");
+						x.printStackTrace();
+					}
 					if(m_txQueue.size() == 0)							// Nothing else to do -> cancel timer
 						cancelTimer();
 					notify();											// More space free, guys'n girls.
