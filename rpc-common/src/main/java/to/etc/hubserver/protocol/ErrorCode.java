@@ -15,7 +15,8 @@ public enum ErrorCode {
 	clientNotFound("Client {0} not found in the client table"),
 	commandNotFound("The command {0} is unknown"),
 	commandException("Unexpected exception: {0}"),
-	commandSendError("The command could not be sent")
+	commandSendError("The command could not be sent"),
+	peerRestarted("The peer daemon has restarted, the command has been cancelled because of that")
 	;
 
 	private String m_text;

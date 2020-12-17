@@ -13,11 +13,12 @@ import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.connectors.packets.CancelPacket;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
+import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
 import to.etc.cocos.messages.Hubcore.ClientInventory;
 import to.etc.cocos.messages.Hubcore.Command;
 import to.etc.cocos.messages.Hubcore.Envelope;
-import to.etc.cocos.messages.Hubcore.FirstConnected;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
+import to.etc.cocos.messages.Hubcore.PeerRestarted;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 
@@ -48,7 +49,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 
 	private final List<CommandContext> m_runningCommandList = new ArrayList<>();
 
-	private Boolean m_sentFirstPacket = false;
+	private volatile boolean m_restartPacketSent;
 
 	private HubClient(String hubServer, int hubServerPort, IClientAuthenticationHandler authHandler, String targetClusterAndOrg, String myId) {
 		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
@@ -235,22 +236,15 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory), () -> {
 			forceDisconnect("AUTH response inventory packet send failed");
 		});
-		boolean sent;
-		synchronized(this) {
-			sent = m_sentFirstPacket;
-		}
-		if(!sent) {
+		if(!m_restartPacketSent) {
 			var peer = getOrCreatePeer(src.getSourceId());
 			peer.setConnected();
+			Builder packet = AckableMessage.newBuilder()
+				.setPeerRestarted(PeerRestarted.newBuilder());
 			peer.send(
-				AckableMessage.newBuilder()
-					.setFirstConnected(FirstConnected.newBuilder().setValue("Connected")), null, Duration.ofMinutes(5), () -> {
-				forceDisconnect("Couldn't send firstConnected packet.");
-			}, () -> {
-					synchronized(this) {
-						m_sentFirstPacket = true;
-					}
-				}
+				packet, null, Duration.ofMinutes(5),
+				() -> forceDisconnect("Couldn't send PeerRestarted packet."),
+				() -> m_restartPacketSent = true
 			);
 		}
 	}

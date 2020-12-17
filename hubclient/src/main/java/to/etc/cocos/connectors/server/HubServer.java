@@ -166,8 +166,8 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			case OUTPUT:
 				handleCommandOutput(cc, body);
 				break;
-			case FIRSTCONNECTED:
-				handleFirstConnected(cc, body);
+			case PEERRESTARTED:
+				handlePeerRestarted(cc, body);
 				break;
 		}
 	}
@@ -515,14 +515,18 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		command.appendOutput(data, output.getCode());
 	}
 
-	private void handleFirstConnected(CommandContext ctx, List<byte[]> data) {
+	/**
+	 * When the remove daemon restarts it means all commands that were running on it have
+	 * disappeared, so kill off all of those.
+	 */
+	private void handlePeerRestarted(CommandContext ctx, List<byte[]> data) {
 		String source = ctx.getSourceEnvelope().getSourceId();
 		for(RemoteCommand cmd : new ArrayList<>(m_commandMap.values())) {
 			if(cmd.getClient().getClientID().equalsIgnoreCase(source)) {
 				try {
 					CommandError err = CommandError.newBuilder()
-						.setCode("140")
-						.setMessage("Client (re)started")
+						.setCode(ErrorCode.peerRestarted.name())
+						.setMessage(ErrorCode.peerRestarted.getText())
 						.build();
 					failCommand(err, cmd);
 				} catch(Exception e) {

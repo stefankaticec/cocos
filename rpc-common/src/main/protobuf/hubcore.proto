@@ -60,8 +60,8 @@ message CommandResponse {
     string dataFormat = 3;
 }
 
-message FirstConnected {
-    string value = 1;
+//-- Indicates that the peer did a complete restart, meaning its running commands are lost
+message PeerRestarted {
 }
 
 //-- A command failure notification. This finishes the command
@@ -107,7 +107,7 @@ message AckableMessage {
         CommandResponse response = 12;
         CommandError commandError = 13;
         CommandOutput output = 14;
-        FirstConnected firstConnected = 15;
+        PeerRestarted peerRestarted = 15;
     }
 }
 
