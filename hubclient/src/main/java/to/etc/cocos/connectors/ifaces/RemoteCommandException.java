@@ -12,7 +12,7 @@ final public class RemoteCommandException extends RemoteClientException {
 	private final String m_details;
 
 	public RemoteCommandException(EvCommandError packet) {
-		super(packet.getMessage() + " (" + packet.getMessage());
+		super(packet.getMessage() + " (" + packet.getCode() + ")");
 		m_code = packet.getCode();
 		m_message = packet.getMessage();
 		m_details = packet.getDetails();
