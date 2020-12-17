@@ -548,7 +548,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	}
 
 	private void cancelTimedOutCommands() {
-		for(RemoteCommand val : m_commandMap.values()) {
+		for(RemoteCommand val : new ArrayList<>(m_commandMap.values())) {
 			if(val.hasTimedOut()) {
 				try {
 					val.cancel("Timeout");
