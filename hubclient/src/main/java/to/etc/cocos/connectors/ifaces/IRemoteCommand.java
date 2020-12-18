@@ -33,5 +33,5 @@ public interface IRemoteCommand {
 
 	Observable<ServerCommandEventBase> observeEvents();
 
-	IRemoteCommand cancel(@NonNull String cancelReason) throws Exception;
+	void cancel(@NonNull String cancelReason) throws Exception;
 }

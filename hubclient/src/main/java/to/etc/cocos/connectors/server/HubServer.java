@@ -11,6 +11,7 @@ import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.Peer;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
+import to.etc.cocos.connectors.common.TooManyCommandsException;
 import to.etc.cocos.connectors.ifaces.EvCommandError;
 import to.etc.cocos.connectors.ifaces.EvCommandFinished;
 import to.etc.cocos.connectors.ifaces.IClientAuthenticator;
@@ -21,6 +22,7 @@ import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.server.RemoteCommand.RemoteCommandType;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
@@ -57,6 +59,8 @@ import java.util.stream.Collectors;
  */
 @NonNullByDefault
 final public class HubServer extends HubConnectorBase<RemoteClient> implements IRemoteClientHub {
+	private static final int MAX_QUEUED_COMMANDS = 1024;
+
 	private final String m_serverVersion = "1.0";
 
 	private final String m_clusterPassword;
@@ -73,7 +77,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	private final Map<String, RemoteCommand> m_commandMap = new HashMap<>();
 
-	private final Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
+	//private final Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
 
 	@Nullable
 	private ScheduledFuture<?> m_timeoutTask;
@@ -399,6 +403,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	void sendJsonCommand(RemoteCommand command, JsonPacket packet) {
 		synchronized(this) {
+			if(m_commandMap.size() > MAX_QUEUED_COMMANDS)
+				throw new TooManyCommandsException("Too many queued commands: " + MAX_QUEUED_COMMANDS + " is the limit");
+
 			if(null != m_commandMap.put(command.getCommandId(), command))
 				throw new IllegalStateException("Non-unique command id used!!");
 		}
@@ -431,7 +438,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			if(null == remoteClient) {
 				throw new IllegalStateException("Got command " + commandName + " for remote client " + clientId + " - but I cannot find that client");
 			}
-			cmd = new RemoteCommand(remoteClient, commandId, Duration.of(60, ChronoUnit.SECONDS), null, "Recovered command");
+			cmd = new RemoteCommand(remoteClient, commandId, Duration.of(60, ChronoUnit.SECONDS), null, "Recovered command", RemoteCommandType.Command);
 			m_commandMap.put(commandId, cmd);
 			return cmd;
 		}
@@ -521,6 +528,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	private void cancelTimedOutCommands() {
 		for(RemoteCommand val : new ArrayList<>(m_commandMap.values())) {
 			if(val.hasTimedOut()) {
+				m_commandMap.remove(val.getCommandId());
 				try {
 					val.cancel("Timeout");
 				}catch(Exception e){

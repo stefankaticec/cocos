@@ -11,18 +11,14 @@ import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
-import to.etc.cocos.connectors.packets.CancelPacket;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.function.ConsumerEx;
-import to.etc.util.ConsoleUtil;
-import to.etc.util.StringTool;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +42,7 @@ final public class RemoteCommand implements IRemoteCommand {
 	private final String m_description;
 
 	private long m_startedAt;
+
 	private long m_finishedAt;
 
 	private RemoteCommandStatus m_status = RemoteCommandStatus.SCHEDULED;
@@ -67,14 +64,20 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	final private ByteBuffer m_inBuffer = ByteBuffer.allocate(8192);
 
+	enum RemoteCommandType {
+		Command, Cancel
+	}
 
-	public RemoteCommand(RemoteClient client, String commandId, Duration commandTimeout, @Nullable String commandKey, String description) {
+	private final RemoteCommandType m_commandType;
+
+	public RemoteCommand(RemoteClient client, String commandId, Duration commandTimeout, @Nullable String commandKey, String description, RemoteCommandType type) {
 		m_commandId = commandId;
 		m_client = client;
 		m_commandTimeout = commandTimeout;
 		m_commandKey = commandKey;
 		m_description = description;
 		m_startedAt = System.currentTimeMillis();
+		m_commandType = type;
 		addListener(new IRemoteCommandListener() {
 			@Override
 			public void errorEvent(EvCommandError errorEvent) throws Exception {
@@ -93,6 +96,10 @@ final public class RemoteCommand implements IRemoteCommand {
 				m_eventPublisher.onNext(ev);
 			}
 		});
+	}
+
+	public RemoteCommandType getCommandType() {
+		return m_commandType;
 	}
 
 	@Override
@@ -239,12 +246,10 @@ final public class RemoteCommand implements IRemoteCommand {
 	 * Send a CANCEL request for this command.
 	 */
 	@Override
-	public IRemoteCommand cancel(@NonNull String cancelReason) throws Exception {
-		ConsoleUtil.consoleWarning("remoteCommand", "Cancelling command " + getCommandId() + ": " + cancelReason);
-		CancelPacket cp = new CancelPacket();
-		cp.setCancelReason(cancelReason);
-		cp.setCommandId(getCommandId());
-		return m_client.sendJsonCommand(StringTool.generateGUID(), cp, Duration.of(30, ChronoUnit.SECONDS), null, "Cancelling " + this, null);
+	public void cancel(@NonNull String cancelReason) throws Exception {
+		if(getCommandType() == RemoteCommandType.Cancel)						// Do not cancel cancels.
+			return;
+		m_client.sendCancel(getCommandId(), cancelReason);
 	}
 
 	@Override

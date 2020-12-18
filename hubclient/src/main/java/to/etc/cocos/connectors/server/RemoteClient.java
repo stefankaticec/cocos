@@ -12,8 +12,13 @@ import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
+import to.etc.cocos.connectors.packets.CancelPacket;
+import to.etc.cocos.connectors.server.RemoteCommand.RemoteCommandType;
+import to.etc.util.ConsoleUtil;
+import to.etc.util.StringTool;
 
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +96,11 @@ final public class RemoteClient extends Peer implements IRemoteClient {
 	 */
 	@Override
 	public IRemoteCommand sendJsonCommand(String commandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
-		RemoteCommand command = new RemoteCommand(this, commandId, commandTimeout, commandKey, description);
+		return sendJsonCommand(commandId, packet, commandTimeout, commandKey, description, l, RemoteCommandType.Command);
+	}
+
+	private IRemoteCommand sendJsonCommand(String commandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l, RemoteCommandType cmdType) throws Exception {
+		RemoteCommand command = new RemoteCommand(this, commandId, commandTimeout, commandKey, description, cmdType);
 		if(null != l)
 			command.addListener(l);
 		synchronized(m_hubServer) {
@@ -104,6 +113,17 @@ final public class RemoteClient extends Peer implements IRemoteClient {
 		}
 		m_hubServer.sendJsonCommand(command, packet);
 		return command;
+	}
+
+	/**
+	 * Send a command cancel packet to the client.
+	 */
+	IRemoteCommand sendCancel(String commandId, String reason) throws Exception {
+		ConsoleUtil.consoleWarning("remoteCommand", "Cancelling command " + commandId + ": " + reason);
+		CancelPacket cp = new CancelPacket();
+		cp.setCancelReason(reason);
+		cp.setCommandId(commandId);
+		return sendJsonCommand(StringTool.generateGUID(), cp, Duration.of(30, ChronoUnit.SECONDS), null, "Cancelling " + this, null, RemoteCommandType.Cancel);
 	}
 
 	@Nullable
