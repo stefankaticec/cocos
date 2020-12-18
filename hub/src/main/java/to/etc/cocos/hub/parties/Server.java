@@ -125,7 +125,8 @@ public class Server extends AbstractConnection {
 	public void packetFromClient(Client client, Envelope envelope, @Nullable ByteBuf payload, int length) {
 		log("RX from client " + client.getFullId() + ": " + Hub.getPacketType(envelope));
 		TxPacket p = new TxPacket(envelope, client, null == payload ? null : new ByteBufPacketSender(payload), null);
-		ReferenceCountUtil.retain(payload);
+		if(null != payload)
+			ReferenceCountUtil.retain(payload);
 		sendPacket(p);
 	}
 
