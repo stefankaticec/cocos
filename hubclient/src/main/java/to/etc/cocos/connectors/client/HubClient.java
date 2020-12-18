@@ -240,7 +240,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 			var peer = getOrCreatePeer(src.getSourceId());
 			peer.setConnected();
 			Builder packet = AckableMessage.newBuilder()
-				.setPeerRestarted(PeerRestarted.newBuilder());
+				.setPeerRestarted(PeerRestarted.getDefaultInstance());
 			peer.send(
 				packet, null, Duration.ofMinutes(5),
 				() -> forceDisconnect("Couldn't send PeerRestarted packet."),
