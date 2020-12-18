@@ -57,6 +57,9 @@ import java.util.stream.Collectors;
  */
 @NonNullByDefault
 final public class HubServer extends HubConnectorBase<RemoteClient> implements IRemoteClientHub {
+
+	public static final int MAX_OUTSTANDING_COMMANDS = 30_000;
+
 	private final String m_serverVersion = "1.0";
 
 	private final String m_clusterPassword;
@@ -398,6 +401,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	}
 
 	void sendJsonCommand(RemoteCommand command, JsonPacket packet) {
+		if(m_commandMap.size() > MAX_OUTSTANDING_COMMANDS) {
+			throw new IllegalStateException("Too many outstanding commands");
+		}
 		synchronized(this) {
 			if(null != m_commandMap.put(command.getCommandId(), command))
 				throw new IllegalStateException("Non-unique command id used!!");
