@@ -9,6 +9,8 @@ import to.etc.cocos.connectors.common.JsonPacket;
  * Created on 30-01-20.
  */
 public class CancelPacket extends JsonPacket {
+	public CancelPacket() {}
+
 	private String m_commandId;
 
 	private String m_cancelReason;

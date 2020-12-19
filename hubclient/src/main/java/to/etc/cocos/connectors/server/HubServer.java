@@ -486,10 +486,12 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	private void failCommand(CommandError err, RemoteCommand command) {
 		synchronized(this) {
+			if(command.getStatus() == RemoteCommandStatus.FAILED || command.getStatus() == RemoteCommandStatus.FINISHED)
+				throw new IllegalStateException("Trying to re-fail an already finished command: " + command.getCommandId() + " " + err);
 			command.setStatus(RemoteCommandStatus.FAILED);
+			command.setFinishedAt(System.currentTimeMillis());
 			EvCommandError ev = new EvCommandError(command, err);
 			command.callCommandListeners(l -> l.errorEvent(ev));
-			command.setFinishedAt(System.currentTimeMillis());
 		}
 	}
 
@@ -507,11 +509,15 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		}
 
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), cr.getId(), cr.getName());
+
 		synchronized(this) {
+			if(command.getStatus() == RemoteCommandStatus.FAILED || command.getStatus() == RemoteCommandStatus.FINISHED)
+				throw new IllegalStateException("Trying to re-finish an already finished command: " + command.getCommandId());
+
 			command.setStatus(RemoteCommandStatus.FINISHED);
+			command.setFinishedAt(System.currentTimeMillis());
 			EvCommandFinished ev = new EvCommandFinished(command, dataFormat, packet);
 			command.callCommandListeners(l -> l.completedEvent(ev));
-			command.setFinishedAt(System.currentTimeMillis());
 		}
 	}
 

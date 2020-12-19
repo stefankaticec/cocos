@@ -24,6 +24,8 @@ public interface IRemoteClient {
 
 	IRemoteCommand sendJsonCommand(String uniqueCommandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception;
 
+	IRemoteCommand sendCancel(String commandId, String reason) throws Exception;
+
 	Observable<ServerCommandEventBase> getEventPublisher();
 
 	boolean isConnected();
