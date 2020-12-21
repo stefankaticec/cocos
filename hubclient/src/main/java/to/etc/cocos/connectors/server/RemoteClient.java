@@ -96,12 +96,12 @@ final public class RemoteClient extends Peer implements IRemoteClient {
 	 */
 	@Override
 	public IRemoteCommand sendJsonCommand(String commandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception {
+		if(packet instanceof CancelPacket)
+			throw new IllegalStateException("Use sendCancel to cancel a command");
 		return sendJsonCommand(commandId, packet, commandTimeout, commandKey, description, l, RemoteCommandType.Command);
 	}
 
 	private IRemoteCommand sendJsonCommand(String commandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l, RemoteCommandType cmdType) throws Exception {
-		if(packet instanceof CancelPacket)
-			throw new IllegalStateException("Use sendCancel to cancel a command");
 		RemoteCommand command = new RemoteCommand(this, commandId, commandTimeout, commandKey, description, cmdType);
 		if(null != l)
 			command.addListener(l);
