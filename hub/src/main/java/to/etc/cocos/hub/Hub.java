@@ -18,10 +18,14 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
+import to.etc.cocos.hub.telnetcommands.HelpTelnetCommandHandler;
+import to.etc.cocos.hub.telnetcommands.ListClientsTelnetCommandHandler;
+import to.etc.cocos.hub.telnetcommands.ListServerTelnetCommandHandler;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.function.FunctionEx;
 import to.etc.log.EtcLoggerFactory;
+import to.etc.telnet.TelnetServer;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 
@@ -145,6 +149,11 @@ final public class Hub {
 				workerGroup.shutdownGracefully();
 			}
 		}
+
+		var ts = TelnetServer.createServer(7171);
+		ts.addCommandHandler(new HelpTelnetCommandHandler());
+		ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
+		ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
 	}
 
 	public void terminate() {
