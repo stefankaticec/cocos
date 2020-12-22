@@ -174,10 +174,5 @@ public class TestAllBase {
 			.filter(a -> a.getType() == ServerEventType.peerRestarted)
 			.timeout(15000, TimeUnit.SECONDS)
 			.blockingFirst();
-		IServerEvent event1 = server().observeServerEvents()
-			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
-			.filter(a -> a.getType() == ServerEventType.c)
-			.timeout(15000, TimeUnit.SECONDS)
-			.blockingFirst();
 	}
 }

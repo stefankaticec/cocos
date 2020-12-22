@@ -519,6 +519,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		}
 		System.out.println("GOt finished "+ command.getCommandType());
 		if(command.getStatus() == RemoteCommandStatus.CANCELED) {
+			m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.cancelFinished));
 			return;
 		}
 		synchronized(this) {

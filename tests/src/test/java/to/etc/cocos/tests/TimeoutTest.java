@@ -9,6 +9,7 @@ import to.etc.cocos.connectors.ifaces.EvCommandError;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.connectors.server.HubServer;
+import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.util.StringTool;
 
 import java.time.Duration;
@@ -40,15 +41,12 @@ public class TimeoutTest extends TestAllBase {
 
 	@Test
 	public void testTimeout() throws Exception {
-		HubServer.testOnly_setDelayPeriodAndInterval(0, 100, TimeUnit.MILLISECONDS);
+		HubServer.testOnly_setDelayPeriodAndInterval(0, 1000, TimeUnit.MILLISECONDS);
 		waitConnected();
-		PublishSubject<StdoutCommandTestPacket> ps = PublishSubject.create();
 		client().registerJsonCommand(StdoutCommandTestPacket.class, () -> (ctx, packet) -> {
-			ps.onNext(packet);
-			ps.onComplete();
 			try {
 				synchronized(this) {
-					wait(3000);
+					wait(15_000);
 				}
 			}catch(InterruptedException e) {
 			}
@@ -58,20 +56,20 @@ public class TimeoutTest extends TestAllBase {
 			return new JsonPacket();
 		});
 		var client = server().getClientList().get(0);
+
 		StdoutCommandTestPacket p = new StdoutCommandTestPacket();
 		p.setParameters("Real command");
-		var observer = client.getEventPublisher().subscribe(x-> {
-			System.out.println("command");
-			if(x instanceof EvCommandError) {
-				System.out.println(((EvCommandError) x).getMessage());
-			}
-			System.out.println(x.getClass().getSimpleName());
+
+		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(50), null, "Test command", null);
+
+		client.getEventPublisher().subscribe(x-> {
+			System.out.println("cmd");
 			System.out.println(x.getCommand().getDescription());
 		});
-		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(50), null, "Test command", null);
-		var cancellingCommand = ps
-			.delay(3, TimeUnit.SECONDS)
-			.timeout(5, TimeUnit.SECONDS)
+		var cancellingCommand = server().observeServerEvents()
+			.doOnNext(a -> System.out.println(">> got state " + a.getType()))
+			.filter(x->x.getType() == ServerEventType.cancelFinished)
+			.timeout(1500, TimeUnit.SECONDS)
 			.blockingFirst();
 
 		assertEquals(RemoteCommandStatus.CANCELED, cmd.getStatus());
