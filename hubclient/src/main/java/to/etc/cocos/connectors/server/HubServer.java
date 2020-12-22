@@ -550,6 +550,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 				}
 			}
 		}
+		m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.peerRestarted));
 	}
 
 	@Override
