@@ -107,6 +107,11 @@ public class TestCommands extends TestAllBase {
 			public void stdoutEvent(EvCommandOutput ev) throws Exception {
 				stdout.append(ev.getOutput());
 			}
+
+			@Override
+			public void errorEvent(EvCommandError errorEvent) throws Exception {
+				ps.onError(new RuntimeException(errorEvent.getMessage()));
+			}
 		});
 		System.out.println(">> CMD=" + cmd);
 

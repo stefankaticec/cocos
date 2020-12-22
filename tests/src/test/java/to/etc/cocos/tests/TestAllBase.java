@@ -18,6 +18,7 @@ import to.etc.cocos.hub.parties.Client;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -170,7 +171,7 @@ public class TestAllBase {
 		client();
 		IServerEvent event = server().observeServerEvents()
 			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
-			.filter(a -> a.getType() == ServerEventType.clientInventoryReceived)
+			.filter(a -> a.getType() == ServerEventType.peerRestarted)
 			.timeout(15000, TimeUnit.SECONDS)
 			.blockingFirst();
 		IServerEvent event1 = server().observeServerEvents()
