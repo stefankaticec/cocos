@@ -12,10 +12,12 @@ public enum ServerEventType implements IServerEventType {
 	clientConnected,
 	clientDisconnected,
 	clientInventoryReceived,
+	peerRestarted,
 
 	//-- Commands
 	commandError,
 	commandOutput,
 	commandFinished,
+
 
 }

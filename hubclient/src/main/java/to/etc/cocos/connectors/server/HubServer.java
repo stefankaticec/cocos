@@ -535,6 +535,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	private void handlePeerRestarted(CommandContext ctx, List<byte[]> data) {
 		String source = ctx.getSourceEnvelope().getSourceId();
 		System.out.println(">>> HubServer: received PeerRestarted from " + source);
+		m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.peerRestarted));
 		for(RemoteCommand cmd : new ArrayList<>(m_commandMap.values())) {
 			if(cmd.getClient().getClientID().equalsIgnoreCase(source) && (cmd.getStatus() == RemoteCommandStatus.RUNNING || cmd.getStatus() == RemoteCommandStatus.SCHEDULED)) {
 				System.out.println(">>> HubServer: cancelling command " + cmd.getCommandId() + " to " + cmd.getClient().getClientID());
