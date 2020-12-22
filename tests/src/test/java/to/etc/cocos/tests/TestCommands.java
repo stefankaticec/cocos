@@ -41,7 +41,7 @@ public class TestCommands extends TestAllBase {
 		ServerCommandEventBase error = remote.getEventPublisher()
 			.doOnNext(a -> System.out.println(">> got cmdEvent " + a))
 			.filter(a -> a instanceof EvCommandError)
-			.timeout(5000, TimeUnit.SECONDS)
+			.timeout(5, TimeUnit.SECONDS)
 			.blockingFirst();
 
 		EvCommandError err = (EvCommandError) error;

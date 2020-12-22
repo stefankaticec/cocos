@@ -171,6 +171,7 @@ final public class RemoteCommand implements IRemoteCommand {
 		return (T) m_attributeMap.get(clz.getName());
 	}
 
+	@Override
 	public RemoteCommandStatus getStatus() {
 		return m_status;
 	}
@@ -247,6 +248,10 @@ final public class RemoteCommand implements IRemoteCommand {
 	 */
 	@Override
 	public void cancel(@NonNull String cancelReason) throws Exception {
+		if(!getStatus().isCancellable()) {
+			throw new IllegalStateException("Cant cancel a command with status "+ getStatus());
+		}
+		setStatus(RemoteCommandStatus.CANCELED);
 		if(getCommandType() == RemoteCommandType.Cancel)						// Do not cancel cancels.
 			return;
 		m_client.sendCancel(getCommandId(), cancelReason);

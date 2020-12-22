@@ -13,6 +13,7 @@ import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.Hub;
+import to.etc.cocos.hub.parties.Client;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -170,6 +171,11 @@ public class TestAllBase {
 		IServerEvent event = server().observeServerEvents()
 			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
 			.filter(a -> a.getType() == ServerEventType.clientInventoryReceived)
+			.timeout(15000, TimeUnit.SECONDS)
+			.blockingFirst();
+		IServerEvent event1 = server().observeServerEvents()
+			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
+			.filter(a -> a.getType() == ServerEventType.c)
 			.timeout(15000, TimeUnit.SECONDS)
 			.blockingFirst();
 	}
