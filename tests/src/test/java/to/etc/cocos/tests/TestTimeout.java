@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 import static junit.framework.TestCase.assertEquals;
 
 @NonNullByDefault
-public class TimeoutTest extends TestAllBase {
+public class TestTimeout extends TestAllBase {
 
 	@Test
 	public void testOrderOfClientStates() throws Exception {
@@ -41,12 +41,12 @@ public class TimeoutTest extends TestAllBase {
 
 	@Test
 	public void testTimeout() throws Exception {
-		HubServer.testOnly_setDelayPeriodAndInterval(0, 1000, TimeUnit.MILLISECONDS);
+		HubServer.testOnly_setDelayPeriodAndInterval(0, 300, TimeUnit.MILLISECONDS);
 		waitConnected();
 		client().registerJsonCommand(StdoutCommandTestPacket.class, () -> (ctx, packet) -> {
 			try {
 				synchronized(this) {
-					wait(15_000);
+					wait(300);
 				}
 			}catch(InterruptedException e) {
 			}
@@ -61,15 +61,9 @@ public class TimeoutTest extends TestAllBase {
 		p.setParameters("Real command");
 
 		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(50), null, "Test command", null);
-
-		client.getEventPublisher().subscribe(x-> {
-			System.out.println("cmd");
-			System.out.println(x.getCommand().getDescription());
-		});
 		var cancellingCommand = server().observeServerEvents()
-			.doOnNext(a -> System.out.println(">> got state " + a.getType()))
 			.filter(x->x.getType() == ServerEventType.cancelFinished)
-			.timeout(1500, TimeUnit.SECONDS)
+			.timeout(15, TimeUnit.SECONDS)
 			.blockingFirst();
 
 		assertEquals(RemoteCommandStatus.CANCELED, cmd.getStatus());
