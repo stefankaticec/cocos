@@ -175,4 +175,9 @@ public class TestAllBase {
 			.timeout(15000, TimeUnit.SECONDS)
 			.blockingFirst();
 	}
+
+	protected void clientDisconnect() throws Exception {
+		client().terminateAndWait();
+		m_client = null;
+	}
 }
