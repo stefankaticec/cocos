@@ -1,12 +1,9 @@
 package to.etc.cocos.tests;
 
-import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.junit.Test;
 import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.common.JsonPacket;
-import to.etc.cocos.connectors.ifaces.EvCommandError;
-import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.server.ServerEventType;
@@ -44,14 +41,8 @@ public class TestTimeout extends TestAllBase {
 		HubServer.testOnly_setDelayPeriodAndInterval(0, 300, TimeUnit.MILLISECONDS);
 		waitConnected();
 		client().registerJsonCommand(StdoutCommandTestPacket.class, () -> (ctx, packet) -> {
-			try {
-				synchronized(this) {
-					wait(300);
-				}
-			}catch(InterruptedException e) {
-			}
-			catch(Exception e) {
-				e.printStackTrace();
+			synchronized(this) {
+				wait(300);
 			}
 			return new JsonPacket();
 		});
