@@ -5,6 +5,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,5 +74,13 @@ final public class ConnectionDirectory {
 
 	public synchronized void unregisterTmpClient(String tmpClientId) {
 		m_tmpClientMap.remove(tmpClientId);
+	}
+
+	public synchronized Collection<CentralSocketHandler> getConnectedClients() {
+		return m_tmpClientMap.values();
+	}
+
+	public synchronized Collection<Cluster> getConnectedClusters() {
+		return m_clusterMap.values();
 	}
 }

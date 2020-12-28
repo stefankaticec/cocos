@@ -180,4 +180,8 @@ final public class Cluster {
 	//
 	//
 	//}
+
+	public String getClusterId() {
+		return m_clusterId;
+	}
 }
