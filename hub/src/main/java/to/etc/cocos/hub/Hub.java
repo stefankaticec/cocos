@@ -26,6 +26,7 @@ import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.function.FunctionEx;
 import to.etc.log.EtcLoggerFactory;
 import to.etc.telnet.TelnetServer;
+import to.etc.telnet.TelnetStateThing;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 
@@ -69,6 +70,9 @@ final public class Hub {
 	final private SecureRandom m_random;
 
 	final private ConnectionDirectory m_directory = new ConnectionDirectory(this);
+
+	@Nullable
+	private TelnetServer m_telnetServer;
 
 	@Nullable
 	private Channel m_serverChannel;
@@ -150,7 +154,7 @@ final public class Hub {
 			}
 		}
 
-		var ts = TelnetServer.createServer(7171);
+		var ts = m_telnetServer = TelnetServer.createServer(7171);
 		ts.addCommandHandler(new HelpTelnetCommandHandler());
 		ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
 		ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
@@ -166,6 +170,15 @@ final public class Hub {
 			m_serverChannel = null;
 		}
 		serverChannel.close();
+		var ts = m_telnetServer;
+		if(ts != null) {
+			m_telnetServer = null;
+			try {
+				ts.terminateAndWait();
+			}catch(Exception e){
+				e.printStackTrace();
+			}
+		}
 	}
 
 	public void terminateAndWait() throws Exception {
