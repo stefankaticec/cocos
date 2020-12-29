@@ -13,6 +13,7 @@ import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.Hub;
+import to.etc.cocos.hub.parties.Client;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -117,7 +118,7 @@ public class TestAllBase {
 	public Hub hub() throws Exception {
 		Hub hub = m_hub;
 		if(null == hub) {
-			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList());
+			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList(), false);
 			hub.startServer();
 		}
 		return hub;
@@ -173,5 +174,10 @@ public class TestAllBase {
 			.filter(a -> a.getType() == ServerEventType.peerRestarted)
 			.timeout(15000, TimeUnit.SECONDS)
 			.blockingFirst();
+	}
+
+	protected void clientDisconnect() throws Exception {
+		client().terminateAndWait();
+		m_client = null;
 	}
 }

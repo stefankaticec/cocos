@@ -2,6 +2,7 @@ package to.etc.cocos.connectors.server;
 
 import com.google.protobuf.ByteString;
 import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.observables.ConnectableObservable;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -22,7 +23,6 @@ import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
-import to.etc.cocos.connectors.server.RemoteCommand.RemoteCommandType;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -75,6 +74,8 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	private final PublishSubject<IServerEvent> m_serverEventSubject;
 
+	public final Observable<IServerEvent> m_eventObservable;
+
 	private final Map<String, RemoteCommand> m_commandMap = new HashMap<>();
 
 	//private final Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
@@ -82,11 +83,18 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	@Nullable
 	private ScheduledFuture<?> m_timeoutTask;
 
+	private static int m_timeoutDelay = 2;
+	private static int m_timeoutSchedule = 1;
+	private static TimeUnit m_timeoutUnit = TimeUnit.MINUTES;
+
 	private HubServer(String hubServer, int hubServerPort, String clusterPassword, IClientAuthenticator authenticator, String id) {
 		super(hubServer, hubServerPort, "", id, "Server");
 		m_clusterPassword = clusterPassword;
 		m_authenticator = authenticator;
 		m_serverEventSubject = PublishSubject.create();
+		ConnectableObservable<IServerEvent> replay = m_serverEventSubject.replay(60, TimeUnit.SECONDS);
+		m_eventObservable = replay;
+		replay.connect();
 
 		addListener(new IRemoteClientListener() {
 			@Override public void clientConnected(IRemoteClient client) throws Exception {
@@ -129,7 +137,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	@Override
 	public Observable<IServerEvent> observeServerEvents() {
-		return m_serverEventSubject;
+		return m_eventObservable;
 	}
 
 	@Override
@@ -411,6 +419,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 			if(null != m_commandMap.put(command.getCommandId(), command))
 				throw new IllegalStateException("Non-unique command id used!!");
+			System.out.println(m_commandMap);
 		}
 
 		Builder message = AckableMessage.newBuilder()
@@ -431,19 +440,10 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		});
 	}
 
+	@Nullable
 	private RemoteCommand getCommandFromID(String clientId, String commandId, String commandName) {
 		synchronized(this) {
-			RemoteCommand cmd = m_commandMap.get(commandId);
-			if(null != cmd)
-				return cmd;
-
-			RemoteClient remoteClient = findClient(clientId);
-			if(null == remoteClient) {
-				throw new IllegalStateException("Got command " + commandName + " for remote client " + clientId + " - but I cannot find that client");
-			}
-			cmd = new RemoteCommand(remoteClient, commandId, Duration.of(60, ChronoUnit.SECONDS), null, "Recovered command", RemoteCommandType.Command);
-			m_commandMap.put(commandId, cmd);
-			return cmd;
+			return m_commandMap.get(commandId);
 		}
 	}
 
@@ -481,11 +481,19 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command error: " + err.getCode() + " " + err.getMessage());
 
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), err.getId(), err.getName());
-		failCommand(err, command);
+		if(command != null) {
+			System.out.println("GOt error "+ command.getCommandType());
+			failCommand(err, command);
+		} else {
+		  ctx.log("Command failed but command with id " + err.getId() + " was not found");
+		}
 	}
 
 	private void failCommand(CommandError err, RemoteCommand command) {
 		synchronized(this) {
+			if(command.getStatus() == RemoteCommandStatus.CANCELED) {
+				return;
+			}
 			if(command.getStatus() == RemoteCommandStatus.FAILED || command.getStatus() == RemoteCommandStatus.FINISHED)
 				throw new IllegalStateException("Trying to re-fail an already finished command: " + command.getCommandId() + " " + err);
 			command.setStatus(RemoteCommandStatus.FAILED);
@@ -509,7 +517,15 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		}
 
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), cr.getId(), cr.getName());
-
+		if(command == null) {
+			ctx.log("Command finished, but command with id "+ cr.getId() + " was not found");
+			return;
+		}
+		System.out.println("GOt finished "+ command.getCommandType());
+		if(command.getStatus() == RemoteCommandStatus.CANCELED) {
+			m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.cancelFinished));
+			return;
+		}
 		synchronized(this) {
 			if(command.getStatus() == RemoteCommandStatus.FAILED || command.getStatus() == RemoteCommandStatus.FINISHED)
 				throw new IllegalStateException("Trying to re-finish an already finished command: " + command.getCommandId());
@@ -525,6 +541,11 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		//-- Command output propagated as a string. Create the string by decoding the output.
 		CommandOutput output = ctx.getSourceEnvelope().getAckable().getOutput();
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), output.getId(), output.getName());
+		if(command == null) {
+			ctx.log("Output received, but command with id "+ output.getId() + " was not found");
+			return;
+		}
+		System.out.println("GOt output "+ command.getCommandType());
 		command.appendOutput(data, output.getCode());
 	}
 
@@ -560,13 +581,18 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	@Override
 	protected void internalStart() {
-		m_timeoutTask = TimerUtil.scheduleAtFixedRate(2, 1, TimeUnit.MINUTES, this::cancelTimedOutCommands);
+		m_timeoutTask = TimerUtil.scheduleAtFixedRate(m_timeoutDelay, m_timeoutSchedule, m_timeoutUnit, this::cancelTimedOutCommands);
+	}
+
+	public static void testOnly_setDelayPeriodAndInterval(int delay, int period, TimeUnit interval) {
+		m_timeoutDelay = delay;
+		m_timeoutSchedule = period;
+		m_timeoutUnit = interval;
 	}
 
 	private void cancelTimedOutCommands() {
 		for(RemoteCommand val : new ArrayList<>(m_commandMap.values())) {
-			if(val.hasTimedOut()) {
-				m_commandMap.remove(val.getCommandId());
+			if(val.hasTimedOut() && val.getStatus().isCancellable()) {
 				try {
 					val.cancel("Timeout");
 				}catch(Exception e){

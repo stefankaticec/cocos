@@ -1,5 +1,8 @@
 package to.etc.hubserver.protocol;
 
+import to.etc.cocos.messages.Hubcore;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
+
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 13-1-19.
@@ -22,5 +25,18 @@ final public class CommandNames {
 
 	public static boolean isJsonDataFormat(String dataFormat) {
 		return dataFormat.startsWith(BODY_JSON + ":");
+	}
+
+	static public String getPacketName(Hubcore.Envelope envelope) {
+		StringBuilder sb = new StringBuilder();
+		sb.append(envelope.getSourceId()).append("->").append(envelope.getTargetId()).append(" ");
+		if(envelope.getPayloadCase() == PayloadCase.ACKABLE) {
+			sb.append(envelope.getAckable().getPayloadCase().name());
+			sb.append(" seq#").append(envelope.getAckable().getSequence());
+		} else {
+			sb.append(envelope.getPayloadCase().name());
+		}
+		return sb.toString();
+
 	}
 }

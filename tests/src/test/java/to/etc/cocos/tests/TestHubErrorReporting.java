@@ -17,7 +17,7 @@ import java.util.Date;
 public class TestHubErrorReporting {
 	@Test
 	public void testReport1() throws Exception {
-		Hub h = new Hub(123, "456", false, s -> "aa", null, Collections.emptyList());
+		Hub h = new Hub(123, "456", false, s -> "aa", null, Collections.emptyList(), false);
 
 		Calendar cal = Calendar.getInstance();
 		cal.set(Calendar.MINUTE, 12);						// Make sure we do not wrap the hour during the test

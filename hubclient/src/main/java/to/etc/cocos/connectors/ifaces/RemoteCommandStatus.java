@@ -5,9 +5,20 @@ package to.etc.cocos.connectors.ifaces;
  * Created on 19-09-19.
  */
 public enum RemoteCommandStatus {
-	SCHEDULED,
-	RUNNING,
-	FAILED,
-	FINISHED,
-	UNKNOWN
+	SCHEDULED(true),
+	RUNNING(true),
+	FAILED(false),
+	FINISHED(false),
+	CANCELED(false),
+	UNKNOWN(false);
+
+	private boolean m_cancellable;
+
+	RemoteCommandStatus(boolean cancellable) {
+		m_cancellable = cancellable;
+	}
+
+	public boolean isCancellable() {
+		return m_cancellable;
+	}
 }
