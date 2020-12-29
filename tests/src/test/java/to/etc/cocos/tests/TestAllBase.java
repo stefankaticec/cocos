@@ -125,6 +125,7 @@ public class TestAllBase {
 
 	@After
 	public void tearDown() throws Exception {
+		System.out.println("----teardown----");
 		Hub hub = m_hub;
 		if(null != hub) {
 			m_hub = null;

@@ -174,17 +174,17 @@ final public class Hub {
 			}
 		}
 
-		var ts = TelnetServer.createServer(7171);
-		ts.addCommandHandler(new HelpTelnetCommandHandler());
-		ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
-		ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
+		//var ts = TelnetServer.createServer(7171);
+		//ts.addCommandHandler(new HelpTelnetCommandHandler());
+		//ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
+		//ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
 	}
 
 	public void terminate() {
 		Channel serverChannel;
 		synchronized(this) {
 			if(m_state != HubState.RUNNING) {
-				throw new IllegalStateException("Cant terminate, not running.");
+				return;
 			}
 			m_state = HubState.TERMINATING;
 			serverChannel = m_serverChannel;
