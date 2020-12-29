@@ -34,7 +34,7 @@ import java.util.Objects;
  */
 final public class CentralSocketHandler extends SimpleChannelInboundHandler<ByteBuf> {
 	@NonNull
-	private final Hub m_central;
+	private final Hub m_hub;
 
 	final private PacketAssemblyMachine m_packetAssembler;
 
@@ -73,16 +73,20 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private TxPacket m_txCurrentPacket;
 
 
-	public CentralSocketHandler(Hub central, SocketChannel socketChannel) {
-		m_central = central;
+	public CentralSocketHandler(Hub hub, SocketChannel socketChannel) {
+		m_hub = hub;
 		m_channel = socketChannel;
 		m_remoteAddress = socketChannel.remoteAddress().getAddress().getHostAddress();
-		m_packetStateMachine = new PacketMachine(central, this);
+		m_packetStateMachine = new PacketMachine(hub, this);
 		m_packetAssembler = new PacketAssemblyMachine(m_packetStateMachine::handlePacket, socketChannel.alloc());
 	}
 
 	@Override protected void channelRead0(ChannelHandlerContext context, ByteBuf data) throws Exception {
 		//-- Keep reading data from the buffer until empty and handle it.
+		if(m_hub.getState() != HubState.RUNNING){
+			System.out.println("Ignoring read, not running");
+			return;
+		}
 		try {
 			while(data.readableBytes() > 0) {
 				m_packetAssembler.handleRead(context, data);
@@ -101,6 +105,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * Called when the channel has just been opened. This sends an HELO packet to the client.
 	 */
 	@Override public void channelActive(ChannelHandlerContext ctx) throws Exception {
+		if(m_hub.getState() != HubState.RUNNING){
+			System.out.println("Ignoring channelActive, not running");
+			return;
+		}
 		ctx.channel().closeFuture().addListener(future -> {
 			remoteDisconnected(ctx);
 		});
@@ -525,7 +533,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 
 	private ConnectionDirectory getDirectory() {
-		return m_central.getDirectory();
+		return m_hub.getDirectory();
 	}
 
 	public String getRemoteAddress() {

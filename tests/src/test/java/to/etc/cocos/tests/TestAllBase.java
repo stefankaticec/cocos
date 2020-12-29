@@ -108,7 +108,7 @@ public class TestAllBase {
 		server().observeConnectionState()
 			.doOnNext(a -> System.out.println(">> got state " + a))
 			.filter(a -> a == ConnectorState.AUTHENTICATED)
-			.timeout(5, TimeUnit.SECONDS)
+			.timeout(15, TimeUnit.SECONDS)
 			.blockingFirst();
 		return server();
 	}
@@ -119,6 +119,7 @@ public class TestAllBase {
 			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD);
 			hub.startServer();
 		}
+		System.out.println("HUBSTATE: "+hub.getState());
 		return hub;
 	}
 
@@ -170,7 +171,7 @@ public class TestAllBase {
 		IServerEvent event = server().observeServerEvents()
 			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
 			.filter(a -> a.getType() == ServerEventType.clientInventoryReceived)
-			.timeout(15000, TimeUnit.SECONDS)
+			.timeout(15, TimeUnit.SECONDS)
 			.blockingFirst();
 	}
 }
