@@ -98,7 +98,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	/**
-	 * Called when the channel has just been opened. This sends an HELO packet to the client.
+	 * Called when the channel has just been opened. This sends a CHALLENGE packet to the client.
 	 */
 	@Override public void channelActive(ChannelHandlerContext ctx) throws Exception {
 		ctx.channel().closeFuture().addListener(future -> {
@@ -174,7 +174,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			}
 			m_txBufferList.clear();
 		}
-		m_channel.disconnect();
+		try {
+			m_channel.disconnect();
+		} catch(Exception x) {
+			log("NETTY Disconnect failed (ignoring): " + x);
+		}
 	}
 
 	/**
@@ -334,9 +338,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				txHandleSuccessfulSend();
 			} else {
 				Throwable cause = f.cause();
-				if(null != cause)
-					cause.printStackTrace();
-				txHandleFailedSend();
+				txHandleFailedSend(cause);
 			}
 		});
 	}
@@ -386,8 +388,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * Send failed. Requeue the failed packet on the prio queue, then disconnect. When the remote reconnects
 	 * the packet is retried (unless we have a tx timeout).
+	 * @param cause
 	 */
-	private void txHandleFailedSend() {
+	private void txHandleFailedSend(@Nullable Throwable cause) {
 		TxPacket packet;
 		synchronized(this) {
 			packet = m_txCurrentPacket;
@@ -399,7 +402,17 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			m_txCurrentPacket = null;
 			releaseTxBuffers();
 		}
-		disconnectOnly("failed send " + packet);
+
+		String why;
+		if(null == cause) {
+			why = "Unknown failure?";
+		} else {
+			why = cause.toString();
+			cause.printStackTrace();
+		}
+		disconnectOnly("failed send " + packet + ": " + why);
+		if(null != cause)
+			m_central.registerFailure(cause);
 	}
 
 	private synchronized void releaseTxBuffers() {
@@ -463,8 +476,9 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private String getLogInd() {
 		String myId = m_myId;
 		AbstractConnection connection = m_connection;
-		if(myId == null)
+		if(myId == null) {
 			return "newClient";
+		}
 		if(m_connection instanceof Server) {
 			return "S:" + myId;
 		} else {
@@ -473,11 +487,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	void log(String log) {
-		ConsoleUtil.consoleLog("Hub", getLogInd(), log);
+		ConsoleUtil.consoleLog("Hub", getId(), getLogInd(), log);
 	}
 
 	void error(String log) {
-		ConsoleUtil.consoleError("Hub", getLogInd(), log);
+		ConsoleUtil.consoleError("Hub", getId(), getLogInd(), log);
 	}
 
 	/*----------------------------------------------------------------------*/
