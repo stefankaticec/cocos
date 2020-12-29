@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.subjects.PublishSubject;
+import io.reactivex.rxjava3.subjects.Subject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
@@ -48,9 +49,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A connector to a Hub server. This connector keeps a single connection to the Hub server
@@ -135,6 +134,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	/** Transmitter queue. Will be emptied as soon as the connection gets lost. */
 	private List<PendingTxPacket> m_txQueue = new ArrayList<>();
+
+	private Subject<Envelope> m_sender = PublishSubject.create();
+	private Subject<Envelope> m_receiver = PublishSubject.create();
 
 	public enum PacketPrio {
 		HUB, NORMAL, PRIO
@@ -480,6 +482,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			m_writer.setOs(os);
 			m_writer.sendEnvelope(pp.getEnvelope());
 			m_writer.sendBody(pp.getBodyTransmitter());
+			m_sender.onNext(pp.getEnvelope());
 			os.flush();
 		} catch(Exception x) {
 			error("Transmit for packet " + pp + " failed: " + x);
@@ -630,6 +633,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		Envelope env = m_packetReader.getEnvelope();
 		log("Received packet: " + getPacketType(env));
 
+		m_receiver.onNext(env);
 		if(env.getSourceId().equals(getMyId()))
 			throw new IllegalStateException("?? Packet source is myself?");
 
@@ -723,7 +727,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		respondWithAck(env);						// Always ack the packet as we've seen it
 
 		Peer peer = getOrCreatePeer(env.getSourceId());
-		if(peer.seen(env.getAckable().getSequence())) {
+		if(peer.seen(env.getAckable().getSequence()) && env.getAckable().getPeerRestarted() == null) {
 			log("Ignoring repeated packet with sequence# " + env.getAckable().getSequence());
 			return;
 		}
@@ -1037,4 +1041,11 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	protected void internalStart() {}
+
+	public Subject<Envelope> observeSending() {
+		return m_sender;
+	}
+	public Subject<Envelope> observeReceiving() {
+		return m_receiver;
+	}
 }

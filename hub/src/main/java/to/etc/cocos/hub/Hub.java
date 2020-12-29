@@ -23,6 +23,7 @@ import to.etc.cocos.hub.telnetcommands.ListClientsTelnetCommandHandler;
 import to.etc.cocos.hub.telnetcommands.ListServerTelnetCommandHandler;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
+import to.etc.function.ConsumerEx;
 import to.etc.function.FunctionEx;
 import to.etc.log.EtcLoggerFactory;
 import to.etc.smtp.Address;
@@ -48,6 +49,7 @@ import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -98,6 +100,8 @@ final public class Hub {
 	final private SendGridMailer m_mailer;
 
 	private HubState m_state = HubState.STOPPED;
+
+	private final List<ConsumerEx<HubState>> m_stateListeners = new CopyOnWriteArrayList<>();
 
 	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, boolean startTelnet) throws Exception {
 		m_port = port;
@@ -157,6 +161,7 @@ final public class Hub {
 				m_closeFuture = closeFuture;
 				m_state = HubState.RUNNING;
 			}
+			notifyStateListeners();
 			closeFuture.addListener(future -> {
 				ConsoleUtil.consoleLog("Hub", "Server closing down: releasing thread pools");
 				bossGroup.shutdownGracefully();
@@ -166,6 +171,8 @@ final public class Hub {
 					m_closeFuture = null;
 					m_state = HubState.STOPPED;
 				}
+				notifyStateListeners();
+				m_stateListeners.clear();
 				log("Hub terminated");
 			});
 			failed = false;
@@ -549,5 +556,8 @@ final public class Hub {
 		public int getCount() {
 			return m_count;
 		}
+	}
+	public synchronized void addListener(ConsumerEx<HubState> listener) {
+		m_stateListeners.add(listener);
 	}
 }

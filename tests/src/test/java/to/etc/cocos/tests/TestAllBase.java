@@ -1,5 +1,6 @@
 package to.etc.cocos.tests;
 
+import io.reactivex.rxjava3.core.Observable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -13,6 +14,8 @@ import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.Hub;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
+import to.etc.util.Pair;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -118,6 +121,7 @@ public class TestAllBase {
 		Hub hub = m_hub;
 		if(null == hub) {
 			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList(), false);
+			m_hub.setListeners();
 			hub.startServer();
 		}
 		return hub;
@@ -169,10 +173,30 @@ public class TestAllBase {
 		hub();
 		serverConnected();
 		client();
+		var f = Observable.zip(
+			client().observeReceiving().filter(x->x.getAck() != null).timeout(5, TimeUnit.SECONDS),
+			server().observeServerEvents().filter(x->x.getType()== ServerEventType.peerRestarted).timeout(5, TimeUnit.SECONDS),
+			(x, y)->{
+				return Observable.just(new Pair<>(x.getAck(), y.getType()));
+		}).blockingFirst();
+		var disposable = client().observeReceiving().subscribe(next-> {
+			System.out.println("client got:");
+			System.out.println(next.getPayloadCase());
+			if(next.getPayloadCase() == PayloadCase.ACKABLE) {
+				System.out.println(next.getAckable().getPayloadCase().name());
+			}
+			System.out.println(next.toString());
+		});
+
 		IServerEvent event = server().observeServerEvents()
 			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
 			.filter(a -> a.getType() == ServerEventType.peerRestarted)
 			.timeout(15, TimeUnit.SECONDS)
 			.blockingFirst();
+	}
+
+	protected void clientDisconnect() throws Exception {
+		client().terminateAndWait();
+		m_client = null;
 	}
 }
