@@ -50,6 +50,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 	private final List<CommandContext> m_runningCommandList = new ArrayList<>();
 
 	private volatile boolean m_restartPacketSent;
+	private volatile boolean m_restartPacketInTransit;
 
 	private HubClient(String hubServer, int hubServerPort, IClientAuthenticationHandler authHandler, String targetClusterAndOrg, String myId) {
 		super(hubServer, hubServerPort, targetClusterAndOrg, myId, "Client");
@@ -236,15 +237,22 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory), () -> {
 			forceDisconnect("AUTH response inventory packet send failed");
 		});
-		if(!m_restartPacketSent) {
+		if(!m_restartPacketSent && !m_restartPacketInTransit) {
 			var peer = getOrCreatePeer(src.getSourceId());
 			peer.setConnected();
 			Builder packet = AckableMessage.newBuilder()
 				.setPeerRestarted(PeerRestarted.getDefaultInstance());
+			m_restartPacketInTransit = true;
 			peer.send(
 				packet, null, Duration.ofMinutes(5),
-				() -> forceDisconnect("Couldn't send PeerRestarted packet."),
-				() -> m_restartPacketSent = true
+				() ->  {
+					forceDisconnect("Couldn't send PeerRestarted packet.");
+					m_restartPacketInTransit = false;
+				},
+				() ->  {
+					m_restartPacketSent = true;
+					m_restartPacketInTransit = false;
+				}
 			);
 		}
 	}
