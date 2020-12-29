@@ -39,6 +39,9 @@ final public class Main {
 	@Option(name = "-nio", usage = "Use nio instead of EPoll as the connection layer")
 	private boolean m_useNio;
 
+	@Option(name = "-notelnet", usage = "Skip starting telnet server")
+	private boolean m_noTelnet = false;
+
 	private volatile boolean m_terminate;
 
 	static public void main(String[] args) throws Exception {
@@ -66,7 +69,7 @@ final public class Main {
 		String addr = InetAddress.getLocalHost().getHostAddress();
 		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr  + ":" + m_port);
 
-		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael");		// FIXME Do real auth
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", !m_noTelnet);		// FIXME Do real auth
 		server.startServer();
 
 		//-- Listen to signals to stop the thing

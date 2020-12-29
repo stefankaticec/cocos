@@ -26,7 +26,6 @@ import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.function.FunctionEx;
 import to.etc.log.EtcLoggerFactory;
 import to.etc.telnet.TelnetServer;
-import to.etc.telnet.TelnetStateThing;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.FileTool;
 
@@ -57,6 +56,8 @@ final public class Hub {
 
 	final private int m_port;
 
+	private final boolean m_startTelnet;
+
 	private int m_pingInterval = 120;
 
 	private int m_listenerThreads = 1;
@@ -82,12 +83,13 @@ final public class Hub {
 
 	private ExecutorService m_eventSendingExecutor = Executors.newSingleThreadExecutor();
 
-	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource) throws Exception {
+	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, boolean startTelnet) throws Exception {
 		m_port = port;
 		m_ident = ident;
 		m_useNio = useNio;
 		m_clusterPasswordSource = clusterPasswordSource;
 		m_random = SecureRandom.getInstanceStrong();
+		m_startTelnet = startTelnet;
 	}
 
 	public void setListenerThreads(int listenerThreads) {
@@ -154,10 +156,13 @@ final public class Hub {
 			}
 		}
 
-		var ts = m_telnetServer = TelnetServer.createServer(7171);
-		ts.addCommandHandler(new HelpTelnetCommandHandler());
-		ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
-		ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
+		if(m_startTelnet) {
+			ConsoleUtil.consoleLog("Hub", "Starting telnet on port 7171");
+			var ts = m_telnetServer = TelnetServer.createServer(7171);
+			ts.addCommandHandler(new HelpTelnetCommandHandler());
+			ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
+			ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
+		}
 	}
 
 	public void terminate() {
