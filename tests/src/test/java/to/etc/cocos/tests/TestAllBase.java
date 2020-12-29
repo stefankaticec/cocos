@@ -119,7 +119,6 @@ public class TestAllBase {
 			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD);
 			hub.startServer();
 		}
-		System.out.println("HUBSTATE: "+hub.getState());
 		return hub;
 	}
 
