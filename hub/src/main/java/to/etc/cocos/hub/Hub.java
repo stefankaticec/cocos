@@ -65,6 +65,8 @@ final public class Hub {
 
 	final private int m_port;
 
+	private final boolean m_startTelnet;
+
 	private int m_pingInterval = 120;
 
 	private int m_listenerThreads = 1;
@@ -82,6 +84,9 @@ final public class Hub {
 	final private ConnectionDirectory m_directory = new ConnectionDirectory(this);
 
 	@Nullable
+	private TelnetServer m_telnetServer;
+
+	@Nullable
 	private Channel m_serverChannel;
 
 	@Nullable
@@ -94,13 +99,14 @@ final public class Hub {
 
 	private HubState m_state = HubState.STOPPED;
 
-	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo) throws Exception {
+	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, boolean startTelnet) throws Exception {
 		m_port = port;
 		m_ident = ident;
 		m_useNio = useNio;
 		m_clusterPasswordSource = clusterPasswordSource;
 		m_mailTo = mailTo;
 		m_random = SecureRandom.getInstanceStrong();
+		m_startTelnet = startTelnet;
 		m_mailer = mailer;
 	}
 
@@ -174,10 +180,13 @@ final public class Hub {
 			}
 		}
 
-		//var ts = TelnetServer.createServer(7171);
-		//ts.addCommandHandler(new HelpTelnetCommandHandler());
-		//ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
-		//ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
+		if(m_startTelnet) {
+			ConsoleUtil.consoleLog("Hub", "Starting telnet on port 7171");
+			var ts = m_telnetServer = TelnetServer.createServer(7171);
+			ts.addCommandHandler(new HelpTelnetCommandHandler());
+			ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
+			ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
+		}
 	}
 
 	public void terminate() {
@@ -195,6 +204,15 @@ final public class Hub {
 			m_serverChannel = null;
 		}
 		serverChannel.close();
+		var ts = m_telnetServer;
+		if(ts != null) {
+			m_telnetServer = null;
+			try {
+				ts.terminateAndWait();
+			}catch(Exception e){
+				e.printStackTrace();
+			}
+		}
 	}
 
 	public void terminateAndWait() throws Exception {

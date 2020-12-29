@@ -53,6 +53,9 @@ final public class Main {
 	@Option(name = "-mailTo", aliases = "-mt", usage = "The to address(es) for emails")
 	private List<String> m_mailTo = new ArrayList<>();
 
+	@Option(name = "-notelnet", usage = "Skip starting telnet server")
+	private boolean m_noTelnet = false;
+
 	private volatile boolean m_terminate;
 
 	static public void main(String[] args) throws Exception {
@@ -90,7 +93,7 @@ final public class Main {
 			m_mailTo.forEach(a -> to.add(new Address(a)));
 		}
 
-		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to);
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to, !m_noTelnet);
 		server.startServer();
 
 		//-- Listen to signals to stop the thing

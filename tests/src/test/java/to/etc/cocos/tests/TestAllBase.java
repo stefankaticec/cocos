@@ -117,7 +117,7 @@ public class TestAllBase {
 	public Hub hub() throws Exception {
 		Hub hub = m_hub;
 		if(null == hub) {
-			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList());
+			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList(), false);
 			hub.startServer();
 		}
 		return hub;
