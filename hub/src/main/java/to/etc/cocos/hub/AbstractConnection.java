@@ -8,6 +8,7 @@ import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.ConnectionState;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.util.ConsoleUtil;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -47,7 +48,11 @@ abstract public class AbstractConnection {
 
 	private int m_nextSequenceId = 13;
 
-	abstract public void log(String s);
+	final public void log(String s) {
+		CentralSocketHandler handler = m_handler;
+		String id = handler == null ? "(no handler)" : handler.getId();
+		ConsoleUtil.consoleLog("Hub:" + getClass().getSimpleName(), id, getFullId(), s);
+	}
 
 	public AbstractConnection(Cluster cluster, Hub systemContext, String id) {
 		m_cluster = cluster;

@@ -15,7 +15,6 @@ import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
-import to.etc.util.ConsoleUtil;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -52,12 +51,6 @@ public class Server extends AbstractConnection {
 			}
 		}
 	}
-
-	@Override
-	public void log(String s){
-		ConsoleUtil.consoleLog("Hub:Server", getFullId(), s);
-	}
-
 
 	private void handleHubCommand (Envelope envelope){
 		if(envelope.hasPong())
