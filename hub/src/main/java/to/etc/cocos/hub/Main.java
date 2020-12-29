@@ -8,9 +8,12 @@ import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sun.misc.Signal;
+import to.etc.smtp.Address;
 import to.etc.util.ConsoleUtil;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A Main class to start the HubServer from the command libe.
@@ -39,6 +42,17 @@ final public class Main {
 	@Option(name = "-nio", usage = "Use nio instead of EPoll as the connection layer")
 	private boolean m_useNio;
 
+	@Nullable
+	@Option(name = "-sendgridkey", aliases = "-sk", usage = "The key for sending warning emails through SendGrid")
+	private String m_mailerKey;
+
+	@Nullable
+	@Option(name = "-mailfrom", aliases = "-mf", usage = "The from address used when sending mails")
+	private String m_mailFrom;
+
+	@Option(name = "-mailTo", aliases = "-mt", usage = "The to address(es) for emails")
+	private List<String> m_mailTo = new ArrayList<>();
+
 	private volatile boolean m_terminate;
 
 	static public void main(String[] args) throws Exception {
@@ -66,7 +80,17 @@ final public class Main {
 		String addr = InetAddress.getLocalHost().getHostAddress();
 		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr  + ":" + m_port);
 
-		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael");		// FIXME Do real auth
+		//-- Do we want to have emails?
+		String mailerKey = m_mailerKey;
+		String mailFrom = m_mailFrom;
+		List<Address> to = new ArrayList<>();
+		SendGridMailer mailer = null;
+		if(m_mailTo.size() > 0 && mailFrom != null && mailerKey != null) {
+			mailer = new SendGridMailer(mailerKey, mailFrom);
+			m_mailTo.forEach(a -> to.add(new Address(a)));
+		}
+
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to);
 		server.startServer();
 
 		//-- Listen to signals to stop the thing
@@ -81,7 +105,7 @@ final public class Main {
 			Thread.sleep(5_000);
 		}
 
-		ConsoleUtil.consoleLog("Hub", "Main process stopping");
+		ConsoleUtil.consoleLog("Hub", "Main process stopped");
 	}
 
 	private void terminate(Hub server) {

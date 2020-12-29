@@ -17,7 +17,7 @@ import to.etc.cocos.hub.Hub;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -117,7 +117,7 @@ public class TestAllBase {
 	public Hub hub() throws Exception {
 		Hub hub = m_hub;
 		if(null == hub) {
-			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD);
+			m_hub = hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList());
 			hub.startServer();
 		}
 		return hub;

@@ -13,7 +13,6 @@ import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.util.ByteBufferOutputStream;
-import to.etc.util.ConsoleUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,11 +33,6 @@ final public class Client extends AbstractConnection {
 
 	public Client(Cluster cluster, Hub context, String id) {
 		super(cluster, context, id);
-	}
-
-	@Override
-	public void log(String s) {
-		ConsoleUtil.consoleLog("Hub:Server", getFullId(), s);
 	}
 
 	/**
