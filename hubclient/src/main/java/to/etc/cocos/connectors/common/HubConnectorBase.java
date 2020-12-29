@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.observables.ConnectableObservable;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -48,7 +49,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
@@ -75,6 +75,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	private final ObjectMapper m_mapper;
 
 	private final String m_logName;
+
+	private final ConnectableObservable<ConnectorState> m_connStateObserver;
 
 	private boolean m_logTx = false;
 
@@ -216,6 +218,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 		m_myId = myId;
 		m_targetId = targetId;
 		m_connStatePublisher = PublishSubject.<ConnectorState>create();
+		m_connStateObserver = m_connStatePublisher.replay(60, TimeUnit.SECONDS);
+		m_connStateObserver.connect();
 		m_logName = logName;
 
 		ObjectMapper om = m_mapper = new ObjectMapper();
@@ -226,6 +230,11 @@ public abstract class HubConnectorBase<T extends Peer> {
 		//om.registerModule(module);
 
 		m_writer = new PacketWriter(this, om);
+	}
+
+	private synchronized void setState(ConnectorState cs) {
+		m_state = cs;
+		m_connStatePublisher.onNext(cs);
 	}
 
 	private static synchronized int nextId() {
@@ -247,10 +256,10 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	public void start() {
 		synchronized(this) {
-			if(m_state != ConnectorState.STOPPED)
-				throw new ConnectorException("The connector is in state " + m_state + ", it can only be started in STOPPED state");
+			if(getState() != ConnectorState.STOPPED)
+				throw new ConnectorException("The connector is in state " + getState() + ", it can only be started in STOPPED state");
 
-			m_state = ConnectorState.CONNECTING;
+			setState(ConnectorState.CONNECTING);
 			m_nextReconnect = 0;
 			m_reconnectCount = 0;
 
@@ -268,9 +277,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 	public void terminate() {
 		log("Received terminate request");
 		synchronized(this) {
-			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING)
+			if(getState() == ConnectorState.STOPPED || getState() == ConnectorState.TERMINATING)
 				return;
-			m_state = ConnectorState.TERMINATING;
+			setState(ConnectorState.TERMINATING);
 			notifyAll();
 		}
 	}
@@ -279,7 +288,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		terminate();
 		Thread rt, wt;
 		synchronized(this) {
-			if(m_state == ConnectorState.STOPPED) {
+			if(getState() == ConnectorState.STOPPED) {
 				return;
 			}
 			rt = m_readerThread;
@@ -306,7 +315,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		}
 
 		synchronized(this) {
-			m_state = ConnectorState.STOPPED;
+			setState(ConnectorState.STOPPED);
 		}
 	}
 
@@ -357,14 +366,14 @@ public abstract class HubConnectorBase<T extends Peer> {
 		try {
 			log("Writer started for id=" + m_myId + " targeting " + m_targetId + " on hub server " + m_server + ":" + m_port);
 
-			m_connStatePublisher.onNext(oldState);
+			//m_connStatePublisher.onNext(oldState);
 			for(;;) {
 				boolean doContinue = doWriteAction();
-				ConnectorState state = getState();
-				if(state != oldState) {
-					m_connStatePublisher.onNext(state);
-					oldState = state;
-				}
+				//ConnectorState state = getState();
+				//if(state != oldState) {
+				//	m_connStatePublisherXxx.onNext(state);
+				//	oldState = state;
+				//}
 				if(! doContinue)
 					break;
 			}
@@ -376,25 +385,25 @@ public abstract class HubConnectorBase<T extends Peer> {
 				m_writerThread = null;
 			}
 			forceDisconnect("Writer terminating");
-			ConnectorState state = getState();
-			if(state != oldState) {
-				m_connStatePublisher.onNext(state);
-				oldState = state;
-			}
+			//ConnectorState state = getState();
+			//if(state != oldState) {
+			//	m_connStatePublisher.onNext(state);
+			//	oldState = state;
+			//}
 			cleanupAfterTerminate();
 			log("Writer has terminated");
 		}
 	}
 
 	private synchronized boolean isRunning() {
-		return m_state == ConnectorState.CONNECTED || m_state == ConnectorState.AUTHENTICATED;
+		return getState() == ConnectorState.CONNECTED || getState() == ConnectorState.AUTHENTICATED;
 	}
 
 	private boolean doWriteAction() {
 		Runnable action;
 
 		synchronized(this) {
-			ConnectorState state = m_state;
+			ConnectorState state = getState();
 
 			switch(state) {
 				default:
@@ -511,8 +520,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 */
 	protected void sendPacketPrimitive(PendingTxPacket pp) {
 		synchronized(this) {
-			if(m_state == ConnectorState.STOPPED || m_state == ConnectorState.TERMINATING) {
-				throw new IllegalStateException("Cannot send packets when connector is " + m_state);
+			if(getState() == ConnectorState.STOPPED || getState() == ConnectorState.TERMINATING) {
+				throw new IllegalStateException("Cannot send packets when connector is " + getState());
 			}
 
 			if(m_txQueue.size() > 20_000) {
@@ -536,10 +545,10 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 */
 	private void reconnect() {
 		synchronized(this) {
-			if(m_state != ConnectorState.RECONNECT_WAIT && m_state != ConnectorState.CONNECTING) {
+			if(getState() != ConnectorState.RECONNECT_WAIT && getState() != ConnectorState.CONNECTING) {
 				return;
 			}
-			m_state = ConnectorState.CONNECTING;
+			setState(ConnectorState.CONNECTING);
 		}
 
 		try {
@@ -571,7 +580,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			th.setDaemon(true);
 			th.start();
 			synchronized(this) {
-				m_state = ConnectorState.CONNECTED;
+				setState(ConnectorState.CONNECTED);
 				m_lastPacketReceived = System.currentTimeMillis();
 			}
 		} catch(Exception x) {
@@ -722,7 +731,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 		Peer peer = getOrCreatePeer(env.getSourceId());
 		if(peer.seen(env.getAckable().getSequence())) {
-			log("Ignoring repeated packet with sequence# " + env.getAckable().getSequence());
+			log("Ignoring repeated packet with sequence# " + env.getAckable().getSequence() + " " + CommandNames.getPacketName(env));
 			return;
 		}
 
@@ -803,16 +812,16 @@ public abstract class HubConnectorBase<T extends Peer> {
 			m_is = null;
 			m_os = null;
 
-			switch(m_state) {
+			switch(getState()) {
 				default:
-					throw new IllegalStateException("Unexpected state: " + m_state);
+					throw new IllegalStateException("Unexpected state: " + getState());
 
 				case TERMINATING:
 					/*
 					 * If we are terminating having a disconnected socket means we're IDLE.
 					 */
 					if(m_readerThread == null && m_writerThread == null) {
-						m_state = ConnectorState.STOPPED;
+						setState(ConnectorState.STOPPED);
 					}
 					//m_state = ConnectorState.IDLE;
 					break;
@@ -826,7 +835,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 					/*
 					 * Connection failed, or reconnect attempt failed -> enter wait.
 					 */
-					m_state = ConnectorState.RECONNECT_WAIT;
+					setState(ConnectorState.RECONNECT_WAIT);
 					int count = m_reconnectCount++;
 					int delta = count < 3 ? 2000 :
 						count < 6 ? 5000 :
@@ -906,7 +915,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	public Observable<ConnectorState> observeConnectionState() {
-		return m_connStatePublisher;
+		return m_connStateObserver;
 	}
 
 	@Nullable
@@ -933,8 +942,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	public void authorized() {
 		synchronized(this) {
-			if(m_state == ConnectorState.CONNECTED) {
-				m_state = ConnectorState.AUTHENTICATED;
+			if(getState() == ConnectorState.CONNECTED) {
+				setState(ConnectorState.AUTHENTICATED);
 				notifyAll();								// Release the wr
 			}
 		}

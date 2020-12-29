@@ -1,0 +1,10 @@
+#!/bin/bash
+
+while true; do
+  mvn11 clean install -rf :tests
+  if [ $? != 0 ]; then
+    echo "Failed tests"
+    exit 10
+  fi
+done
+

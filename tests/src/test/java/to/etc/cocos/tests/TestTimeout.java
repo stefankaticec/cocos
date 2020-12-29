@@ -10,9 +10,11 @@ import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.util.StringTool;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static junit.framework.TestCase.assertEquals;
+import static org.junit.Assert.assertEquals;
 
 @NonNullByDefault
 public class TestTimeout extends TestAllBase {
@@ -20,20 +22,22 @@ public class TestTimeout extends TestAllBase {
 	@Test
 	public void testOrderOfClientStates() throws Exception {
 		hub();
-		serverConnected();
-		var state = client().observeConnectionState()
-			.timeout(5000, TimeUnit.SECONDS)
-			.blockingFirst();
-		assertEquals(ConnectorState.CONNECTING, state);
-		state = client().observeConnectionState()
-			.timeout(5000, TimeUnit.SECONDS)
-			.blockingFirst();
 
-		assertEquals(ConnectorState.CONNECTED, state);
-		state = client().observeConnectionState()
-			.timeout(5000, TimeUnit.SECONDS)
+		List<ConnectorState> order = new ArrayList<>(List.of(ConnectorState.CONNECTING, ConnectorState.CONNECTED, ConnectorState.AUTHENTICATED));
+		serverConnected();
+		var state = client().observeConnectionState()			// This is a race always.
+			.doOnNext(connectorState -> System.out.println("> got " + connectorState))
+			.map(a -> {
+				if(order.size() == 0)
+					return true;
+				if(order.get(0) == a) {
+					order.remove(0);
+				}
+				return order.size() == 0;
+			})
+			.filter(a -> a)
+			.timeout(5, TimeUnit.SECONDS)
 			.blockingFirst();
-		assertEquals(ConnectorState.AUTHENTICATED, state);
 	}
 
 	@Test

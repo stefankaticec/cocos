@@ -3,8 +3,8 @@ package to.etc.cocos.connectors.common;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Envelope;
-import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.function.IExecute;
+import to.etc.hubserver.protocol.CommandNames;
 
 /**
  * A packet that needs to be transmitted and acknowledged.
@@ -93,15 +93,7 @@ final class PendingTxPacket {
 
 	@Override
 	public String toString() {
-		StringBuilder sb = new StringBuilder();
-		sb.append(m_envelope.getSourceId()).append("->").append(m_envelope.getTargetId()).append(" ");
-		if(m_envelope.getPayloadCase() == PayloadCase.ACKABLE) {
-			sb.append(m_envelope.getAckable().getPayloadCase().name());
-			sb.append(" seq#").append(m_envelope.getAckable().getSequence());
-		} else {
-			sb.append(m_envelope.getPayloadCase().name());
-		}
-		return sb.toString();
+		return CommandNames.getPacketName(m_envelope);
 	}
 
 	public void callAcked() throws Exception {

@@ -10,7 +10,6 @@ import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.function.IExecute;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.DateUtil;
-import to.etc.util.DeveloperOptions;
 import to.etc.util.StringTool;
 import to.etc.util.TimerUtil;
 
@@ -80,7 +79,7 @@ public class Peer {
 			throw new IllegalStateException("Invalid peer ID");
 		m_connector = connector;
 		m_peerId = peerId;
-		long seq = (System.currentTimeMillis() - SEQUENCE_OFFSET) / 1000;	// #of seconds since SEQUENCE_OFFSET initializes sequence ID to make packets unique
+		long seq = (System.currentTimeMillis() - SEQUENCE_OFFSET); // / 1000;	// #of seconds since SEQUENCE_OFFSET initializes sequence ID to make packets unique
 		m_txSequence = (int) seq;
 	}
 

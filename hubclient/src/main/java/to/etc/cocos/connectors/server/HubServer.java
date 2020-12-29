@@ -2,6 +2,7 @@ package to.etc.cocos.connectors.server;
 
 import com.google.protobuf.ByteString;
 import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.observables.ConnectableObservable;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -22,7 +23,6 @@ import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
-import to.etc.cocos.connectors.server.RemoteCommand.RemoteCommandType;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -75,6 +74,8 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	private final PublishSubject<IServerEvent> m_serverEventSubject;
 
+	public final Observable<IServerEvent> m_eventObservable;
+
 	private final Map<String, RemoteCommand> m_commandMap = new HashMap<>();
 
 	//private final Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
@@ -91,6 +92,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		m_clusterPassword = clusterPassword;
 		m_authenticator = authenticator;
 		m_serverEventSubject = PublishSubject.create();
+		ConnectableObservable<IServerEvent> replay = m_serverEventSubject.replay(60, TimeUnit.SECONDS);
+		m_eventObservable = replay;
+		replay.connect();
 
 		addListener(new IRemoteClientListener() {
 			@Override public void clientConnected(IRemoteClient client) throws Exception {
@@ -133,7 +137,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	@Override
 	public Observable<IServerEvent> observeServerEvents() {
-		return m_serverEventSubject;
+		return m_eventObservable;
 	}
 
 	@Override

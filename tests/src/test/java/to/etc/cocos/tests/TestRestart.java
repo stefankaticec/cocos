@@ -20,7 +20,7 @@ public class TestRestart extends TestAllBase {
 		server().observeServerEvents()
 			.doOnNext(x-> System.out.println(">> got type: " +x.getType()))
 			.filter(x->x.getType() == ServerEventType.peerRestarted)
-			.timeout(25, TimeUnit.SECONDS)
+			.timeout(5, TimeUnit.SECONDS)
 			.blockingFirst();
 	}
 }
