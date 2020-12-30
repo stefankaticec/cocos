@@ -36,7 +36,7 @@ public class TestPeerRestarted extends TestAllBaseNew {
 			}
 		});
 
-		startAndWaitConnected();
+		startAndAwaitSequential();
 		var expectClientConnected = createConditionSet(Duration.ofSeconds(5));
 		expectServerEvent(expectClientConnected, ServerEventType.peerRestarted, "peerRestarted packet received");
 

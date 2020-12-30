@@ -59,9 +59,14 @@ public class TestAllBaseNew {
 
 	@Before
 	public void setup() throws Exception {
-		m_hub = new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList(), false);
+		m_hub = createHub();
 		m_server = createServer();
 		m_client = createClient();
+	}
+
+	@NonNull
+	private Hub createHub() throws Exception {
+		return new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList(), false);
 	}
 
 	@After
@@ -70,33 +75,23 @@ public class TestAllBaseNew {
 
 		var hub = m_hub;
 		if(hub != null){
-			var hubStoppedCondition = closeSet.createCondition("Hub stopped");
-			hub.addStateListener(state-> {
-				if(state == HubState.STOPPED) {
-					hubStoppedCondition.resolved();
-				}
-			});
+			expectHubState(closeSet, HubState.STOPPED, "Hub stopped");
 			hub.terminateAndWait();
+			m_hub = null;
 		}
+
 		var server = m_server;
 		if(server != null) {
-			var serverStoppedCondition = closeSet.createCondition("Server stopped");
-			server.addStateListener(state-> {
-				if(state == ConnectorState.STOPPED) {
-					serverStoppedCondition.resolved();
-				}
-			});
+			expectServerState(closeSet, ConnectorState.STOPPED, "Server stopped");
 			server.terminateAndWait();
+			m_server = null;
 		}
+
 		var client = m_client;
 		if(client != null) {
-			var clientStoppedCondition = closeSet.createCondition("Client stopped");
-			client.addStateListener(state -> {
-				if(state == ConnectorState.STOPPED) {
-					clientStoppedCondition.resolved();
-				}
-			});
+			expectClientState(closeSet, ConnectorState.STOPPED, "Client stopped");
 			client.terminateAndWait();
+			m_client = null;
 		}
 
 		closeSet.await();
@@ -104,20 +99,16 @@ public class TestAllBaseNew {
 
 	public TestConditionSet createAllConnectedSet() {
 		var set = createConditionSet(Duration.ofSeconds(5));
-		var hubUpCondition = set.createCondition("Hub is up");
-		getHub().addStateListener(state -> {
-			if(state == HubState.RUNNING) {
-				hubUpCondition.resolved();
-			}
-		});
+		expectHubState(set, HubState.RUNNING, "Hub is up");
 		expectServerState(set, ConnectorState.AUTHENTICATED, "Server is up");
 		expectClientState(set, ConnectorState.AUTHENTICATED, "Client is up");
-		expectServerEvent(set, ServerEventType.peerRestarted, "PeerRestartedEvent");
+		expectPeerRestarted(set);
+
 		return set;
 	}
 
 	/**
-	 * this starts a huh, a server and a client. They race to connect.
+	 * this starts a hub, a server and a client. They race to connect to each other
 	 * @return
 	 * @throws Exception
 	 */
@@ -125,6 +116,20 @@ public class TestAllBaseNew {
 		var set = createAllConnectedSet();
 		startAll();
 		set.await();
+
+		return this;
+	}
+
+	/**
+	 * This starts a hub, then a server, then a client in order. One operation waits for the other.
+	 * @return this
+	 * @throws Exception
+	 */
+	public TestAllBaseNew startAndAwaitSequential() throws Exception {
+		startHubSync();
+		startServerSync();
+		startClientSync();
+
 		return this;
 	}
 
@@ -132,6 +137,7 @@ public class TestAllBaseNew {
 		getHub().startServer();
 		getServer().start();
 		getClient().start();
+
 		return this;
 	}
 
@@ -163,6 +169,7 @@ public class TestAllBaseNew {
 			}
 		};
 		String pw = m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD;
+
 		return HubServer.create(au, "localhost", HUBPORT, pw, id);
 	}
 
@@ -208,7 +215,7 @@ public class TestAllBaseNew {
 	public void connectClient(TestConditionSet set) throws Exception {
 		m_client = createClient();
 		var client = m_client = createClient();
-		expectServerEvent(set, ServerEventType.peerRestarted, "Client connected");
+		expectPeerRestarted(set);
 		client.start();
 	}
 
@@ -236,6 +243,7 @@ public class TestAllBaseNew {
 		});
 		return set;
 	}
+
 	public TestConditionSet expectClientState(TestConditionSet set, ConnectorState expectedState, String name) {
 		var co = set.createCondition(name);
 		getClient().addStateListener(state-> {
@@ -245,5 +253,50 @@ public class TestAllBaseNew {
 		});
 		return set;
 	}
+	public TestConditionSet expectHubState(TestConditionSet set, HubState expectedState, String name) {
+		var condition = set.createCondition(name);
+		getHub().addStateListener(state->{
+			if(state == expectedState) {
+				condition.resolved();
+			}
+		});
+		return set;
+	}
 
+	public Hub startHubSync() throws Exception {
+		var set = createConditionSet(Duration.ofSeconds(5));
+		expectHubState(set, HubState.RUNNING, "Hub started");
+		getHub().startServer();
+		set.await();
+		return getHub();
+	}
+
+	public HubServer startServerSync() throws Exception {
+		var set = createConditionSet(Duration.ofSeconds(5));
+		expectServerState(set, ConnectorState.AUTHENTICATED, "Server started");
+		getServer().start();
+		set.await();
+		return getServer();
+	}
+
+	public HubClient startClientSync() throws Exception {
+		var set = createConditionSet(Duration.ofSeconds(5));
+		expectPeerRestarted(set);
+		expectClientState(set, ConnectorState.AUTHENTICATED, "Client started");
+		getClient().start();
+		set.await();
+		return getClient();
+	}
+
+	private void expectPeerRestarted(TestConditionSet set) {
+		expectServerEvent(set, ServerEventType.peerRestarted, "Peer restarted");
+	}
+
+	public void setServerPassword(@Nullable String serverPassword) {
+		m_serverPassword = serverPassword;
+	}
+
+	public void setClientPassword(@Nullable String clientPassword) {
+		m_clientPassword = clientPassword;
+	}
 }
