@@ -210,7 +210,6 @@ public class TestAllBaseNew {
 		var client = m_client = createClient();
 		expectServerEvent(set, ServerEventType.peerRestarted, "Client connected");
 		client.start();
-		set.await();
 	}
 
 	public TestConditionSet expectServerEvent(Duration duration, ServerEventType type, String name) throws Exception {
