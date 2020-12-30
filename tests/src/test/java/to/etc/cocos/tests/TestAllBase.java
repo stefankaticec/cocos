@@ -110,7 +110,7 @@ public class TestAllBase {
 		server().observeConnectionState()
 			.doOnNext(a -> System.out.println(">> got state " + a))
 			.filter(a -> a == ConnectorState.AUTHENTICATED)
-			.timeout(5, TimeUnit.SECONDS)
+			.timeout(15, TimeUnit.SECONDS)
 			.blockingFirst();
 		return server();
 	}
@@ -126,6 +126,7 @@ public class TestAllBase {
 
 	@After
 	public void tearDown() throws Exception {
+		System.out.println("----teardown----");
 		Hub hub = m_hub;
 		if(null != hub) {
 			m_hub = null;
@@ -172,7 +173,7 @@ public class TestAllBase {
 		IServerEvent event = server().observeServerEvents()
 			.doOnNext(a -> System.out.println(">> got event " + a.getType()))
 			.filter(a -> a.getType() == ServerEventType.peerRestarted)
-			.timeout(15000, TimeUnit.SECONDS)
+			.timeout(15, TimeUnit.SECONDS)
 			.blockingFirst();
 	}
 

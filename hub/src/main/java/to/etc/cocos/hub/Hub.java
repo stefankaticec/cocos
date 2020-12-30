@@ -97,6 +97,8 @@ final public class Hub {
 	@Nullable
 	final private SendGridMailer m_mailer;
 
+	private HubState m_state = HubState.STOPPED;
+
 	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, boolean startTelnet) throws Exception {
 		m_port = port;
 		m_ident = ident;
@@ -114,8 +116,9 @@ final public class Hub {
 
 	public void startServer() throws Exception {
 		synchronized(this) {
-			if(m_serverChannel != null)
+			if(m_state != HubState.STOPPED)
 				throw new IllegalStateException("The server is already running");
+			m_state = HubState.STARTING;
 		}
 
 		EtcLoggerFactory.getSingleton().initializeFromResource(EtcLoggerFactory.DEFAULT_CONFIG_FILENAME, null);
@@ -152,6 +155,7 @@ final public class Hub {
 			synchronized(this) {
 				m_serverChannel = serverChannel;
 				m_closeFuture = closeFuture;
+				m_state = HubState.RUNNING;
 			}
 			closeFuture.addListener(future -> {
 				ConsoleUtil.consoleLog("Hub", "Server closing down: releasing thread pools");
@@ -160,7 +164,9 @@ final public class Hub {
 				TimerUtil.shutdownNow();
 				synchronized(this) {
 					m_closeFuture = null;
+					m_state = HubState.STOPPED;
 				}
+				log("Hub terminated");
 			});
 			failed = false;
 			//closeFuture.sync();
@@ -186,8 +192,13 @@ final public class Hub {
 	public void terminate() {
 		Channel serverChannel;
 		synchronized(this) {
+			if(m_state != HubState.RUNNING) {
+				return;
+			}
+			m_state = HubState.TERMINATING;
 			serverChannel = m_serverChannel;
 			if(null == serverChannel) {
+				log("Sever channel is null.");
 				return;
 			}
 			m_serverChannel = null;
@@ -297,6 +308,9 @@ final public class Hub {
 		ConsoleUtil.consoleLog("hub", message);
 	}
 
+	public synchronized HubState getState() {
+		return m_state;
+	}
 
 	static public String getPacketType(Envelope env) {
 		if(env.getPayloadCase() == PayloadCase.ACKABLE)

@@ -93,7 +93,7 @@ final public class Main {
 			m_mailTo.forEach(a -> to.add(new Address(a)));
 		}
 
-		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to, m_noTelnet);
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to, !m_noTelnet);
 		server.startServer();
 
 		//-- Listen to signals to stop the thing
