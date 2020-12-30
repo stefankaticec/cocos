@@ -23,6 +23,7 @@ import to.etc.cocos.hub.telnetcommands.ListClientsTelnetCommandHandler;
 import to.etc.cocos.hub.telnetcommands.ListServerTelnetCommandHandler;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
+import to.etc.function.ConsumerEx;
 import to.etc.function.FunctionEx;
 import to.etc.log.EtcLoggerFactory;
 import to.etc.smtp.Address;
@@ -48,6 +49,7 @@ import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -99,6 +101,8 @@ final public class Hub {
 
 	private HubState m_state = HubState.STOPPED;
 
+	private List<ConsumerEx<HubState>> m_stateListeners = new CopyOnWriteArrayList<>();
+
 	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, boolean startTelnet) throws Exception {
 		m_port = port;
 		m_ident = ident;
@@ -120,6 +124,7 @@ final public class Hub {
 				throw new IllegalStateException("The server is already running");
 			m_state = HubState.STARTING;
 		}
+		notifyStateListeners();
 
 		EtcLoggerFactory.getSingleton().initializeFromResource(EtcLoggerFactory.DEFAULT_CONFIG_FILENAME, null);
 		ConsoleUtil.consoleLog("Hub", "Starting server");
@@ -157,6 +162,7 @@ final public class Hub {
 				m_closeFuture = closeFuture;
 				m_state = HubState.RUNNING;
 			}
+			notifyStateListeners();
 			closeFuture.addListener(future -> {
 				ConsoleUtil.consoleLog("Hub", "Server closing down: releasing thread pools");
 				bossGroup.shutdownGracefully();
@@ -166,6 +172,8 @@ final public class Hub {
 					m_closeFuture = null;
 					m_state = HubState.STOPPED;
 				}
+				notifyStateListeners();
+				m_stateListeners.clear();
 				log("Hub terminated");
 			});
 			failed = false;
@@ -189,7 +197,17 @@ final public class Hub {
 		}
 	}
 
-	public void terminate() {
+	private void notifyStateListeners() throws Exception {
+		HubState state;
+		synchronized(this) {
+			state = m_state;
+		}
+		for(ConsumerEx<HubState> stateListener : m_stateListeners) {
+			stateListener.accept(state);
+		}
+	}
+
+	public void terminate() throws Exception {
 		Channel serverChannel;
 		synchronized(this) {
 			if(m_state != HubState.RUNNING) {
@@ -197,13 +215,13 @@ final public class Hub {
 			}
 			m_state = HubState.TERMINATING;
 			serverChannel = m_serverChannel;
-			if(null == serverChannel) {
-				log("Sever channel is null.");
-				return;
-			}
-			m_serverChannel = null;
 		}
-		serverChannel.close();
+		notifyStateListeners();
+		if(null != serverChannel) {
+			serverChannel.close();
+		}
+		m_serverChannel = null;
+
 		var ts = m_telnetServer;
 		if(ts != null) {
 			m_telnetServer = null;
@@ -522,6 +540,10 @@ final public class Hub {
 	private List<ErrorCounter> m_errorCounterMinuteList = new ArrayList<>();
 
 	private List<ErrorCounter> m_errorCounterHourList = new ArrayList<>();
+
+	public void addStateListener(ConsumerEx<HubState> listener) {
+		m_stateListeners.add(listener);
+	}
 
 	@Nullable
 	private Date m_errorWindowStarted;

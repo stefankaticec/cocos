@@ -15,6 +15,7 @@ import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.messages.Hubcore.Pong;
+import to.etc.function.ConsumerEx;
 import to.etc.function.IExecute;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
@@ -46,11 +47,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * A connector to a Hub server. This connector keeps a single connection to the Hub server
@@ -94,6 +97,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	final private String m_targetId;
 
 	private ConnectorState m_state = ConnectorState.STOPPED;
+
+	private List<Consumer<ConnectorState>> m_stateListeners = new CopyOnWriteArrayList<>();
 
 	/**
 	 * The time, in seconds, between PING messages. This should correspond to the equally named value in the hub.
@@ -232,9 +237,18 @@ public abstract class HubConnectorBase<T extends Peer> {
 		m_writer = new PacketWriter(this, om);
 	}
 
-	private synchronized void setState(ConnectorState cs) {
-		m_state = cs;
+	private void setState(ConnectorState cs) {
+		synchronized(this) {
+			m_state = cs;
+		}
 		m_connStatePublisher.onNext(cs);
+		notifyStateListeners(cs);
+	}
+
+	private void notifyStateListeners(ConnectorState state) {
+		for(Consumer<ConnectorState> stateListener : m_stateListeners) {
+			stateListener.accept(state);
+		}
 	}
 
 	private static synchronized int nextId() {
@@ -1045,4 +1059,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	protected void internalStart() {}
+
+	public void addStateListener(Consumer<ConnectorState> listener) {
+		m_stateListeners.add(listener);
+	}
 }

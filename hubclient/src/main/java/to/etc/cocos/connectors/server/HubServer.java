@@ -7,6 +7,7 @@ import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
@@ -50,6 +51,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -87,6 +89,8 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	private static int m_timeoutSchedule = 1;
 	private static TimeUnit m_timeoutUnit = TimeUnit.MINUTES;
 
+	private List<Consumer<IServerEvent>> m_serverEventListeners = new CopyOnWriteArrayList<>();
+
 	private HubServer(String hubServer, int hubServerPort, String clusterPassword, IClientAuthenticator authenticator, String id) {
 		super(hubServer, hubServerPort, "", id, "Server");
 		m_clusterPassword = clusterPassword;
@@ -98,15 +102,21 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 		addListener(new IRemoteClientListener() {
 			@Override public void clientConnected(IRemoteClient client) throws Exception {
-				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientConnected, client));
+				ServerEventBase event = new ServerEventBase(ServerEventType.clientConnected, client);
+				m_serverEventSubject.onNext(event);
+				callServerEventListeners(event);
 			}
 
 			@Override public void clientDisconnected(IRemoteClient client) throws Exception {
-				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientDisconnected, client));
+				ServerEventBase event = new ServerEventBase(ServerEventType.clientDisconnected, client);
+				m_serverEventSubject.onNext(event);
+				callServerEventListeners(event);
 			}
 
 			@Override public void clientInventoryPacketReceived(RemoteClient client, JsonPacket packet) {
-				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientInventoryReceived, client));
+				ServerEventBase event = new ServerEventBase(ServerEventType.clientInventoryReceived, client);
+				m_serverEventSubject.onNext(event);
+				callServerEventListeners(event);
 			}
 		});
 		observeConnectionState()
@@ -116,12 +126,16 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 						return;
 
 					case AUTHENTICATED:
-						m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.serverConnected));
+						ServerEventBase event = new ServerEventBase(ServerEventType.serverConnected);
+						m_serverEventSubject.onNext(event);
+						callServerEventListeners(event);
 						break;
 
 					case RECONNECT_WAIT:
 					case STOPPED:
-						m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.serverDisconnected));
+						ServerEventBase t = new ServerEventBase(ServerEventType.serverDisconnected);
+						m_serverEventSubject.onNext(t);
+						callServerEventListeners(t);
 						break;
 				}
 			});
@@ -490,6 +504,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	}
 
 	private void failCommand(CommandError err, RemoteCommand command) {
+		callServerEventListeners(new EvCommandError(command, err));
 		synchronized(this) {
 			if(command.getStatus() == RemoteCommandStatus.CANCELED) {
 				return;
@@ -521,9 +536,11 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			ctx.log("Command finished, but command with id "+ cr.getId() + " was not found");
 			return;
 		}
-		System.out.println("GOt finished "+ command.getCommandType());
 		if(command.getStatus() == RemoteCommandStatus.CANCELED) {
-			m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.cancelFinished));
+			System.out.println(">>> HubServer: cancel finished");
+			ServerEventBase event = new ServerEventBase(ServerEventType.cancelFinished);
+			m_serverEventSubject.onNext(event);
+			callServerEventListeners(event);
 			return;
 		}
 		synchronized(this) {
@@ -534,6 +551,12 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			command.setFinishedAt(System.currentTimeMillis());
 			EvCommandFinished ev = new EvCommandFinished(command, dataFormat, packet);
 			command.callCommandListeners(l -> l.completedEvent(ev));
+		}
+	}
+
+	private void callServerEventListeners(IServerEvent event) {
+		for(Consumer<IServerEvent> serverEventListener : m_serverEventListeners) {
+			serverEventListener.accept(event);
 		}
 	}
 
@@ -571,7 +594,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 				}
 			}
 		}
-		m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.peerRestarted));
+		ServerEventBase event = new ServerEventBase(ServerEventType.peerRestarted);
+		m_serverEventSubject.onNext(event);
+		callServerEventListeners(event);
 	}
 
 	@Override
@@ -601,5 +626,8 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 				}
 			}
 		}
+	}
+	public void addServerEventListener(Consumer<IServerEvent> listener) {
+		m_serverEventListeners.add(listener);
 	}
 }
