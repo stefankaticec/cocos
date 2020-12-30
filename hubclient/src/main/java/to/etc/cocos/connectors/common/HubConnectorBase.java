@@ -238,11 +238,15 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	private void setState(ConnectorState cs) {
+		ConnectorState oldState;
 		synchronized(this) {
+			oldState = m_state;
 			m_state = cs;
 		}
-		m_connStatePublisher.onNext(cs);
-		notifyStateListeners(cs);
+		if(oldState != cs) {
+			m_connStatePublisher.onNext(cs);
+			notifyStateListeners(cs);
+		}
 	}
 
 	private void notifyStateListeners(ConnectorState state) {

@@ -28,6 +28,7 @@ public class TestCondition {
 
 	public void resolved() {
 		synchronized(m_scenario) {
+			ensureUnresolved();
 			m_state = TestConditionState.RESOLVED;
 			m_scenario.notify();
 		}
@@ -39,9 +40,18 @@ public class TestCondition {
 
 	public void failed(String message) {
 		synchronized(m_scenario) {
+			ensureUnresolved();
 			m_state = TestConditionState.FAILED;
 			m_exceptionMessage = message;
 			m_scenario.notify();
+		}
+	}
+
+	private void ensureUnresolved() {
+		synchronized(m_scenario) {
+			if(m_state != TestConditionState.UNRESOLVED) {
+				throw new IllegalStateException("State is unresolved");
+			}
 		}
 	}
 
