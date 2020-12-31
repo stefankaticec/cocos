@@ -1,14 +1,23 @@
 package to.etc.cocos.tests;
 
+import io.reactivex.rxjava3.core.Observable;
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.common.ConnectorState;
+import to.etc.cocos.connectors.ifaces.IRemoteClient;
+import to.etc.cocos.connectors.ifaces.IServerEvent;
+import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.HubState;
+import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.tests.framework.TestAllBaseNew;
+import to.etc.hubserver.protocol.ErrorCode;
+import to.etc.util.ConsoleUtil;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 @NonNullByDefault
 public class TestConnectionStates extends TestAllBaseNew {
@@ -80,5 +89,44 @@ public class TestConnectionStates extends TestAllBaseNew {
 		});
 		startServerSync();
 		expectation.await();
+	}
+
+	@Test
+	public void testHubServerAuthFail() throws Exception {
+		startHubSync();
+		startServerSync();
+		setClientPassword("Badpassword");
+		var set = createConditionSet(Duration.ofSeconds(5));
+		var condition = set.createCondition("Connect");
+		var expectedOrder = new ArrayList<>(Arrays.asList(ConnectorState.CONNECTING, ConnectorState.CONNECTED, ConnectorState.RECONNECT_WAIT));
+		getClient().addStateListener(state -> {
+			if(condition.getState().isResolved()){
+				return;
+			}
+			var nextState = expectedOrder.remove(0);
+			if(nextState != state) {
+				condition.failed("Expected " + nextState + " but got " + state);
+			}
+			if(expectedOrder.isEmpty()) {
+				condition.resolved();
+			}
+
+		});
+		getClient().start();
+		set.await();
+	}
+
+	@Test
+	public void testHubInventoryAfterReconnect() throws Exception {
+		startHubSync();
+		startServerSync();
+		startClientSync();
+		//-- Now disconnect the server
+		ConsoleUtil.consoleWarning("TEST", "Stopping server");
+		disconnectServer();
+		var set = createConditionSet(Duration.ofSeconds(5));
+		expectServerEvent(set, ServerEventType.clientInventoryReceived, "Inventory received");
+		getServer().start();
+		set.await();
 	}
 }

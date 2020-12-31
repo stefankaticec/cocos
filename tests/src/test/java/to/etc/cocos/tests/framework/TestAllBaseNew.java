@@ -213,6 +213,13 @@ public class TestAllBaseNew {
 		set.await();
 		m_client = null;
 	}
+	public void disconnectServer() throws Exception {
+		var set = createConditionSet(Duration.ofSeconds(10));
+		expectServerState(set, ConnectorState.STOPPED, "Server disconnected");
+		getServer().terminateAndWait();
+		set.await();
+		m_server = null;
+	}
 
 	public TestConditionSet expectServerEvent(Duration duration, ServerEventType type, String name) throws Exception {
 		var set = createConditionSet(duration);
