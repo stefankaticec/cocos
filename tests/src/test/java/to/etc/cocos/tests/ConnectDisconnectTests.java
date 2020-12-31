@@ -11,9 +11,12 @@ public class ConnectDisconnectTests {
 	public void testConnectDisconnect() throws Exception{
 		for(var i = 0; i < 10; i++) {
 			var tb = new TestAllBaseNew();
-			tb.setup();
-			tb.startAndWaitConnected();
-			tb.tearDown();
+			try {
+				tb.startAndAwaitSequential();
+			}finally {
+				tb.tearDown();
+			}
+
 		}
 	}
 }

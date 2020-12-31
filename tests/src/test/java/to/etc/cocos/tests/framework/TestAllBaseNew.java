@@ -22,8 +22,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static java.util.Objects.requireNonNull;
-
 @NonNullByDefault
 public class TestAllBaseNew {
 	public static final int HUBPORT = 9890;
@@ -55,14 +53,6 @@ public class TestAllBaseNew {
 	private String m_clientPassword;
 
 	private String m_allClientPassword = CLIENTPASSWORD;
-
-
-	@Before
-	public void setup() throws Exception {
-		m_hub = createHub();
-		m_server = createServer();
-		m_client = createClient();
-	}
 
 	@NonNull
 	private Hub createHub() throws Exception {
@@ -97,7 +87,7 @@ public class TestAllBaseNew {
 		closeSet.await();
 	}
 
-	public TestConditionSet createAllConnectedSet() {
+	public TestConditionSet createAllConnectedSet() throws Exception {
 		var set = createConditionSet(Duration.ofSeconds(5));
 		expectHubState(set, HubState.RUNNING, "Hub is up");
 		expectServerState(set, ConnectorState.AUTHENTICATED, "Server is up");
@@ -142,18 +132,30 @@ public class TestAllBaseNew {
 	}
 
 	@NonNull
-	public Hub getHub() {
-		return requireNonNull(m_hub, "Hub not connected!");
+	public Hub getHub() throws Exception{
+		var hub = m_hub;
+		if(hub == null) {
+			hub = m_hub = createHub();
+		}
+		return hub;
 	}
 
 	@NonNull
 	public HubServer getServer() {
-		return requireNonNull(m_server, "Server not connected!");
+		var server = m_server;
+		if(server == null) {
+			server = m_server = createServer();
+		}
+		return server;
 	}
 
 	@NonNull
 	public HubClient getClient() {
-		return requireNonNull(m_client, "Client not connected!");
+		var client = m_client;
+		if(client == null) {
+			client = m_client = createClient();
+		}
+		return client;
 	}
 
 	public TestConditionSet createConditionSet(Duration duration) {
@@ -212,13 +214,6 @@ public class TestAllBaseNew {
 		m_client = null;
 	}
 
-	public void connectClient(TestConditionSet set) throws Exception {
-		m_client = createClient();
-		var client = m_client = createClient();
-		expectPeerRestarted(set);
-		client.start();
-	}
-
 	public TestConditionSet expectServerEvent(Duration duration, ServerEventType type, String name) throws Exception {
 		var set = createConditionSet(duration);
 		return expectServerEvent(set, type, name);
@@ -253,7 +248,7 @@ public class TestAllBaseNew {
 		});
 		return set;
 	}
-	public TestConditionSet expectHubState(TestConditionSet set, HubState expectedState, String name) {
+	public TestConditionSet expectHubState(TestConditionSet set, HubState expectedState, String name) throws Exception {
 		var condition = set.createCondition(name);
 		getHub().addStateListener(state->{
 			if(state == expectedState) {

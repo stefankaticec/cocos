@@ -3,6 +3,7 @@ package to.etc.cocos.tests;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.junit.Test;
 import to.etc.cocos.connectors.common.ConnectorState;
+import to.etc.cocos.hub.HubState;
 import to.etc.cocos.tests.framework.TestAllBaseNew;
 
 import java.time.Duration;
@@ -10,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 @NonNullByDefault
-public class TestClientConnectionStates extends TestAllBaseNew {
+public class TestConnectionStates extends TestAllBaseNew {
 
 	@Test
 	public void testClientConnectionStates() throws Exception {
@@ -34,6 +35,27 @@ public class TestClientConnectionStates extends TestAllBaseNew {
 
 		});
 		getClient().start();
+		expectation.await();
+	}
+
+	@Test
+	public void testHubStates() throws Exception {
+		var expectedStates = new ArrayList<>(Arrays.asList(HubState.STARTING, HubState.RUNNING));
+		var expectation = createConditionSet(Duration.ofSeconds(5));
+		var cond = expectation.createCondition("Expected states");
+		getHub().addStateListener(hubState -> {
+			if(cond.getState().isResolved()) {
+				return;
+			}
+			var nextState = expectedStates.remove(0);
+			if(nextState != hubState){
+				cond.failed("Expected " + nextState + " but got " + hubState);
+			}
+			if(expectedStates.isEmpty()) {
+				cond.resolved();
+			}
+		});
+		getHub().startServer();
 		expectation.await();
 	}
 }
