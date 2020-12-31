@@ -58,4 +58,27 @@ public class TestConnectionStates extends TestAllBaseNew {
 		getHub().startServer();
 		expectation.await();
 	}
+
+	@Test
+	public void testServerStates() throws Exception {
+		startHubSync();
+		var expectation = createConditionSet(Duration.ofSeconds(5));
+		var condition = expectation.createCondition("Expected states");
+
+		var expectedOrder = new ArrayList<>(Arrays.asList(ConnectorState.CONNECTING, ConnectorState.CONNECTED, ConnectorState.AUTHENTICATED));
+		getServer().addStateListener(state -> {
+			if(condition.getState().isResolved()){
+				return;
+			}
+			var nextState = expectedOrder.remove(0);
+			if(nextState != state) {
+				condition.failed("Expected " + nextState + " but got " + state);
+			}
+			if(expectedOrder.isEmpty()) {
+				condition.resolved();
+			}
+		});
+		startServerSync();
+		expectation.await();
+	}
 }
