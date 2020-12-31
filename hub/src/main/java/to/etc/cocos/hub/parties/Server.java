@@ -12,6 +12,7 @@ import to.etc.cocos.hub.PacketResponseBuilder;
 import to.etc.cocos.hub.TxPacket;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
@@ -45,7 +46,12 @@ public class Server extends AbstractConnection {
 			} else {
 				CentralSocketHandler tmpClient = getDirectory().findTempClient(targetId);
 				if(null == tmpClient) {
-					throw new HubException(ErrorCode.clientNotFound, targetId);
+					if(envelope.getPayloadCase() != PayloadCase.ACK) {
+						throw new HubException(ErrorCode.clientNotFound, targetId);
+					} else {
+						log("Cant sent ack, client no longer connected.");
+						return;
+					}
 				}
 				tmpClient.tmpGotResponseFrom(this, envelope, payload, length);
 			}

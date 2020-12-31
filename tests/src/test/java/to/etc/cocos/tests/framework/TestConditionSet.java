@@ -12,7 +12,7 @@ public class TestConditionSet {
 
 	private long m_timout = 0;
 
-	public TestConditionSet(Duration timeout) {
+	TestConditionSet(Duration timeout) {
 		m_timout = timeout.toMillis();
 	}
 

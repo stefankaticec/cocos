@@ -4,7 +4,6 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.junit.After;
-import org.junit.Before;
 import to.etc.cocos.connectors.client.HubClient;
 import to.etc.cocos.connectors.client.IClientAuthenticationHandler;
 import to.etc.cocos.connectors.common.ConnectorState;
@@ -213,6 +212,7 @@ public class TestAllBaseNew {
 		set.await();
 		m_client = null;
 	}
+
 	public void disconnectServer() throws Exception {
 		var set = createConditionSet(Duration.ofSeconds(10));
 		expectServerState(set, ConnectorState.STOPPED, "Server disconnected");
@@ -229,6 +229,9 @@ public class TestAllBaseNew {
 	public TestConditionSet expectServerEvent(TestConditionSet set, ServerEventType type, String name){
 		var condition = set.createCondition(name);
 		getServer().addServerEventListener(event -> {
+			if(condition.getState().isResolved()) {
+				return;
+			}
 			if(event.getType() == type) {
 				condition.resolved();
 			}
@@ -244,6 +247,9 @@ public class TestAllBaseNew {
 	public TestConditionSet expectServerState(TestConditionSet set, ConnectorState state, String name) {
 		var condition = set.createCondition(name);
 		getServer().addStateListener(s -> {
+			if(condition.getState().isResolved()) {
+				return;
+			}
 			if(state == s) {
 				condition.resolved();
 			}
@@ -254,20 +260,25 @@ public class TestAllBaseNew {
 	public TestConditionSet expectClientState(TestConditionSet set, ConnectorState expectedState, String name) {
 		var co = set.createCondition(name);
 		getClient().addStateListener(state-> {
+			if(co.getState().isResolved()) {
+				return;
+			}
 			if(state == expectedState) {
 				co.resolved();
 			}
 		});
 		return set;
 	}
-	public TestConditionSet expectHubState(TestConditionSet set, HubState expectedState, String name) throws Exception {
+	public void expectHubState(TestConditionSet set, HubState expectedState, String name) throws Exception {
 		var condition = set.createCondition(name);
 		getHub().addStateListener(state->{
-			if(state == expectedState) {
+			if(condition.getState().isResolved()) {
+				return;
+			}
+				if(state == expectedState) {
 				condition.resolved();
 			}
 		});
-		return set;
 	}
 
 	public Hub startHubSync() throws Exception {

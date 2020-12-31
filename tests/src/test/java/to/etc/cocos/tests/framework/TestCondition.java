@@ -60,7 +60,7 @@ public class TestCondition {
 	private void ensureUnresolved() {
 		synchronized(m_scenario) {
 			if(m_state != TestConditionState.UNRESOLVED) {
-				throw new IllegalStateException("State is unresolved");
+				throw new IllegalStateException("Attempting to resolve condition: '"+getName() + "', but the state is already resolved to: "+ m_state);
 			}
 		}
 	}
