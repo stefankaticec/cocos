@@ -3,6 +3,8 @@ package to.etc.cocos.tests.framework;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 
+import static java.util.Objects.requireNonNull;
+
 @NonNullByDefault
 public class TestCondition {
 
@@ -14,6 +16,9 @@ public class TestCondition {
 
 	@Nullable
 	private String m_exceptionMessage;
+
+	@Nullable
+	private Object m_result;
 
 	TestCondition(TestConditionSet scenario, String name) {
 		m_scenario = scenario;
@@ -27,8 +32,13 @@ public class TestCondition {
 	}
 
 	public void resolved() {
+		resolved(null);
+	}
+
+	public void resolved(@Nullable Object data) {
 		synchronized(m_scenario) {
 			ensureUnresolved();
+			m_result = data;
 			m_state = TestConditionState.RESOLVED;
 			m_scenario.notify();
 		}
@@ -62,6 +72,10 @@ public class TestCondition {
 
 	public String getName() {
 		return m_name;
+	}
+
+	public <T> T getResult() {
+		return (T) requireNonNull(m_result, "No result present");
 	}
 }
 

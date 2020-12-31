@@ -1,23 +1,16 @@
 package to.etc.cocos.tests;
 
-import io.reactivex.rxjava3.core.Observable;
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.common.ConnectorState;
-import to.etc.cocos.connectors.ifaces.IRemoteClient;
-import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.HubState;
-import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.tests.framework.TestAllBaseNew;
-import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.ConsoleUtil;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 
 @NonNullByDefault
 public class TestConnectionStates extends TestAllBaseNew {

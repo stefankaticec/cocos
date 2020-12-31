@@ -1,6 +1,5 @@
 package to.etc.cocos.tests;
 
-import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.client.JsonSystemCommand;
@@ -12,7 +11,6 @@ import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
-import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 import to.etc.cocos.tests.framework.TestAllBaseNew;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.StringTool;
@@ -21,7 +19,6 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -36,27 +33,38 @@ public class TestCommands extends TestAllBaseNew {
 
 		UnknownCommandTestPacket p = new UnknownCommandTestPacket();
 		p.setParameters("This is a test command packet");
+		var set = createConditionSet(Duration.ofSeconds(5));
+		var condition = set.createCondition("CommandError");
 
-		IRemoteCommand cmd = remote.sendJsonCommand(StringTool.generateGUID(), p, Duration.of(10, ChronoUnit.SECONDS), null, "Test command", null);
+		IRemoteCommand cmd = remote.sendJsonCommand(StringTool.generateGUID(), p, Duration.of(10, ChronoUnit.SECONDS), null, "Test command", new IRemoteCommandListener() {
+			@Override
+			public void errorEvent(EvCommandError errorEvent) throws Exception {
+				condition.resolved(errorEvent);
+			}
+
+			@Override
+			public void completedEvent(EvCommandFinished ev) throws Exception {
+				condition.failed("Expected command to fail");
+			}
+
+			@Override
+			public void stdoutEvent(EvCommandOutput ev) throws Exception {
+				condition.failed("Expected command to fail");
+
+			}
+		});
 		System.out.println(">> CMD=" + cmd);
-
-		ServerCommandEventBase error = remote.getEventPublisher()
-			.doOnNext(a -> System.out.println(">> got cmdEvent " + a))
-			.filter(a -> a instanceof EvCommandError)
-			.timeout(5, TimeUnit.SECONDS)
-			.blockingFirst();
-
-		EvCommandError err = (EvCommandError) error;
+		set.await();
+		EvCommandError err = condition.getResult();
 		Assert.assertEquals("Must be commandNotFound", err.getCode(), ErrorCode.commandNotFound.name());
 	}
 	@Test
 	public void testSendClientCommand() throws Exception {
-		PublishSubject<CommandTestPacket> ps = PublishSubject.create();
+		var set = createConditionSet(Duration.ofSeconds(5));
+		var condition = set.createCondition("Command receieved");
 
 		getClient().registerJsonCommand(CommandTestPacket.class, () -> (ctx, packet) -> {
-			System.out.println(">> Got command! " + packet.getParameters());
-			ps.onNext(packet);
-			ps.onComplete();
+			condition.resolved(packet);
 			return new JsonPacket();
 		});
 
@@ -69,10 +77,9 @@ public class TestCommands extends TestAllBaseNew {
 		IRemoteCommand cmd = remote.sendJsonCommand(StringTool.generateGUID(), p, Duration.of(10, ChronoUnit.SECONDS), null, "Test command", null);
 		System.out.println(">> CMD=" + cmd);
 
-		CommandTestPacket ctp = ps
-			.filter(a -> a instanceof CommandTestPacket)
-			.timeout(5, TimeUnit.SECONDS)
-			.blockingFirst();
+		set.await();
+
+		CommandTestPacket ctp = condition.getResult();
 
 		//EventCommandBase error = remote.getEventPublisher()
 		//	.doOnNext(a -> System.out.println(">> got cmdEvent " + a))
@@ -92,16 +99,14 @@ public class TestCommands extends TestAllBaseNew {
 
 		StdoutCommandTestPacket p = new StdoutCommandTestPacket();
 		p.setParameters("Real command");
-
-		PublishSubject<ServerCommandEventBase> ps = PublishSubject.create();
-
+		var set = createConditionSet(Duration.ofSeconds(5));
+		var condition = set.createCondition("Command");
 		StringBuilder stdout = new StringBuilder();
 
 		IRemoteCommand cmd = remote.sendJsonCommand(StringTool.generateGUID(), p, Duration.of(10, ChronoUnit.SECONDS), null, "Test command", new IRemoteCommandListener() {
 			@Override
 			public void completedEvent(EvCommandFinished ev) throws Exception {
-				ps.onNext(ev);
-				ps.onComplete();
+				condition.resolved(ev);
 			}
 
 			@Override
@@ -111,14 +116,13 @@ public class TestCommands extends TestAllBaseNew {
 
 			@Override
 			public void errorEvent(EvCommandError errorEvent) throws Exception {
-				ps.onError(new RuntimeException(errorEvent.getMessage()));
+				condition.failed("Expected command to finish, got error");
 			}
 		});
 		System.out.println(">> CMD=" + cmd);
 
-		ServerCommandEventBase event = ps
-			.timeout(5, TimeUnit.SECONDS)
-			.blockingFirst();
+		set.await();
+		EvCommandFinished event = condition.getResult();
 
 		Assert.assertTrue("Must be command completed", event instanceof EvCommandFinished);
 		Assert.assertTrue("Output must be correct", stdout.toString().contains(OUTPUT));
