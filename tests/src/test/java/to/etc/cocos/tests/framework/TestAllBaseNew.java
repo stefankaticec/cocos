@@ -236,6 +236,11 @@ public class TestAllBaseNew {
 		return set;
 	}
 
+	public TestConditionSet expectServerState(Duration duration, ConnectorState state, String name) {
+		var set = createConditionSet(duration);
+		return expectServerState(set, state, name);
+	}
+
 	public TestConditionSet expectServerState(TestConditionSet set, ConnectorState state, String name) {
 		var condition = set.createCondition(name);
 		getServer().addStateListener(s -> {

@@ -13,6 +13,7 @@ import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
+import to.etc.cocos.tests.framework.TestAllBaseNew;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.StringTool;
 
@@ -26,11 +27,12 @@ import java.util.concurrent.TimeUnit;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 22-07-19.
  */
-public class TestCommands extends TestAllBase {
+public class TestCommands extends TestAllBaseNew {
+
 	@Test
 	public void testSendUnknownClientCommand() throws Exception {
-		waitConnected();
-		IRemoteClient remote = server().getClientList().get(0);
+		startAndAwaitSequential();
+		IRemoteClient remote = getServer().getClientList().get(0);
 
 		UnknownCommandTestPacket p = new UnknownCommandTestPacket();
 		p.setParameters("This is a test command packet");
@@ -47,20 +49,19 @@ public class TestCommands extends TestAllBase {
 		EvCommandError err = (EvCommandError) error;
 		Assert.assertEquals("Must be commandNotFound", err.getCode(), ErrorCode.commandNotFound.name());
 	}
-
 	@Test
 	public void testSendClientCommand() throws Exception {
 		PublishSubject<CommandTestPacket> ps = PublishSubject.create();
 
-		client().registerJsonCommand(CommandTestPacket.class, () -> (ctx, packet) -> {
+		getClient().registerJsonCommand(CommandTestPacket.class, () -> (ctx, packet) -> {
 			System.out.println(">> Got command! " + packet.getParameters());
 			ps.onNext(packet);
 			ps.onComplete();
 			return new JsonPacket();
 		});
 
-		waitConnected();
-		IRemoteClient remote = server().getClientList().get(0);
+		startAndAwaitSequential();
+		IRemoteClient remote = getServer().getClientList().get(0);
 
 		CommandTestPacket p = new CommandTestPacket();
 		p.setParameters("Real command");
@@ -84,10 +85,10 @@ public class TestCommands extends TestAllBase {
 
 	@Test
 	public void testSendClientCommandWithStdout() throws Exception {
-		client().registerJsonCommand(StdoutCommandTestPacket.class, () -> new ExecStdoutCommand());
+		getClient().registerJsonCommand(StdoutCommandTestPacket.class, () -> new ExecStdoutCommand());
 
-		waitConnected();
-		IRemoteClient remote = server().getClientList().get(0);
+		startAndAwaitSequential();
+		IRemoteClient remote = getServer().getClientList().get(0);
 
 		StdoutCommandTestPacket p = new StdoutCommandTestPacket();
 		p.setParameters("Real command");
@@ -123,8 +124,8 @@ public class TestCommands extends TestAllBase {
 		Assert.assertTrue("Output must be correct", stdout.toString().contains(OUTPUT));
 
 	}
-
 	static private final String OUTPUT = "The hills are alive with the sound of Metallica";
+
 
 	public class ExecStdoutCommand extends JsonSystemCommand<StdoutCommandTestPacket> {
 		@Override

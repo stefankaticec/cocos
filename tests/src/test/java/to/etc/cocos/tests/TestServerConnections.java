@@ -4,42 +4,52 @@ import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
+import to.etc.cocos.tests.framework.TestAllBaseNew;
 import to.etc.hubserver.protocol.ErrorCode;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 30-6-19.
  */
-public class TestServerConnections extends TestAllBase {
+public class TestServerConnections extends TestAllBaseNew {
 
 	/**
 	 * The server should reach AUTH state.
 	 */
 	@Test
 	public void testHubServerConnect() throws Exception {
-		hub();
-		ConnectorState connectorState = server().observeConnectionState()
-			.doOnNext(a -> System.out.println(">> got state " + a))
-			.filter(a -> a == ConnectorState.AUTHENTICATED)
-			.timeout(5000, TimeUnit.SECONDS)
-			.blockingFirst();
-
-		Assert.assertEquals("Connector must have gotten to connected status", ConnectorState.AUTHENTICATED, connectorState);
+		startHubSync();
+		var set = expectServerState(Duration.ofSeconds(5), ConnectorState.AUTHENTICATED, "Authenticated");
+		getServer().start();
+		set.await();
 	}
 
 	@Test
 	public void testHubServerIncorrectAuth() throws Exception {
-		hub();
+		startHubSync();
 		setServerPassword("invalid_pass");
-		ConnectorState connectorState = server().observeConnectionState()
-			.doOnNext(a -> System.out.println(">> got state " + a))
-			.filter(a -> a == ConnectorState.RECONNECT_WAIT)
-			.timeout(5, TimeUnit.SECONDS)
-			.blockingFirst();
-		Assert.assertEquals("Connector must have gotten to RECONNECT_WAIT status", ConnectorState.RECONNECT_WAIT, connectorState);
-		HubErrorResponse lastError = server().getLastError();
+		var set = createConditionSet(Duration.ofSeconds(5));
+		var condition = set.createCondition("Expect reconnect wait");
+		var expectedOrder = new ArrayList<>(Arrays.asList(ConnectorState.CONNECTING, ConnectorState.CONNECTED, ConnectorState.RECONNECT_WAIT));
+		getServer().addStateListener(state -> {
+			if(condition.getState().isResolved()){
+				return;
+			}
+			var nextState = expectedOrder.remove(0);
+			if(nextState != state) {
+				condition.failed("Expected " + nextState + " but got " + state);
+			}
+			if(expectedOrder.isEmpty()) {
+				condition.resolved();
+			}
+		});
+		getServer().start();
+		set.await();
+		HubErrorResponse lastError = getServer().getLastError();
 		Assert.assertNotNull("There must be a HUB error that is returned", lastError);
 		Assert.assertNotNull("The hub error must have code " + ErrorCode.authenticationFailure.name(), lastError.getCode());
 	}
