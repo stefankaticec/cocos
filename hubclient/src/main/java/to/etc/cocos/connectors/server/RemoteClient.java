@@ -1,6 +1,5 @@
 package to.etc.cocos.connectors.server;
 
-import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
@@ -11,7 +10,6 @@ import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
-import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 import to.etc.cocos.connectors.packets.CancelPacket;
 import to.etc.cocos.connectors.server.RemoteCommand.RemoteCommandType;
 import to.etc.util.ConsoleUtil;
@@ -38,11 +36,7 @@ final public class RemoteClient extends Peer implements IRemoteClient {
 
 	private Map<Class<?>, JsonPacket> m_inventoryMap = new HashMap<>();
 
-	//private Map<String, RemoteCommand> m_commandMap = new HashMap<>();
-
 	private Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
-
-	private final PublishSubject<ServerCommandEventBase> m_eventPublisher = PublishSubject.<ServerCommandEventBase>create();
 
 	private CopyOnWriteArrayList<IRemoteCommandListener> m_listeners = new CopyOnWriteArrayList<>();
 
@@ -53,13 +47,11 @@ final public class RemoteClient extends Peer implements IRemoteClient {
 		addListener(new IRemoteCommandListener() {
 			@Override
 			public void errorEvent(EvCommandError errorEvent) throws Exception {
-				m_eventPublisher.onNext(errorEvent);
 				m_hubServer.callCommandListeners(a -> a.errorEvent(errorEvent));
 			}
 
 			@Override
 			public void completedEvent(EvCommandFinished ev) throws Exception {
-				m_eventPublisher.onNext(ev);
 				m_hubServer.callCommandListeners(a -> a.completedEvent(ev));
 			}
 
@@ -146,10 +138,5 @@ final public class RemoteClient extends Peer implements IRemoteClient {
 
 	public List<IRemoteCommandListener> getListeners() {
 		return m_listeners;
-	}
-
-	@Override
-	public PublishSubject<ServerCommandEventBase> getEventPublisher() {
-		return m_eventPublisher;
 	}
 }

@@ -1,13 +1,9 @@
 package to.etc.cocos.connectors.server;
 
 import com.google.protobuf.ByteString;
-import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.observables.ConnectableObservable;
-import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
-import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
@@ -72,15 +68,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	private CopyOnWriteArrayList<IRemoteCommandListener> m_commandListeners = new CopyOnWriteArrayList<>();
 
-	//private Map<String, RemoteClient> m_remoteClientMap = new HashMap<>();
-
-	private final PublishSubject<IServerEvent> m_serverEventSubject;
-
-	public final Observable<IServerEvent> m_eventObservable;
-
 	private final Map<String, RemoteCommand> m_commandMap = new HashMap<>();
-
-	//private final Map<String, RemoteCommand> m_commandByKeyMap = new HashMap<>();
 
 	@Nullable
 	private ScheduledFuture<?> m_timeoutTask;
@@ -95,50 +83,39 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		super(hubServer, hubServerPort, "", id, "Server");
 		m_clusterPassword = clusterPassword;
 		m_authenticator = authenticator;
-		m_serverEventSubject = PublishSubject.create();
-		ConnectableObservable<IServerEvent> replay = m_serverEventSubject.replay(60, TimeUnit.SECONDS);
-		m_eventObservable = replay;
-		replay.connect();
 
 		addListener(new IRemoteClientListener() {
 			@Override public void clientConnected(IRemoteClient client) throws Exception {
 				ServerEventBase event = new ServerEventBase(ServerEventType.clientConnected, client);
-				m_serverEventSubject.onNext(event);
 				callServerEventListeners(event);
 			}
 
 			@Override public void clientDisconnected(IRemoteClient client) throws Exception {
 				ServerEventBase event = new ServerEventBase(ServerEventType.clientDisconnected, client);
-				m_serverEventSubject.onNext(event);
 				callServerEventListeners(event);
 			}
 
 			@Override public void clientInventoryPacketReceived(RemoteClient client, JsonPacket packet) {
 				ServerEventBase event = new ServerEventBase(ServerEventType.clientInventoryReceived, client);
-				m_serverEventSubject.onNext(event);
 				callServerEventListeners(event);
 			}
 		});
-		observeConnectionState()
-			.subscribe(connectorState -> {
-				switch(connectorState) {
-					default:
-						return;
+		addStateListener(state-> {
+			switch(state) {
+				default:
+					return;
+				case AUTHENTICATED:
+					ServerEventBase event = new ServerEventBase(ServerEventType.serverConnected);
+					callServerEventListeners(event);
+					break;
 
-					case AUTHENTICATED:
-						ServerEventBase event = new ServerEventBase(ServerEventType.serverConnected);
-						m_serverEventSubject.onNext(event);
-						callServerEventListeners(event);
-						break;
-
-					case RECONNECT_WAIT:
-					case STOPPED:
-						ServerEventBase t = new ServerEventBase(ServerEventType.serverDisconnected);
-						m_serverEventSubject.onNext(t);
-						callServerEventListeners(t);
-						break;
-				}
-			});
+				case RECONNECT_WAIT:
+				case STOPPED:
+					ServerEventBase t = new ServerEventBase(ServerEventType.serverDisconnected);
+					callServerEventListeners(t);
+					break;
+			}
+		});
 	}
 
 	static public HubServer create(IClientAuthenticator au, String hubServer, int hubServerPort, String hubPassword, String id) {
@@ -147,11 +124,6 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 		HubServer responder = new HubServer(hubServer, hubServerPort, hubPassword, au, id);
 		return responder;
-	}
-
-	@Override
-	public Observable<IServerEvent> observeServerEvents() {
-		return m_eventObservable;
 	}
 
 	@Override
@@ -539,7 +511,6 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		if(command.getStatus() == RemoteCommandStatus.CANCELED) {
 			System.out.println(">>> HubServer: cancel finished");
 			ServerEventBase event = new ServerEventBase(ServerEventType.cancelFinished);
-			m_serverEventSubject.onNext(event);
 			callServerEventListeners(event);
 			return;
 		}
@@ -595,7 +566,6 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			}
 		}
 		ServerEventBase event = new ServerEventBase(ServerEventType.peerRestarted);
-		m_serverEventSubject.onNext(event);
 		callServerEventListeners(event);
 	}
 

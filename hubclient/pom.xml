@@ -39,12 +39,6 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
-        <!-- rxjava support -->
-        <dependency>
-            <groupId>io.reactivex.rxjava3</groupId>
-            <artifactId>rxjava</artifactId>
-        </dependency>
-
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>

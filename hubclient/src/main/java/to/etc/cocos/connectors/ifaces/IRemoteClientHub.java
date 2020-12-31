@@ -1,6 +1,5 @@
 package to.etc.cocos.connectors.ifaces;
 
-import io.reactivex.rxjava3.core.Observable;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 
@@ -25,8 +24,6 @@ public interface IRemoteClientHub extends AutoCloseable {
 	void addListener(IRemoteClientListener l);
 
 	void removeListener(IRemoteClientListener l);
-
-	Observable<IServerEvent> observeServerEvents();
 
 	@Nullable
 	IRemoteClient findClient(String id);

@@ -1,6 +1,5 @@
 package to.etc.cocos.connectors.server;
 
-import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -10,7 +9,6 @@ import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
-import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.function.ConsumerEx;
 
@@ -54,7 +52,7 @@ final public class RemoteCommand implements IRemoteCommand {
 	@Nullable
 	private CommandError m_commandError;
 
-	private final PublishSubject<ServerCommandEventBase> m_eventPublisher = PublishSubject.<ServerCommandEventBase>create();
+	//private final PublishSubject<ServerCommandEventBase> m_eventPublisher = PublishSubject.<ServerCommandEventBase>create();
 
 	/** Decodes the output stream bytes to a string */
 	@Nullable
@@ -81,19 +79,19 @@ final public class RemoteCommand implements IRemoteCommand {
 		addListener(new IRemoteCommandListener() {
 			@Override
 			public void errorEvent(EvCommandError errorEvent) throws Exception {
-				m_eventPublisher.onNext(errorEvent);
-				m_eventPublisher.onComplete();
+				//m_eventPublisher.onNext(errorEvent);
+				//m_eventPublisher.onComplete();
 			}
 
 			@Override
 			public void completedEvent(EvCommandFinished ev) throws Exception {
-				m_eventPublisher.onNext(ev);
-				m_eventPublisher.onComplete();
+				//m_eventPublisher.onNext(ev);
+				//m_eventPublisher.onComplete();
 			}
 
 			@Override
 			public void stdoutEvent(EvCommandOutput ev) throws Exception {
-				m_eventPublisher.onNext(ev);
+				//m_eventPublisher.onNext(ev);
 			}
 		});
 	}
@@ -196,10 +194,10 @@ final public class RemoteCommand implements IRemoteCommand {
 		return m_startedAt;
 	}
 
-	@Override
-	public PublishSubject<ServerCommandEventBase> observeEvents() {
-		return m_eventPublisher;
-	}
+	//@Override
+	//public PublishSubject<ServerCommandEventBase> observeEvents() {
+	//	return m_eventPublisher;
+	//}
 
 	public synchronized void appendOutput(List<byte[]> data, String code) {
 		CharsetDecoder decoder = m_decoder;
