@@ -225,6 +225,7 @@ public class TestAllBaseNew {
 		set.await(DEFAULT_TIMEOUT);
 		m_client = null;
 	}
+
 	public void disconnectServer() throws Exception {
 		var set = createConditionSet();
 		expectServerState(set, ConnectorState.STOPPED, "Server disconnected");
@@ -241,6 +242,9 @@ public class TestAllBaseNew {
 	public TestConditionSet expectServerEvent(TestConditionSet set, ServerEventType type, String name){
 		var condition = set.createCondition(name);
 		getServer().addServerEventListener(event -> {
+			if(condition.isResolved()) {
+				return;
+			}
 			if(event.getType() == type) {
 				condition.resolved();
 			}
@@ -256,6 +260,9 @@ public class TestAllBaseNew {
 	public TestConditionSet expectServerState(TestConditionSet set, ConnectorState state, String name) {
 		var condition = set.createCondition(name);
 		getServer().addStateListener(s -> {
+			if(condition.isResolved()) {
+				return;
+			}
 			if(state == s) {
 				condition.resolved();
 			}
@@ -266,21 +273,26 @@ public class TestAllBaseNew {
 	public TestConditionSet expectClientState(TestConditionSet set, ConnectorState expectedState, String name) {
 		var co = set.createCondition(name);
 		getClient().addStateListener(state-> {
+			if(co.isResolved()) {
+				return;
+			}
 			if(state == expectedState) {
 				co.resolved();
 			}
 		});
 		return set;
 	}
-	public TestConditionSet expectHubState(TestConditionSet set, HubState expectedState, String name) throws Exception {
+	public void expectHubState(TestConditionSet set, HubState expectedState, String name) throws Exception {
 		var condition = set.createCondition(name);
 		getHub().addStateListener(state->{
 			System.out.println("$$$$hub got state " + state);
+			if(condition.isResolved()) {
+				return;
+			}
 			if(state == expectedState) {
 				condition.resolved();
 			}
 		});
-		return set;
 	}
 
 	public Hub startHubSync() throws Exception {

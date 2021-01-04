@@ -3,9 +3,6 @@ package to.etc.cocos.connectors.common;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.observables.ConnectableObservable;
-import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Ack;
@@ -51,7 +48,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -68,13 +64,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	private static int m_idCounter;
 
-	private final PublishSubject<ConnectorState> m_connStatePublisher;
-
 	private final ObjectMapper m_mapper;
 
 	private final String m_logName;
-
-	private final ConnectableObservable<ConnectorState> m_connStateObserver;
 
 	final private String m_server;
 
@@ -211,9 +203,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 		m_port = port;
 		m_myId = myId;
 		m_targetId = targetId;
-		m_connStatePublisher = PublishSubject.<ConnectorState>create();
-		m_connStateObserver = m_connStatePublisher.replay(60, TimeUnit.SECONDS);
-		m_connStateObserver.connect();
 		m_logName = logName;
 
 		ObjectMapper om = m_mapper = new ObjectMapper();
@@ -234,7 +223,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 			log("setState: " + cs);
 		}
 		if(oldState != cs) {
-			m_connStatePublisher.onNext(cs);
 			notifyStateListeners(cs);
 		}
 	}
@@ -340,7 +328,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	private void cleanupAfterTerminate() {
-		m_connStatePublisher.onComplete();
 		ExecutorService executor;
 		ExecutorService eventExecutor;
 		synchronized(this) {
@@ -946,10 +933,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 				return true;
 		}
 		return false;
-	}
-
-	public Observable<ConnectorState> observeConnectionState() {
-		return m_connStateObserver;
 	}
 
 	@Nullable

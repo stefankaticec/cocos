@@ -1,6 +1,5 @@
 package to.etc.cocos.connectors.ifaces;
 
-import io.reactivex.rxjava3.core.Observable;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.JsonPacket;
@@ -19,14 +18,9 @@ public interface IRemoteClient {
 	@Nullable
 	<T extends JsonPacket> T getInventory(Class<T> clz);
 
-	//@NonNull
-	//InventoryPacket getInventory();
-
 	IRemoteCommand sendJsonCommand(String uniqueCommandId, JsonPacket packet, Duration commandTimeout, @Nullable String commandKey, String description, @Nullable IRemoteCommandListener l) throws Exception;
 
 	IRemoteCommand sendCancel(String commandId, String reason) throws Exception;
-
-	Observable<ServerCommandEventBase> getEventPublisher();
 
 	boolean isConnected();
 
