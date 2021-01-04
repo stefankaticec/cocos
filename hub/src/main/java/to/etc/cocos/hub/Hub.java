@@ -23,6 +23,7 @@ import to.etc.cocos.hub.telnetcommands.ListClientsTelnetCommandHandler;
 import to.etc.cocos.hub.telnetcommands.ListServerTelnetCommandHandler;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
+import to.etc.function.ConsumerEx;
 import to.etc.function.FunctionEx;
 import to.etc.log.EtcLoggerFactory;
 import to.etc.smtp.Address;
@@ -48,6 +49,7 @@ import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -98,6 +100,8 @@ final public class Hub {
 
 	private HubState m_state = HubState.STOPPED;
 
+	private List<ConsumerEx<HubState>> m_stateListeners = new CopyOnWriteArrayList<>();
+
 	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, boolean startTelnet) throws Exception {
 		m_port = port;
 		m_ident = ident;
@@ -119,6 +123,7 @@ final public class Hub {
 				throw new IllegalStateException("You can only (re)start a STOPPED hub; its state now is " + m_state);
 			m_state = HubState.STARTING;
 		}
+		notifyStateListeners(HubState.STARTING);
 
 		EtcLoggerFactory.getSingleton().initializeFromResource(EtcLoggerFactory.DEFAULT_CONFIG_FILENAME, null);
 		ConsoleUtil.consoleLog("Hub", "Starting server");
@@ -156,6 +161,7 @@ final public class Hub {
 				m_closeFuture = closeFuture;
 				m_state = HubState.STARTED;
 			}
+			notifyStateListeners(HubState.STARTED);
 			closeFuture.addListener(future -> {
 				ConsoleUtil.consoleLog("Hub", "Server closing down: releasing thread pools");
 				bossGroup.shutdownGracefully();
@@ -165,6 +171,8 @@ final public class Hub {
 					m_closeFuture = null;
 					m_state = HubState.STOPPED;
 				}
+				notifyStateListeners(HubState.STOPPED);
+				m_stateListeners.clear();
 				log("Hub terminated");
 			});
 			failed = false;
@@ -192,7 +200,18 @@ final public class Hub {
 		}
 	}
 
-	public void terminate() {
+	private void notifyStateListeners(HubState state) throws Exception {
+		for(ConsumerEx<HubState> stateListener : m_stateListeners) {
+			try {
+				stateListener.accept(state);
+			} catch(Exception x) {
+				log("State listener failed: " + x);
+				x.printStackTrace();
+			}
+		}
+	}
+
+	public void terminate() throws Exception {
 		Channel serverChannel;
 		synchronized(this) {
 			if(m_state != HubState.STARTED) {
@@ -200,19 +219,18 @@ final public class Hub {
 			}
 			m_state = HubState.STOPPING;
 			serverChannel = m_serverChannel;
-			if(null == serverChannel) {
-				log("Sever channel is null.");
-				return;
-			}
 			m_serverChannel = null;
 		}
-
-		try {
-			serverChannel.close();
-		} catch(Exception x) {
-			log("terminate failed to close the server channel: " + x);
-			x.printStackTrace();
+		notifyStateListeners(HubState.STOPPING);
+		if(null != serverChannel) {
+			try {
+				serverChannel.close();
+			} catch(Exception x) {
+				log("terminate failed to close the server channel: " + x);
+				x.printStackTrace();
+			}
 		}
+
 		var ts = m_telnetServer;
 		if(ts != null) {
 			m_telnetServer = null;
@@ -232,6 +250,7 @@ final public class Hub {
 			closeFuture = m_closeFuture;
 			if(null == closeFuture)
 				return;
+			m_closeFuture = null;
 		}
 		closeFuture.sync();
 	}
@@ -316,7 +335,7 @@ final public class Hub {
 	}
 
 	void log(String message) {
-		ConsoleUtil.consoleLog("hub", message);
+		ConsoleUtil.consoleLog("Hub", message);
 	}
 
 	public synchronized HubState getState() {
@@ -332,6 +351,7 @@ final public class Hub {
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Error reporting.											*/
 	/*----------------------------------------------------------------------*/
+
 	/**
 	 * Called when a send fails, this checks whether the cause is a SSL handshake timeout. If so
 	 * it checks how many of those occurred in the last minute and reports if those errors last
@@ -532,6 +552,14 @@ final public class Hub {
 	private List<ErrorCounter> m_errorCounterMinuteList = new ArrayList<>();
 
 	private List<ErrorCounter> m_errorCounterHourList = new ArrayList<>();
+
+	public void addStateListener(ConsumerEx<HubState> listener) {
+		m_stateListeners.add(listener);
+	}
+
+	public void removeStateListener(ConsumerEx<HubState> listener) {
+		m_stateListeners.remove(listener);
+	}
 
 	@Nullable
 	private Date m_errorWindowStarted;

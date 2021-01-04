@@ -8,8 +8,6 @@ import io.reactivex.rxjava3.observables.ConnectableObservable;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import to.etc.cocos.messages.Hubcore.Ack;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
@@ -25,6 +23,7 @@ import to.etc.util.FileTool;
 import to.etc.util.StringTool;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -36,6 +35,7 @@ import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.Socket;
+import java.net.SocketException;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
@@ -46,11 +46,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * A connector to a Hub server. This connector keeps a single connection to the Hub server
@@ -62,10 +64,6 @@ import java.util.concurrent.TimeUnit;
  */
 @NonNullByDefault
 public abstract class HubConnectorBase<T extends Peer> {
-	static private final int MAX_PACKET_SIZE = 1024 * 1024;
-
-	static private final Logger LOG = LoggerFactory.getLogger(HubConnectorBase.class);
-
 	private final int m_id;
 
 	private static int m_idCounter;
@@ -78,12 +76,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	private final ConnectableObservable<ConnectorState> m_connStateObserver;
 
-	private boolean m_logTx = false;
-
-	private boolean m_logRx = false;
-
-	private int m_dumpLimit = 1024;
-
 	final private String m_server;
 
 	final private int m_port;
@@ -94,6 +86,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	final private String m_targetId;
 
 	private ConnectorState m_state = ConnectorState.STOPPED;
+
+	private List<Consumer<ConnectorState>> m_stateListeners = new CopyOnWriteArrayList<>();
 
 	/**
 	 * The time, in seconds, between PING messages. This should correspond to the equally named value in the hub.
@@ -232,9 +226,28 @@ public abstract class HubConnectorBase<T extends Peer> {
 		m_writer = new PacketWriter(this, om);
 	}
 
-	private synchronized void setState(ConnectorState cs) {
-		m_state = cs;
-		m_connStatePublisher.onNext(cs);
+	private void setState(ConnectorState cs) {
+		ConnectorState oldState;
+		synchronized(this) {
+			oldState = m_state;
+			m_state = cs;
+			log("setState: " + cs);
+		}
+		if(oldState != cs) {
+			m_connStatePublisher.onNext(cs);
+			notifyStateListeners(cs);
+		}
+	}
+
+	private void notifyStateListeners(ConnectorState state) {
+		for(Consumer<ConnectorState> stateListener : m_stateListeners) {
+			try {
+				stateListener.accept(state);
+			} catch(Exception x) {
+				log("State listener failed: " + x);
+				x.printStackTrace();
+			}
+		}
 	}
 
 	private static synchronized int nextId() {
@@ -243,15 +256,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	public ObjectMapper getMapper() {
 		return m_mapper;
-	}
-
-	public String getJsonText(Object object) {
-		try {
-			return getMapper().writerWithDefaultPrettyPrinter().writeValueAsString(object);
-		} catch(Exception x) {
-			System.out.println(">> render exception " + x);
-			return x.toString();
-		}
 	}
 
 	public void start() {
@@ -274,8 +278,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 * Cause the client to terminate. Do not wait; to wait call terminateAndWait().
 	 */
 	public void terminate() {
-		log("Received terminate request");
 		synchronized(this) {
+			log("Received terminate request");
 			if(getState() == ConnectorState.STOPPED || getState() == ConnectorState.TERMINATING)
 				return;
 			setState(ConnectorState.TERMINATING);
@@ -311,10 +315,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 			wt.join(5_000);
 			if(wt.isAlive())
 				error("Writer thread does not want to die");
-		}
-
-		synchronized(this) {
-			setState(ConnectorState.STOPPED);
 		}
 	}
 
@@ -365,15 +365,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 		try {
 			log("Writer started for id=" + m_myId + " targeting " + m_targetId + " on hub server " + m_server + ":" + m_port);
 
-			//m_connStatePublisher.onNext(oldState);
 			for(;;) {
 				boolean doContinue = doWriteAction();
-
-				//ConnectorState state = getState();
-				//if(state != oldState) {
-				//	m_connStatePublisherXxx.onNext(state);
-				//	oldState = state;
-				//}
 				if(! doContinue)
 					break;
 			}
@@ -381,15 +374,30 @@ public abstract class HubConnectorBase<T extends Peer> {
 			if(isRunning())
 				error(x, "Writer terminated with exception: " + x);
 		} finally {
+			Thread readerThread;
 			synchronized(this) {
 				m_writerThread = null;
+				readerThread = m_readerThread;
+				m_readerThread = null;
 			}
 			forceDisconnect("Writer terminating");
-			//ConnectorState state = getState();
-			//if(state != oldState) {
-			//	m_connStatePublisher.onNext(state);
-			//	oldState = state;
+
+			//-- We must wait for the reader to terminate too
+			if(readerThread != null && readerThread.isAlive()) {
+				log("stopping: waiting for reader to terminate");
+				try {
+					readerThread.join(60_000);
+				} catch(Exception x) {
+					x.printStackTrace();
+				}
+				if(readerThread.isAlive())
+					log("stopping: reader thread did not want to stop 8-/");
+			}
+			setState(ConnectorState.STOPPED);
+			//synchronized(this) {
+			//	m_state = ConnectorState.STOPPED;
 			//}
+			//notifyStateListeners(ConnectorState.STOPPED);
 			cleanupAfterTerminate();
 			log("Writer has terminated");
 		}
@@ -491,22 +499,44 @@ public abstract class HubConnectorBase<T extends Peer> {
 			m_writer.sendBody(pp.getBodyTransmitter());
 			os.flush();
 		} catch(Exception x) {
-			error("Transmit for packet " + pp + " failed: " + x);
-			forceDisconnect("Packet send failed");
+			String why;
+			synchronized(this) {
+				if(isConnectionCloseException(x)) {
+					why = "Remote disconnect (" + x.toString() + ")";
+				} else {
+					ConnectorState state = getState();
+					switch(state){
+						default:
+							break;
+
+						case CONNECTING:
+						case CONNECTED:
+						case AUTHENTICATED:
+							error("Transmit for packet " + pp + " failed: " + x + " in state " + state);
+							if(x.getMessage().contains("rethrowing"))
+								x.printStackTrace();
+							break;
+					}
+				}
+				why = "Packet send failed (" + x + ")";
+			}
+
+			forceDisconnect(why);
 			m_txQueue.clear();
 		}
 	}
 
-	//void sendPacketPrimitive(Hubcore.Envelope message, @Nullable Object json) {
-	//	if(message.getPayloadCase() == PayloadCase.PAYLOAD_NOT_SET)
-	//		throw new IllegalStateException("Missing payload!!");
-	//	IPacketTransmitter sp = new IPacketTransmitter() {
-	//		@Override public void send(PacketWriter os) throws Exception {
-	//			os.send(message, json);
-	//		}
-	//	};
-	//	sendPacketPrimitive(sp);
-	//}
+	/**
+	 * Remote connection termination is a mess: lots of different exceptions can
+	 * occur because of that. Detect the common ones.
+	 */
+	private boolean isConnectionCloseException(Exception x) {
+		if(x instanceof SSLException)
+			return true;
+		if(x instanceof SocketException)
+			return true;
+		return false;
+	}
 
 	/**
 	 * Put a packet into the transmitter queue, to be sent as soon as the transmitter is free.
@@ -613,7 +643,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 				}
 				executePacket();
 			}
-		} catch(SocketEofException eofx) {
+		} catch(SocketEofException | SSLException eofx) {
 			if(isRunning()) {
 				ConsoleUtil.consoleLog("reader terminated because of eof: " + eofx.getMessage());
 				disconnectReason = "Server disconnect";
@@ -800,12 +830,13 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 * already a fact. In that case no message will be reported either.
 	 */
 	protected void forceDisconnect(@Nullable String why) {
-		if(null != why)
-			log("forceDisconnect: " + why);
 		Socket socket;
 		InputStream is;
 		OutputStream os;
 		synchronized(this) {
+			if(null != why)
+				log("forceDisconnect: " + why);
+
 			socket = m_socket;
 			is = m_is;
 			os = m_os;
@@ -818,13 +849,16 @@ public abstract class HubConnectorBase<T extends Peer> {
 					throw new IllegalStateException("Unexpected state: " + getState());
 
 				case TERMINATING:
-					/*
-					 * If we are terminating having a disconnected socket means we're IDLE.
-					 */
-					if(m_readerThread == null && m_writerThread == null) {
-						setState(ConnectorState.STOPPED);
-					}
-					//m_state = ConnectorState.IDLE;
+					//if(m_readerThread == null && m_writerThread == null) {
+					//	/*
+					//	 * JAL Questionable: this should not be possible really; this gets called
+					//	 * on either the reader thread OR the writer thread, so both of these cannot
+					//	 * be null..
+					//	 */
+					//	setState(ConnectorState.STOPPED);
+					//	System.err.println("BUG BUG BUG BUG: forceDisconnect called but both threads seem to have terminated??");
+					//}
+					////m_state = ConnectorState.IDLE;
 					break;
 
 				case AUTHENTICATED:
@@ -838,10 +872,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 					 */
 					setState(ConnectorState.RECONNECT_WAIT);
 					int count = m_reconnectCount++;
-					int delta = count < 3 ? 2000 :
-						count < 6 ? 5000 :
-							count < 10 ? 30000 :
-								60000;
+					int delta = count < 3 ? 250 :
+						count < 6 ? 2000 :
+						10000;
 					m_nextReconnect = System.currentTimeMillis() + delta;
 					break;
 
@@ -1045,4 +1078,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	protected void internalStart() {}
+
+	public void addStateListener(Consumer<ConnectorState> listener) {
+		m_stateListeners.add(listener);
+	}
 }

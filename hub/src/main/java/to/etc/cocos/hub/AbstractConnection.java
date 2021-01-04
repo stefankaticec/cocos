@@ -48,7 +48,7 @@ abstract public class AbstractConnection {
 
 	final public void log(String s) {
 		CentralSocketHandler handler = m_handler;
-		String id = handler == null ? "(no handler)" : handler.getId();
+		String id = handler == null ? "(disconnected)" : handler.getId();
 		ConsoleUtil.consoleLog("Hub:" + getClass().getSimpleName(), id, getFullId(), s);
 	}
 
@@ -81,7 +81,7 @@ abstract public class AbstractConnection {
 	 */
 	public boolean newConnection(CentralSocketHandler handler) {
 		synchronized(this) {
-			log("New connection from " + handler.getRemoteAddress());
+			log("New connection from " + handler.getRemoteAddress() + " id=" + handler.getId());
 			CentralSocketHandler oldChannel = m_handler;
 			if(null == oldChannel) {
 				//-- No disconnects - reset duplicate state

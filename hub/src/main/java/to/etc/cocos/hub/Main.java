@@ -24,6 +24,9 @@ import java.util.List;
  */
 @NonNullByDefault
 final public class Main {
+
+	public static final String HUB = "Hub";
+
 	static private Logger LOG = LoggerFactory.getLogger(Hub.class);
 
 	@Option(name = "-port", usage = "The listener port number")
@@ -81,7 +84,7 @@ final public class Main {
 			m_ident = ident = name;
 		}
 		String addr = InetAddress.getLocalHost().getHostAddress();
-		ConsoleUtil.consoleLog("hub", "Hub ID is " + m_ident + " at " + addr  + ":" + m_port);
+		ConsoleUtil.consoleLog(HUB, "Hub ID is " + m_ident + " at " + addr  + ":" + m_port);
 
 		//-- Do we want to have emails?
 		String mailerKey = m_mailerKey;
@@ -93,7 +96,7 @@ final public class Main {
 			m_mailTo.forEach(a -> to.add(new Address(a)));
 		}
 
-		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to, m_noTelnet);
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to, !m_noTelnet);
 		server.startServer();
 
 		//-- Listen to signals to stop the thing
@@ -101,18 +104,18 @@ final public class Main {
 			Signal.handle(new Signal("HUP"), signal -> terminate(server));
 		}
 
-		ConsoleUtil.consoleLog("hub", "Server started");
+		ConsoleUtil.consoleLog(HUB, "Server started");
 
 		//-- Now: sleep until terminate is called
 		while(! m_terminate) {
 			Thread.sleep(5_000);
 		}
 
-		ConsoleUtil.consoleLog("Hub", "Main process stopped");
+		ConsoleUtil.consoleLog(HUB, "Main process stopped");
 	}
 
 	private void terminate(Hub server) {
-		ConsoleUtil.consoleLog("Hub", "Hangup signal received, terminate hub");
+		ConsoleUtil.consoleLog(HUB, "Hangup signal received, terminate hub");
 		try {
 			server.terminateAndWait();
 		} catch(Exception x) {

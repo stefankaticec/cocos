@@ -5,6 +5,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.SimpleUserEventChannelHandler;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.ssl.SslCloseCompletionEvent;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleState;
@@ -57,8 +58,11 @@ class HubChannelInitializer extends ChannelInitializer<SocketChannel> {
 					} else if(ie.state() == IdleState.WRITER_IDLE) {
 						mainHandler.sendPing();
 					}
+				} else if(evt instanceof SslCloseCompletionEvent) {
+					mainHandler.remoteDisconnected(ctx, "SslCloseCompletionEvent received");
 				} else
-					m_server.log("Event: " + evt.getClass() + " on channel " + socketChannel.id());
+					if(m_server.getState() == HubState.STARTED)
+						m_server.log("Event: " + evt.getClass() + " on channel " + socketChannel.id());
 			}
 		});
 		pipeline.addLast(mainHandler);
