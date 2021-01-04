@@ -265,7 +265,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 			Thread wt = m_writerThread = new Thread(this::writerMain, "cw#" + m_id);
 			wt.setDaemon(true);
-			wt.setDaemon(true);
 			internalStart();
 			wt.start();
 		}
@@ -369,6 +368,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			//m_connStatePublisher.onNext(oldState);
 			for(;;) {
 				boolean doContinue = doWriteAction();
+
 				//ConnectorState state = getState();
 				//if(state != oldState) {
 				//	m_connStatePublisherXxx.onNext(state);
@@ -554,8 +554,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 		try {
 			SSLSocketFactory ssf = getSocketFactory();
 			SSLSocket s = (SSLSocket) ssf.createSocket(m_server, m_port);
-			s.startHandshake();
 			s.setSoTimeout(m_pingInterval * 2 * 1000);						// If we do not receive anything for PINGINTERVAL seconds timeout
+			log("Starting SSL handshake");
+			s.startHandshake();
 
 			m_socket = s;
 			m_is = s.getInputStream();

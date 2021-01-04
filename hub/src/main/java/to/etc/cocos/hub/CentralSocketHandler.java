@@ -8,6 +8,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.SocketChannel;
 import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.BeforeClientData;
 import to.etc.cocos.hub.parties.Client;
@@ -32,9 +33,10 @@ import java.util.Objects;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 13-1-19.
  */
+@NonNullByDefault
 final public class CentralSocketHandler extends SimpleChannelInboundHandler<ByteBuf> {
 	@NonNull
-	private final Hub m_central;
+	private final Hub m_hub;
 
 	final private PacketAssemblyMachine m_packetAssembler;
 
@@ -73,16 +75,20 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private TxPacket m_txCurrentPacket;
 
 
-	public CentralSocketHandler(Hub central, SocketChannel socketChannel) {
-		m_central = central;
+	public CentralSocketHandler(Hub hub, SocketChannel socketChannel) {
+		m_hub = hub;
 		m_channel = socketChannel;
 		m_remoteAddress = socketChannel.remoteAddress().getAddress().getHostAddress();
-		m_packetStateMachine = new PacketMachine(central, this);
+		m_packetStateMachine = new PacketMachine(hub, this);
 		m_packetAssembler = new PacketAssemblyMachine(m_packetStateMachine::handlePacket, socketChannel.alloc());
 	}
 
+	@NonNullByDefault(false)
 	@Override protected void channelRead0(ChannelHandlerContext context, ByteBuf data) throws Exception {
 		//-- Keep reading data from the buffer until empty and handle it.
+		if(m_hub.getState() != HubState.STARTED){
+			return;
+		}
 		try {
 			while(data.readableBytes() > 0) {
 				m_packetAssembler.handleRead(context, data);
@@ -100,7 +106,11 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * Called when the channel has just been opened. This sends a CHALLENGE packet to the client.
 	 */
+	@NonNullByDefault(false)
 	@Override public void channelActive(ChannelHandlerContext ctx) throws Exception {
+		if(m_hub.getState() != HubState.STARTED){
+			return;
+		}
 		ctx.channel().closeFuture().addListener(future -> {
 			remoteDisconnected(ctx);
 		});
@@ -140,7 +150,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * Called only when we're a temp client, this checks whether the server
 	 * accepted our auth request.
 	 */
-	public void tmpGotResponseFrom(Server server, Envelope envelope, ByteBuf payload, int length) {
+	public void tmpGotResponseFrom(Server server, Envelope envelope, @Nullable ByteBuf payload, int length) {
 		m_packetStateMachine.tmpGotResponseFrom(server, envelope);
 	}
 
@@ -177,7 +187,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		try {
 			m_channel.disconnect();
 		} catch(Exception x) {
-			log("NETTY Disconnect failed (ignoring): " + x);
+			if(m_hub.getState() != HubState.STARTED)
+				log("NETTY Disconnect failed (ignoring): " + x);
 		}
 	}
 
@@ -213,25 +224,32 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Other listeners for channel events.							*/
 	/*----------------------------------------------------------------------*/
+	@NonNullByDefault(false)
 	@Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-		error("Connection exception: " + cause);
-		ctx.close();
+		if(m_hub.getState() == HubState.STARTED) {
+			error("Connection exception: " + cause);
+		}
+		try {
+			ctx.close();
+		} catch(Exception x) {
+			if(m_hub.getState() == HubState.STARTED) {
+				error("Connection close exception: " + x);
+			}
+		}
 	}
-
 
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Sending data to this channel's remote.						*/
 	/*----------------------------------------------------------------------*/
 
-	void tryScheduleSend(AbstractConnection conn, TxPacket packet) {
-		initiatePacketSending(packet);
-	}
-
 	/**
 	 * Initiate sending of a packet, by converting the packet into a list
 	 * of send buffers and starting the transmit.
 	 */
-	private void initiatePacketSending(@Nullable TxPacket packet) {
+	void initiatePacketSending(@Nullable TxPacket packet) {
+		if(m_hub.getState() != HubState.STARTED)
+			return;
+
 		//ConsoleUtil.consoleLog("XX", ">> initiatePacketSending entry packet " + packet);
 		int txfailCount = 0;
 		for(;;) {
@@ -273,7 +291,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 						onBehalfOf.onPacketForward(Objects.requireNonNull(m_connection), packet.getEnvelope());
 					}
 				} catch(Exception xx) {
-					xx.printStackTrace();
+					if(m_hub.getState() == HubState.STARTED)
+						xx.printStackTrace();
 				}
 
 				/*
@@ -388,9 +407,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * Send failed. Requeue the failed packet on the prio queue, then disconnect. When the remote reconnects
 	 * the packet is retried (unless we have a tx timeout).
-	 * @param cause
 	 */
 	private void txHandleFailedSend(@Nullable Throwable cause) {
+		if(m_hub.getState() != HubState.STARTED)								// If we're stopping or stopped it's logical sends fail, ignore
+			return;
 		TxPacket packet;
 		synchronized(this) {
 			packet = m_txCurrentPacket;
@@ -412,7 +432,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 		disconnectOnly("failed send " + packet + ": " + why);
 		if(null != cause)
-			m_central.registerFailure(cause);
+			m_hub.registerFailure(cause);
 	}
 
 	private synchronized void releaseTxBuffers() {
@@ -438,6 +458,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	void immediateSendHubException(Envelope source, HubException x) {
+		if(m_hub.getState() != HubState.STARTED)
+			return;
 		log("sending hub exception " + x);
 
 		PacketResponseBuilder rb = new PacketResponseBuilder(this)
@@ -462,6 +484,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	public void sendPing() {
+		if(m_hub.getState() != HubState.STARTED)
+			return;
 		PacketResponseBuilder response = new PacketResponseBuilder(this);
 		response.getEnvelope()
 			.setSourceId("")							// from HUB
@@ -501,18 +525,18 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/**
 	 * The source ID for this connection, as identified by the initial HELO packet.
 	 */
-	public String getMyID() {
+	public synchronized String getMyID() {
 		String myId = m_myId;
 		if(null == myId)
 			throw new IllegalStateException("The connection's ID is not yet known - HELO packet response has not yet been received?");
 		return myId;
 	}
 
-	public Cluster getCluster() {
+	public synchronized Cluster getCluster() {
 		Cluster cluster = m_cluster;
 		if(null == cluster)
 			throw new IllegalStateException("The connection's ID is not yet known - HELO packet response has not yet been received?");
-		return m_cluster;
+		return cluster;
 	}
 
 	synchronized void setHelloInformation(String clientId, Cluster cluster, String resourceId) {
@@ -528,6 +552,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * This channel has become inactive and reached the end of its life. Release all resources.
 	 */
 	@Override
+	@NonNullByDefault(false)
 	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
 		super.channelInactive(ctx);
 		m_packetAssembler.destroy();
@@ -539,7 +564,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 
 	private ConnectionDirectory getDirectory() {
-		return m_central.getDirectory();
+		return m_hub.getDirectory();
 	}
 
 	public String getRemoteAddress() {

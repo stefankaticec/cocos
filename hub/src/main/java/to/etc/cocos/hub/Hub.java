@@ -94,8 +94,9 @@ final public class Hub {
 
 	private ExecutorService m_eventSendingExecutor = Executors.newSingleThreadExecutor();
 
-	@Nullable
-	final private SendGridMailer m_mailer;
+	@Nullable final private SendGridMailer m_mailer;
+
+	private HubState m_state = HubState.STOPPED;
 
 	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, boolean startTelnet) throws Exception {
 		m_port = port;
@@ -114,8 +115,9 @@ final public class Hub {
 
 	public void startServer() throws Exception {
 		synchronized(this) {
-			if(m_serverChannel != null)
-				throw new IllegalStateException("The server is already running");
+			if(m_state != HubState.STOPPED)
+				throw new IllegalStateException("You can only (re)start a STOPPED hub; its state now is " + m_state);
+			m_state = HubState.STARTING;
 		}
 
 		EtcLoggerFactory.getSingleton().initializeFromResource(EtcLoggerFactory.DEFAULT_CONFIG_FILENAME, null);
@@ -152,6 +154,7 @@ final public class Hub {
 			synchronized(this) {
 				m_serverChannel = serverChannel;
 				m_closeFuture = closeFuture;
+				m_state = HubState.STARTED;
 			}
 			closeFuture.addListener(future -> {
 				ConsoleUtil.consoleLog("Hub", "Server closing down: releasing thread pools");
@@ -160,7 +163,9 @@ final public class Hub {
 				TimerUtil.shutdownNow();
 				synchronized(this) {
 					m_closeFuture = null;
+					m_state = HubState.STOPPED;
 				}
+				log("Hub terminated");
 			});
 			failed = false;
 			//closeFuture.sync();
@@ -171,6 +176,10 @@ final public class Hub {
 			if(failed) {
 				bossGroup.shutdownGracefully();
 				workerGroup.shutdownGracefully();
+
+				synchronized(this) {
+					m_state = HubState.STOPPED;
+				}
 			}
 		}
 
@@ -186,19 +195,31 @@ final public class Hub {
 	public void terminate() {
 		Channel serverChannel;
 		synchronized(this) {
+			if(m_state != HubState.STARTED) {
+				return;
+			}
+			m_state = HubState.STOPPING;
 			serverChannel = m_serverChannel;
 			if(null == serverChannel) {
+				log("Sever channel is null.");
 				return;
 			}
 			m_serverChannel = null;
 		}
-		serverChannel.close();
+
+		try {
+			serverChannel.close();
+		} catch(Exception x) {
+			log("terminate failed to close the server channel: " + x);
+			x.printStackTrace();
+		}
 		var ts = m_telnetServer;
 		if(ts != null) {
 			m_telnetServer = null;
 			try {
 				ts.terminateAndWait();
-			}catch(Exception e){
+			} catch(Exception e) {
+				log("terminate failed to close the debug Telnet Server: " + e);
 				e.printStackTrace();
 			}
 		}
@@ -250,11 +271,12 @@ final public class Hub {
 		PrivateKey pk = getServerKey();
 
 		SslContext sslCtx = SslContextBuilder.forServer(pk, "", ssc)
-				.build();
+			.build();
 		return sslCtx;
 	}
 
-	@NonNull public String getIdent() {
+	@NonNull
+	public String getIdent() {
 		return m_ident;
 	}
 
@@ -297,6 +319,9 @@ final public class Hub {
 		ConsoleUtil.consoleLog("hub", message);
 	}
 
+	public synchronized HubState getState() {
+		return m_state;
+	}
 
 	static public String getPacketType(Envelope env) {
 		if(env.getPayloadCase() == PayloadCase.ACKABLE)
@@ -307,14 +332,13 @@ final public class Hub {
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Error reporting.											*/
 	/*----------------------------------------------------------------------*/
-
 	/**
 	 * Called when a send fails, this checks whether the cause is a SSL handshake timeout. If so
 	 * it checks how many of those occurred in the last minute and reports if those errors last
 	 * for > 2 minutes.
 	 */
 	public void registerFailure(@NonNull Throwable cause) {
-		if(! cause.toString().contains("SslHandshakeTimeoutException"))
+		if(!cause.toString().contains("SslHandshakeTimeoutException"))
 			return;
 
 		Date now = new Date();
@@ -335,7 +359,7 @@ final public class Hub {
 
 		if(m_errorCounterMinuteList.size() > 0) {
 			ErrorCounter errorCounter = m_errorCounterMinuteList.get(0);
-			if(! errorCounter.getStart().before(minute)) {
+			if(!errorCounter.getStart().before(minute)) {
 				if(errorCounter.getEnd().after(minute)) {
 					errorCounter.m_count++;
 					return errorCounter;
@@ -358,7 +382,7 @@ final public class Hub {
 
 		if(m_errorCounterHourList.size() > 0) {
 			ErrorCounter errorCounter = m_errorCounterHourList.get(0);
-			if(! errorCounter.getStart().before(hour)) {
+			if(!errorCounter.getStart().before(hour)) {
 				if(errorCounter.getEnd().after(hour)) {
 					errorCounter.m_count++;
 					return errorCounter;
@@ -428,7 +452,7 @@ final public class Hub {
 			if(errors >= amount) {
 				//-- We are in error. Did we already report?
 				if(m_errorWindowStarted != null) {
-					return ErrorState.FAILED;							// Already notified; exit
+					return ErrorState.FAILED;                            // Already notified; exit
 				}
 
 				m_errorWindowStarted = now;
@@ -482,7 +506,7 @@ final public class Hub {
 
 		int errors = 0;
 		for(ErrorCounter errorCounter : m_errorCounterMinuteList) {
-			if(! errorCounter.getStart().before(fence)) {
+			if(!errorCounter.getStart().before(fence)) {
 				errors += errorCounter.m_count;
 			}
 		}

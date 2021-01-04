@@ -46,8 +46,6 @@ abstract public class AbstractConnection {
 	/** Priority packets to send */
 	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
 
-	private int m_nextSequenceId = 13;
-
 	final public void log(String s) {
 		CentralSocketHandler handler = m_handler;
 		String id = handler == null ? "(no handler)" : handler.getId();
@@ -190,7 +188,8 @@ abstract public class AbstractConnection {
 			}, TxPacketType.CON);
 		}
 		if(null != handler) {
-			handler.tryScheduleSend(this, packet);				// If the transmitter is empty start it
+			// If the transmitter is empty start it
+			handler.initiatePacketSending(packet);
 		}
 	}
 
@@ -224,12 +223,5 @@ abstract public class AbstractConnection {
 
 	public PacketResponseBuilder packetBuilder() {
 		return new PacketResponseBuilder(this);
-	}
-
-	/**
-	 * Return a next ackablePacket sequence ID.
-	 */
-	public synchronized int nextSequence() {
-		return m_nextSequenceId++;
 	}
 }
