@@ -18,21 +18,23 @@ public class TestPeerRestarted extends TestAllBaseNew {
 
 	@Test
 	public void testPeerRestarted() throws Exception {
-		getClient().registerJsonCommand(CommandTestPacket.class, () -> (ctx, packet) -> {
-			Thread.sleep(5000);
-			return new JsonPacket();
-		});
-		var gotCommand = createConditionSet();
-		var gotCommandCondition = gotCommand.createCondition("Got command");
+		var set = createConditionSet();
+		var gotCommandCondition = set.createCondition("Got command");
+
 		getClient().registerJsonCommand(CommandTestPacket.class, () -> (ctx, packet) -> {
 			gotCommandCondition.resolved();
-			synchronized(this) {
-				try {
-					wait(15_000);
-				} catch(Exception e) {
-					e.printStackTrace();
-				}
+			try {
+				Thread.sleep(5000);
+			} catch(InterruptedException x) {
+				//-- This is a correct result when cancelling
 			}
+			//synchronized(this) {
+			//	try {
+			//		wait(15_000);
+			//	} catch(Exception e) {
+			//		e.printStackTrace();
+			//	}
+			//}
 			return new JsonPacket();
 		});
 		CommandTestPacket p = new CommandTestPacket();
@@ -57,7 +59,7 @@ public class TestPeerRestarted extends TestAllBaseNew {
 
 		IRemoteClient remote = getServer().getClientList().get(0);
 		remote.sendJsonCommand(StringTool.generateGUID(), p, Duration.of(10, ChronoUnit.SECONDS), null, "Test command", null);
-		gotCommand.await(DEFAULT_TIMEOUT);
+		set.await(DEFAULT_TIMEOUT);
 		disconnectClient();
 		startClientSync();
 
