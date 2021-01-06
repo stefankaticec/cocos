@@ -558,7 +558,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		return cluster;
 	}
 
-	synchronized void setHelloInformation(String clientId, Cluster cluster, String resourceId) {
+	synchronized void setHelloInformation(String clientId, Cluster cluster, @Nullable String resourceId) {
 		if(m_myId != null || m_cluster != null || m_resourceId != null) {
 			throw new IllegalStateException("Client, cluster or resource ID already defined!!");
 		}
