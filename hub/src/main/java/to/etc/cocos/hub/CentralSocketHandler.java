@@ -150,7 +150,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		if(connection != null) {
 			m_connection = connection;
 		} else {
-			log("New connection was refused on channel with id: "+ getId());
+			log("New connection was refused on channel with id: "+ getId() + ", client IP: "+ getRemoteAddress());
 		}
 	}
 
@@ -162,7 +162,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	 * Just disconnects the channel and make sure it is unusable.
 	 */
 	public synchronized void disconnectOnly(String why) {
-		log("internal disconnect requested: " + why);
+		log("internal disconnect requested: " + why + ", client IP: "+ getRemoteAddress());
 		synchronized(this) {
 			m_connection = null;
 			m_cluster = null;
@@ -214,7 +214,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/*	CODING:	Other listeners for channel events.							*/
 	/*----------------------------------------------------------------------*/
 	@Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-		error("Connection exception: " + cause);
+		error("Connection exception: " + cause + ". Client IP: "+ getRemoteAddress());
 		ctx.close();
 	}
 
