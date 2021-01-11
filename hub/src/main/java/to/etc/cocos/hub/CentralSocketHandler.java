@@ -97,6 +97,10 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		}
 	}
 
+	void sslHandshakeCompleted() {
+		m_packetStateMachine.sendChallenge();
+	}
+
 	/**
 	 * Called when the channel has just been opened. This sends a CHALLENGE packet to the client.
 	 */
@@ -104,18 +108,8 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		ctx.channel().closeFuture().addListener(future -> {
 			remoteDisconnected(ctx);
 		});
-		m_packetStateMachine.sendChallenge();
+		//m_packetStateMachine.sendChallenge();
 	}
-
-	//@Override public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
-	//	super.handlerAdded(ctx);
-	//	m_intBuf = ctx.alloc().buffer(4);
-	//}
-	//
-	//@Override public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-	//	super.handlerRemoved(ctx);
-	//	m_intBuf.release();
-	//}
 
 	public synchronized AbstractConnection getConnection() {
 		AbstractConnection connection = m_connection;
