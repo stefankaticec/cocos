@@ -50,6 +50,7 @@ final public class BufferWriter implements AutoCloseable {
 			try {
 				os.close();
 			} catch(Exception x) {
+				System.err.println("BufferWriter: " + x);
 				x.printStackTrace();
 			}
 			m_os = os;

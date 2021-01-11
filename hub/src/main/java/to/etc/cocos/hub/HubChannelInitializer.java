@@ -3,6 +3,7 @@ package to.etc.cocos.hub;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleUserEventChannelHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.ssl.SslCloseCompletionEvent;
@@ -31,21 +32,23 @@ class HubChannelInitializer extends ChannelInitializer<SocketChannel> {
 	protected void initChannel(SocketChannel socketChannel) throws Exception {
 		SslHandler sslHandler = m_sslContext.newHandler(socketChannel.alloc());
 		sslHandler.engine().setEnabledProtocols(new String[]{"TLSv1.2"});
-
 		ChannelPipeline pipeline = socketChannel.pipeline();
 
 		pipeline.addLast("idleStateHandler", new IdleStateHandler(m_server.getPingInterval() * 2, m_server.getPingInterval(), 0));
-		pipeline.addLast(sslHandler);
 
-//		//-- decoder
-//		pipeline.addLast("lengthDecoder", new LengthFieldBasedFrameDecoder(HubServer.MAX_PACKET_SIZE, 0, 4, 0, 4));
-//		pipeline.addLast("byteDecoder", new ByteArrayDecoder());
-//
-//		//-- encoder
-////			pipeline.addLast("lengthEncoder", new LengthFieldPrepender(4));
-//			pipeline.addLast("bytesEncoder", new ByteArrayEncoder());
+		pipeline.addLast("ssl", sslHandler);
 
 		CentralSocketHandler mainHandler = new CentralSocketHandler(m_server, socketChannel);
+
+		ChannelPromise sslDonePromise = socketChannel.newPromise();
+		pipeline.addLast("sslhslistener", new SslHandshakeCompletionHandler(sslDonePromise));
+		sslDonePromise.addListener(future -> {
+			if(future.isSuccess()) {
+				mainHandler.sslHandshakeCompleted();
+			} else {
+				mainHandler.log("ssl handshake failed: " + future.cause());
+			}
+		});
 
 		pipeline.addLast("timeoutHandler", new SimpleUserEventChannelHandler<Object>() {
 			@Override
