@@ -92,6 +92,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		} catch(ProtocolViolationException px) {
 			throw px;
 		} catch(Exception x) {
+			System.err.println(getClass().getSimpleName() + ".channelRead0: " + x);
 			x.printStackTrace();
 			throw new ProtocolViolationException(x.toString());
 		}
@@ -257,6 +258,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				log("prepare transmit failed: " + x);
 				if(txfailCount++ > 20) {
 					disconnectOnly("TX failed after " + txfailCount + " retries");
+					System.err.println(getClass().getSimpleName() + ".initiatePacketSending.1: " + x);
 					x.printStackTrace();
 					throw new IllegalStateException("TOO MANY RETRIES INITIATING SEND");
 				}
@@ -267,6 +269,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 						onBehalfOf.onPacketForward(Objects.requireNonNull(m_connection), packet.getEnvelope());
 					}
 				} catch(Exception xx) {
+					System.err.println(getClass().getSimpleName() + ".initiatePacketSending.2: " + x);
 					xx.printStackTrace();
 				}
 
@@ -402,6 +405,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			why = "Unknown failure?";
 		} else {
 			why = cause.toString();
+			System.err.println(getClass().getSimpleName() + ".txHandleFailedSend: " + cause);
 			cause.printStackTrace();
 		}
 		disconnectOnly("failed send " + packet + ": " + why);
