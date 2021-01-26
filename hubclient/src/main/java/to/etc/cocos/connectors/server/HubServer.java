@@ -91,6 +91,8 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	private static int m_timeoutSchedule = 1;
 
+	private long m_cancelResponseTimeout = CANCEL_RESPONSE_TIMEOUT;
+
 	private static TimeUnit m_timeoutUnit = TimeUnit.MINUTES;
 
 	private HubServer(String hubServer, int hubServerPort, String clusterPassword, IClientAuthenticator authenticator, String id) {
@@ -603,12 +605,17 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		m_timeoutUnit = interval;
 	}
 
+	public void testOnly_setCancelResponseTimeout(long millis) {
+		m_cancelResponseTimeout = millis;
+	}
+
 	private void failCanceledCommand(RemoteCommand command) {
 		command.setStatus(RemoteCommandStatus.FAILED);
 		command.setFinishedAt(System.currentTimeMillis());
 		CommandError ce = CommandError.newBuilder().setCode(ErrorCode.cancelTimeout.name()).setMessage(ErrorCode.cancelTimeout.getText()).build();
 		EvCommandError ev = new EvCommandError(command, ce);
 		command.callCommandListeners(l -> l.errorEvent(ev));
+		m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.cancelFinished));
 	}
 
 	private void cancelTimedOutCommands() {
@@ -616,7 +623,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		for(RemoteCommand val : new ArrayList<>(m_commandMap.values())) {
 			if(val.getStatus() == RemoteCommandStatus.CANCELED) {
 				//-- If we canceled it more than a minute ago -> force a termination to be sent.
-				if(cts - val.getCancelTime() > CANCEL_RESPONSE_TIMEOUT) {
+				if(cts - val.getCancelTime() > m_cancelResponseTimeout) {
 					failCanceledCommand(val);
 				}
 			} else if(val.hasTimedOut() && val.getStatus().isCancellable()) {
