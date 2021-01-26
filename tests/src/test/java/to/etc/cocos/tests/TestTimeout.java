@@ -7,7 +7,12 @@ import to.etc.cocos.connectors.client.IJsonCommandHandler;
 import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.common.JsonPacket;
+import to.etc.cocos.connectors.ifaces.EvCommandError;
+import to.etc.cocos.connectors.ifaces.EvCommandFinished;
+import to.etc.cocos.connectors.ifaces.EvCommandOutput;
+import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.ifaces.ServerCommandEventBase;
 import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.server.ServerEventType;
@@ -93,12 +98,33 @@ public class TestTimeout extends TestAllBase {
 		StdoutCommandTestPacket p = new StdoutCommandTestPacket();
 		p.setParameters("Sleepy command");
 
-		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(500), null, "Test command", null);
+		List<ServerCommandEventBase> eventList = new ArrayList<>();
+
+		IRemoteCommandListener l = new IRemoteCommandListener() {
+			@Override
+			public void errorEvent(EvCommandError errorEvent) throws Exception {
+				eventList.add(errorEvent);
+			}
+
+			@Override
+			public void completedEvent(EvCommandFinished ev) throws Exception {
+				eventList.add(ev);
+			}
+
+			@Override
+			public void stdoutEvent(EvCommandOutput ev) throws Exception {
+				// We do not care about these
+			}
+		};
+
+		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(500), null, "Test command", l);
 		var cancellingCommand = server().observeServerEvents()
 			.filter(x->x.getType() == ServerEventType.cancelFinished)
 			.timeout(15, TimeUnit.SECONDS)
 			.blockingFirst();
 
 		assertEquals(RemoteCommandStatus.FAILED, cmd.getStatus());
+		assertEquals("Listener must have one result", 1, eventList.size());
+		assertEquals("Command result must be a failed event", EvCommandError.class, eventList.get(0).getClass());
 	}
 }
