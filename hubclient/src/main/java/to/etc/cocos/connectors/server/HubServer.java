@@ -87,13 +87,13 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	@Nullable
 	private ScheduledFuture<?> m_timeoutTask;
 
-	private static int m_timeoutDelay = 2;
+	private volatile int m_timeoutDelay = 2;
 
-	private static int m_timeoutSchedule = 1;
+	private volatile int m_timeoutSchedule = 1;
 
-	private long m_cancelResponseTimeout = CANCEL_RESPONSE_TIMEOUT;
+	private volatile long m_cancelResponseTimeout = CANCEL_RESPONSE_TIMEOUT;
 
-	private static TimeUnit m_timeoutUnit = TimeUnit.MINUTES;
+	private volatile TimeUnit m_timeoutUnit = TimeUnit.MINUTES;
 
 	private HubServer(String hubServer, int hubServerPort, String clusterPassword, IClientAuthenticator authenticator, String id) {
 		super(hubServer, hubServerPort, "", id, "Server");
@@ -599,7 +599,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		m_timeoutTask = TimerUtil.scheduleAtFixedRate(m_timeoutDelay, m_timeoutSchedule, m_timeoutUnit, this::cancelTimedOutCommands);
 	}
 
-	public static void testOnly_setDelayPeriodAndInterval(int delay, int period, TimeUnit interval) {
+	public void testOnly_setDelayPeriodAndInterval(int delay, int period, TimeUnit interval) {
 		m_timeoutDelay = delay;
 		m_timeoutSchedule = period;
 		m_timeoutUnit = interval;

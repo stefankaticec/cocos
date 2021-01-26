@@ -1,11 +1,9 @@
 package to.etc.cocos.tests;
 
-import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.junit.Test;
 import to.etc.cocos.connectors.client.IJsonCommandHandler;
 import to.etc.cocos.connectors.common.CommandContext;
-import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.ifaces.EvCommandError;
 import to.etc.cocos.connectors.ifaces.EvCommandFinished;
@@ -25,40 +23,23 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 
-@NonNullByDefault
-public class TestTimeout extends TestAllBase {
-
-	@Test
-	public void testOrderOfClientStates() throws Exception {
-		hub();
-
-		List<ConnectorState> order = new ArrayList<>(List.of(ConnectorState.CONNECTING, ConnectorState.CONNECTED, ConnectorState.AUTHENTICATED));
-		serverConnected();
-		var state = client().observeConnectionState()			// This is a race always.
-			.doOnNext(connectorState -> System.out.println("> got " + connectorState))
-			.map(a -> {
-				if(order.size() == 0)
-					return true;
-				if(order.get(0) == a) {
-					order.remove(0);
-				}
-				return order.size() == 0;
-			})
-			.filter(a -> a)
-			.timeout(5, TimeUnit.SECONDS)
-			.blockingFirst();
-	}
+/**
+ * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
+ * Created on 26-01-21.
+ */
+public class TestCancelTimeout extends TestAllBase {
 
 	/**
-	 * Test that a command is properly cancelled when its timeout expires, and that
-	 * all side effects of the cancellation (like calling the listeners) work correctly.
+	 * Test that a cancelled command that does NOT terminate on a cancel
+	 * is still marked as failed on the server after the cancel response
+	 * timeout has passed.
 	 */
 	@Test
-	public void testTimeout() throws Exception {
+	public void testCancelTimeout() throws Exception {
 		setBeforeServerStart(server -> {
 			server.testOnly_setDelayPeriodAndInterval(0, 300, TimeUnit.MILLISECONDS);
+			server.testOnly_setCancelResponseTimeout(500);
 		});
-
 		waitConnected();
 
 		IJsonCommandHandler<StdoutCommandTestPacket> handler = new IJsonCommandHandler<StdoutCommandTestPacket>() {
@@ -74,7 +55,7 @@ public class TestTimeout extends TestAllBase {
 					m_thread = Thread.currentThread();
 				}
 				try {
-					Thread.sleep(15000);
+					Thread.sleep(5000);
 					return new JsonPacket();
 				} catch(InterruptedException x) {
 					throw new CancellationException("Command cancelled");
@@ -87,14 +68,7 @@ public class TestTimeout extends TestAllBase {
 
 			@Override
 			public void cancel(CommandContext ctx, CancelReasonCode code, @Nullable String cancelReason) throws Exception {
-				synchronized(this) {
-					Thread thread = m_thread;
-					if(null == thread) {
-						throw new IllegalStateException("Command not running while cancelling");
-					}
-					m_cancelled = true;
-					thread.interrupt();
-				}
+				// Do nothing
 			}
 		};
 
@@ -123,7 +97,11 @@ public class TestTimeout extends TestAllBase {
 			}
 		};
 
-		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(500), null, "Test command", l);
+		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(10000), null, "Test command", l);
+
+		Thread.sleep(250);
+		cmd.cancel(CancelReasonCode.USER, "Test cancel");
+
 		var cancellingCommand = server().observeServerEvents()
 			.filter(x->x.getType() == ServerEventType.cancelFinished)
 			.timeout(15, TimeUnit.SECONDS)
@@ -133,4 +111,5 @@ public class TestTimeout extends TestAllBase {
 		assertEquals("Listener must have one result", 1, eventList.size());
 		assertEquals("Command result must be a failed event", EvCommandError.class, eventList.get(0).getClass());
 	}
+
 }

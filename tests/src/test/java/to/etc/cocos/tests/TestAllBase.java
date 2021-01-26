@@ -1,5 +1,6 @@
 package to.etc.cocos.tests;
 
+import org.eclipse.jdt.annotation.Nullable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -13,7 +14,7 @@ import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.Hub;
-import to.etc.cocos.hub.parties.Client;
+import to.etc.function.ConsumerEx;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -50,6 +51,9 @@ public class TestAllBase {
 
 	private String m_allClientPassword = CLIENTPASSWORD;
 
+	@Nullable
+	private ConsumerEx<HubServer> m_beforeServerStart;
+
 	@Rule
 	public TestName m_testName = new TestName();
 
@@ -79,7 +83,7 @@ public class TestAllBase {
 		return client;
 	}
 
-	public HubServer server() {
+	public HubServer server() throws Exception {
 		HubServer server = m_server;
 		if(null == server) {
 			String id = SERVERNAME + "@" + CLUSTERNAME;
@@ -92,6 +96,11 @@ public class TestAllBase {
 
 			String pw = m_serverPassword != null ? m_serverPassword : CLUSTERPASSWORD;
 			m_server = server = HubServer.create(au, "localhost", HUBPORT, pw, id);
+			ConsumerEx<HubServer> beforeServerStart = m_beforeServerStart;
+			if(beforeServerStart != null) {
+				beforeServerStart.accept(server);
+			}
+
 			server.start();
 		}
 		return server;
@@ -106,7 +115,7 @@ public class TestAllBase {
 		return Arrays.equals(digest, response);
 	}
 
-	public HubServer serverConnected() {
+	public HubServer serverConnected() throws Exception {
 		server().observeConnectionState()
 			.doOnNext(a -> System.out.println(">> got state " + a))
 			.filter(a -> a == ConnectorState.AUTHENTICATED)
@@ -146,6 +155,11 @@ public class TestAllBase {
 
 		m_serverPassword = null;
 		m_clientPassword = null;
+		m_beforeServerStart = null;
+	}
+
+	public void setBeforeServerStart(@Nullable ConsumerEx<HubServer> beforeServerStart) {
+		m_beforeServerStart = beforeServerStart;
 	}
 
 	@Before
