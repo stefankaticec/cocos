@@ -4,6 +4,7 @@ import io.reactivex.rxjava3.core.Observable;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 
 ;
 
@@ -33,7 +34,7 @@ public interface IRemoteCommand {
 
 	Observable<ServerCommandEventBase> observeEvents();
 
-	void cancel(@NonNull String cancelReason) throws Exception;
+	void cancel(@NonNull CancelReasonCode code, @NonNull String cancelReason) throws Exception;
 
 	RemoteCommandStatus getStatus();
 }

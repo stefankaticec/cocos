@@ -4,6 +4,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.client.IClientCommandHandler;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.Command;
@@ -44,6 +45,8 @@ final public class CommandContext {
 	@Nullable
 	private Instant m_finishedAt;
 
+	@Nullable
+	private CancelReasonCode m_cancelCode;
 
 	public CommandContext(HubConnectorBase<?> connector, Envelope envelope, Peer peer) {
 		m_connector = connector;
@@ -188,17 +191,23 @@ final public class CommandContext {
 	public void setHandler(@Nullable IClientCommandHandler handler) {
 		synchronized(m_connector) {
 			if(m_cancelReason != null) {
-				throw new CommandFailedException("The command was cancelled: " + m_cancelReason);
+				throw new CommandFailedException("The command was cancelled: " + m_cancelReason + " (" + m_cancelCode +")");
 			}
 			m_handler = handler;
 		}
 	}
 
 	@Nullable
-	public IClientCommandHandler prepareCancellation(String cancelReason) {
+	public IClientCommandHandler prepareCancellation(CancelReasonCode code, String cancelReason) {
 		synchronized(m_connector) {
 			m_cancelReason = cancelReason;
+			m_cancelCode = code;
 			return m_handler;
 		}
+	}
+
+	@Override
+	public String toString() {
+		return getId();
 	}
 }

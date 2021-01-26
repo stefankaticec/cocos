@@ -7,6 +7,7 @@ import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
 import to.etc.cocos.messages.Hubcore.Command;
@@ -57,8 +58,8 @@ final public class SynchronousJsonCommandHandler<T extends JsonPacket> implement
 	}
 
 	@Override
-	public void cancel(CommandContext ctx, @Nullable String cancelReason) throws Exception {
-		m_jsonHandler.cancel(ctx, cancelReason);
+	public void cancel(CommandContext ctx, CancelReasonCode code, @Nullable String cancelReason) throws Exception {
+		m_jsonHandler.cancel(ctx, code, cancelReason);
 	}
 
 	@Nullable

@@ -8,6 +8,7 @@ import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.ProtocolViolationException;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
 import to.etc.cocos.messages.Hubcore.Command;
@@ -59,10 +60,6 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 					ctx.peer().send(ack, new JsonBodyTransmitter(result), Duration.ofHours(2), () -> {
 						System.err.println("ERROR Command response send failed");
 					});
-				//} catch(HubException hx) {
-				//	asyError = hx;
-				//	ctx.log("Command " + cmd.getName() + " failed: " + hx);
-				//	ctx.peer().respondWithHubErrorPacket(PacketPrio.NORMAL, hx);
 				} catch(Exception x) {
 					asyError = x;
 					ctx.log("Command " + cmd.getName() + " failed: " + x);
@@ -93,14 +90,14 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 	 * As the command only scheduled the command for execution we need to see if it already started...
 	 */
 	@Override
-	public void cancel(CommandContext ctx, @Nullable String cancelReason) throws Exception {
+	public void cancel(CommandContext ctx, CancelReasonCode code, @Nullable String cancelReason) throws Exception {
 		System.err.println("AsyncJsonCommand: cancel " + ctx.getId() + ": " + cancelReason);
 		synchronized(this) {
 			m_cancelReason = cancelReason;					// Make sure that IF it starts to run it will die again
 		}
 
 		if(ctx.getStatus() == RemoteCommandStatus.RUNNING) {
-			m_jsonHandler.cancel(ctx, cancelReason);		// Ask the handler to die
+			m_jsonHandler.cancel(ctx, code, cancelReason);		// Ask the handler to die
 		} else {
 			System.err.println("AsyncJsonCommand: cancel " + ctx.getId() + " failed, command is not running");
 		}

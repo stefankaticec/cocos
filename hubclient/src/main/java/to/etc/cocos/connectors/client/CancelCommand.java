@@ -23,7 +23,7 @@ final class CancelCommand implements IJsonCommandHandler<CancelPacket> {
 	@Override
 	public JsonPacket execute(CommandContext ctx, CancelPacket packet) throws Exception {
 		try {
-			m_daemon.cancelCommand(packet.getCommandId(), packet.getCancelReason());
+			m_daemon.cancelCommand(packet.getCommandId(), packet.getCode(), packet.getCancelReason());
 			return new CancelResultPacket();
 		} catch(Exception x) {
 			return new CancelResultPacket(x.toString());

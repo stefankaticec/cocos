@@ -16,7 +16,8 @@ public enum ErrorCode {
 	commandNotFound("The command {0} is unknown"),
 	commandException("Unexpected exception: {0}"),
 	commandSendError("The command could not be sent"),
-	peerRestarted("The peer daemon has restarted, the command has been cancelled because of that")
+	peerRestarted("The peer daemon has restarted, the command has been cancelled because of that"),
+	cancelTimeout("The command was cancelled, but no response was received from the cancelled action")
 	;
 
 	private String m_text;

@@ -15,6 +15,8 @@ public class CancelPacket extends JsonPacket {
 
 	private String m_cancelReason;
 
+	private CancelReasonCode m_code = CancelReasonCode.USER;
+
 	public String getCommandId() {
 		return m_commandId;
 	}
@@ -29,5 +31,13 @@ public class CancelPacket extends JsonPacket {
 
 	public void setCancelReason(String cancelReason) {
 		m_cancelReason = cancelReason;
+	}
+
+	public CancelReasonCode getCode() {
+		return m_code;
+	}
+
+	public void setCode(CancelReasonCode code) {
+		m_code = code;
 	}
 }

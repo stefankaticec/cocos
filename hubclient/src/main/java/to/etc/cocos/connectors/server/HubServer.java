@@ -23,6 +23,7 @@ import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
@@ -58,7 +59,10 @@ import java.util.stream.Collectors;
  */
 @NonNullByDefault
 final public class HubServer extends HubConnectorBase<RemoteClient> implements IRemoteClientHub {
+
 	private static final int MAX_QUEUED_COMMANDS = 1024;
+
+	public static final int CANCEL_RESPONSE_TIMEOUT = 60_000;
 
 	private final String m_serverVersion = "1.0";
 
@@ -84,7 +88,9 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	private ScheduledFuture<?> m_timeoutTask;
 
 	private static int m_timeoutDelay = 2;
+
 	private static int m_timeoutSchedule = 1;
+
 	private static TimeUnit m_timeoutUnit = TimeUnit.MINUTES;
 
 	private HubServer(String hubServer, int hubServerPort, String clusterPassword, IClientAuthenticator authenticator, String id) {
@@ -97,21 +103,24 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		replay.connect();
 
 		addListener(new IRemoteClientListener() {
-			@Override public void clientConnected(IRemoteClient client) throws Exception {
+			@Override
+			public void clientConnected(IRemoteClient client) throws Exception {
 				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientConnected, client));
 			}
 
-			@Override public void clientDisconnected(IRemoteClient client) throws Exception {
+			@Override
+			public void clientDisconnected(IRemoteClient client) throws Exception {
 				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientDisconnected, client));
 			}
 
-			@Override public void clientInventoryPacketReceived(RemoteClient client, JsonPacket packet) {
+			@Override
+			public void clientInventoryPacketReceived(RemoteClient client, JsonPacket packet) {
 				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.clientInventoryReceived, client));
 			}
 		});
 		observeConnectionState()
 			.subscribe(connectorState -> {
-				switch(connectorState) {
+				switch(connectorState){
 					default:
 						return;
 
@@ -155,7 +164,8 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		return 32;
 	}
 
-	@Override protected void onErrorPacket(Envelope env) {
+	@Override
+	protected void onErrorPacket(Envelope env) {
 		HubErrorResponse hubError = env.getHubError();
 		log("HUB error: " + hubError.getCode() + " " + hubError.getText());
 		forceDisconnect("HUB error received");
@@ -163,7 +173,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	@Override
 	protected void handleAckable(CommandContext cc, ArrayList<byte[]> body) throws Exception {
-		switch(cc.getSourceEnvelope().getAckable().getPayloadCase()) {
+		switch(cc.getSourceEnvelope().getAckable().getPayloadCase()){
 			default:
 				throw new ProtocolViolationException("Unexpected packet type=" + cc.getSourceEnvelope().getAckable().getPayloadCase());
 
@@ -251,8 +261,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 				.setChallengeResponse(ByteString.copyFrom(digest))
 				.setServerVersion(m_serverVersion)
 				.build()
-			).build()
-			;
+			).build();
 
 		sendPacketPrimitive(reply, null, () -> {
 			forceDisconnect("Challenge response send failed");
@@ -275,7 +284,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	protected void handleCLAUTH(Envelope env) throws Exception {
 		ClientAuthRequest clau = env.getClientAuth();
 		log("Client authentication request from " + clau.getClientId());
-		if(! m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion())) {
+		if(!m_authenticator.clientAuthenticated(clau.getClientId(), clau.getChallenge().toByteArray(), clau.getChallengeResponse().toByteArray(), clau.getClientVersion())) {
 			sendHubErrorPacket(env, ErrorCode.authenticationFailure, "");
 			return;
 		}
@@ -331,12 +340,12 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	@Override
 	protected void handleCLINVE(Envelope env, ArrayList<byte[]> body, Peer peer) throws Exception {
 		String dataFormat = env.getInventory().getDataFormat();
-		if(! CommandNames.isJsonDataFormat(dataFormat))
+		if(!CommandNames.isJsonDataFormat(dataFormat))
 			throw new ProtocolViolationException("Inventory packet must be in JSON format (not '" + dataFormat + "')");
 		Object o = decodeBody(dataFormat, body);
 		if(null == o)
 			throw new IllegalStateException("Missing inventory packet for inventory command");
-		if(! (o instanceof JsonPacket))
+		if(!(o instanceof JsonPacket))
 			throw new ProtocolViolationException("Inventory packet " + o.getClass().getName() + " does not extend JsonPacket");
 		JsonPacket packet = (JsonPacket) o;
 
@@ -380,6 +389,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	public List<IRemoteCommandListener> getCommandListeners() {
 		return m_commandListeners;
 	}
+
 	void callCommandListeners(ConsumerEx<IRemoteCommandListener> what) {
 		for(IRemoteCommandListener l : m_commandListeners) {
 			try {
@@ -419,7 +429,6 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 			if(null != m_commandMap.put(command.getCommandId(), command))
 				throw new IllegalStateException("Non-unique command id used!!");
-			System.out.println(m_commandMap);
 		}
 
 		Builder message = AckableMessage.newBuilder()
@@ -478,54 +487,58 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	private void handleCommandError(CommandContext ctx) {
 		CommandError err = ctx.getSourceEnvelope().getAckable().getCommandError();
-		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command error: " + err.getCode() + " " + err.getMessage());
 
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), err.getId(), err.getName());
 		if(command != null) {
-			System.out.println("GOt error "+ command.getCommandType());
+			ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command " + ctx.getId() + " (" + command.getCommandType() + ") error: " + err.getCode() + " " + err.getMessage());
 			failCommand(err, command);
 		} else {
-		  ctx.log("Command failed but command with id " + err.getId() + " was not found");
+			ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command " + ctx.getId() + " not found, error is: " + err.getCode() + " " + err.getMessage());
 		}
 	}
 
 	private void failCommand(CommandError err, RemoteCommand command) {
 		synchronized(this) {
-			if(command.getStatus() == RemoteCommandStatus.CANCELED) {
-				return;
-			}
+			// jal 20210126 A cancelled command can still receive an answer..
+			//if(command.getStatus() == RemoteCommandStatus.CANCELED) {
+			//	return;
+			//}
 			if(command.getStatus() == RemoteCommandStatus.FAILED || command.getStatus() == RemoteCommandStatus.FINISHED)
 				throw new IllegalStateException("Trying to re-fail an already finished command: " + command.getCommandId() + " " + err);
+			boolean wasCancelled = command.getStatus() == RemoteCommandStatus.CANCELED;
+
 			command.setStatus(RemoteCommandStatus.FAILED);
 			command.setFinishedAt(System.currentTimeMillis());
 			EvCommandError ev = new EvCommandError(command, err);
 			command.callCommandListeners(l -> l.errorEvent(ev));
+			if(wasCancelled)
+				m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.cancelFinished));
 		}
 	}
 
 	private void handleCommandFinished(CommandContext ctx, List<byte[]> data) throws IOException {
 		CommandResponse cr = ctx.getSourceEnvelope().getAckable().getResponse();
-		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command result: " + cr.getName());
+		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command " + ctx + " result: " + cr.getName());
 
 		//-- Decode any body
 		JsonPacket packet = null;
 		String dataFormat = cr.getDataFormat();
-		if(null != dataFormat && ! dataFormat.isBlank()) {
-			if(! CommandNames.isJsonDataFormat(dataFormat))
+		if(null != dataFormat && !dataFormat.isBlank()) {
+			if(!CommandNames.isJsonDataFormat(dataFormat))
 				throw new IllegalStateException("Unsupported response data type: " + dataFormat);
 			packet = (JsonPacket) decodeBody(dataFormat, data);
 		}
 
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), cr.getId(), cr.getName());
 		if(command == null) {
-			ctx.log("Command finished, but command with id "+ cr.getId() + " was not found");
+			ctx.log("Command finished, but command with id " + cr.getId() + " was not found");
 			return;
 		}
-		System.out.println("GOt finished "+ command.getCommandType());
+
 		if(command.getStatus() == RemoteCommandStatus.CANCELED) {
 			m_serverEventSubject.onNext(new ServerEventBase(ServerEventType.cancelFinished));
-			return;
 		}
+
 		synchronized(this) {
 			if(command.getStatus() == RemoteCommandStatus.FAILED || command.getStatus() == RemoteCommandStatus.FINISHED)
 				throw new IllegalStateException("Trying to re-finish an already finished command: " + command.getCommandId());
@@ -542,10 +555,10 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		CommandOutput output = ctx.getSourceEnvelope().getAckable().getOutput();
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), output.getId(), output.getName());
 		if(command == null) {
-			ctx.log("Output received, but command with id "+ output.getId() + " was not found");
+			ctx.log("Output received, but command with id " + output.getId() + " was not found");
 			return;
 		}
-		System.out.println("GOt output "+ command.getCommandType());
+		//System.out.println("GOt output " + command.getCommandType());
 		command.appendOutput(data, output.getCode());
 	}
 
@@ -590,13 +603,27 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		m_timeoutUnit = interval;
 	}
 
+	private void failCanceledCommand(RemoteCommand command) {
+		command.setStatus(RemoteCommandStatus.FAILED);
+		command.setFinishedAt(System.currentTimeMillis());
+		CommandError ce = CommandError.newBuilder().setCode(ErrorCode.cancelTimeout.name()).setMessage(ErrorCode.cancelTimeout.getText()).build();
+		EvCommandError ev = new EvCommandError(command, ce);
+		command.callCommandListeners(l -> l.errorEvent(ev));
+	}
+
 	private void cancelTimedOutCommands() {
+		long cts = System.currentTimeMillis();
 		for(RemoteCommand val : new ArrayList<>(m_commandMap.values())) {
-			if(val.hasTimedOut() && val.getStatus().isCancellable()) {
+			if(val.getStatus() == RemoteCommandStatus.CANCELED) {
+				//-- If we canceled it more than a minute ago -> force a termination to be sent.
+				if(cts - val.getCancelTime() > CANCEL_RESPONSE_TIMEOUT) {
+					failCanceledCommand(val);
+				}
+			} else if(val.hasTimedOut() && val.getStatus().isCancellable()) {
 				try {
-					val.cancel("Timeout");
-				}catch(Exception e){
-					System.out.println("Exception cancelling "+ val);
+					val.cancel(CancelReasonCode.TIMEOUT, "Timeout");
+				} catch(Exception e) {
+					System.out.println("Exception cancelling " + val);
 					e.printStackTrace();
 				}
 			}
