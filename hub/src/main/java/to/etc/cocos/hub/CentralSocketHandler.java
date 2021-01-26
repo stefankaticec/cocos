@@ -328,7 +328,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	private void txBuffer(ByteBuf buf) {
-		//System.out.println("> txbuffer " + buf);
 		ChannelFuture future = m_channel.writeAndFlush(buf);
 		future.addListener((ChannelFutureListener) f -> {
 			if(f.isSuccess()) {
@@ -379,13 +378,17 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			txBuffer(byteBuf);
 			return;
 		}
-		initiatePacketSending(getNextPacketToTransmit());
+		TxPacket nextPacketToTransmit = getNextPacketToTransmit();
+		if(null != nextPacketToTransmit) {
+			initiatePacketSending(nextPacketToTransmit);
+		//} else {
+		//	m_channel.flush();
+		}
 	}
 
 	/**
 	 * Send failed. Requeue the failed packet on the prio queue, then disconnect. When the remote reconnects
 	 * the packet is retried (unless we have a tx timeout).
-	 * @param cause
 	 */
 	private void txHandleFailedSend(@Nullable Throwable cause) {
 		TxPacket packet;

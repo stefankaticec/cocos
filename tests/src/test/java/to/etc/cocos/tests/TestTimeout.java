@@ -1,10 +1,14 @@
 package to.etc.cocos.tests;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import org.junit.Test;
+import to.etc.cocos.connectors.client.IJsonCommandHandler;
+import to.etc.cocos.connectors.common.CommandContext;
 import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.connectors.server.HubServer;
 import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.util.StringTool;
@@ -12,6 +16,7 @@ import to.etc.util.StringTool;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -44,23 +49,56 @@ public class TestTimeout extends TestAllBase {
 	public void testTimeout() throws Exception {
 		HubServer.testOnly_setDelayPeriodAndInterval(0, 300, TimeUnit.MILLISECONDS);
 		waitConnected();
-		client().registerJsonCommand(StdoutCommandTestPacket.class, () -> (ctx, packet) -> {
-			synchronized(this) {
-				wait(300);
+
+		IJsonCommandHandler<StdoutCommandTestPacket> handler = new IJsonCommandHandler<StdoutCommandTestPacket>() {
+			@Nullable
+			private Thread m_thread;
+
+			private boolean m_cancelled;
+
+			@Override
+			public JsonPacket execute(CommandContext ctx, StdoutCommandTestPacket packet) throws Exception {
+
+				synchronized(this) {
+					m_thread = Thread.currentThread();
+				}
+				try {
+					Thread.sleep(15000);
+					return new JsonPacket();
+				} catch(InterruptedException x) {
+					throw new CancellationException("Command cancelled");
+				} finally {
+					synchronized(this) {
+						m_thread = null;
+					}
+				}
+			};
+
+			@Override
+			public void cancel(CommandContext ctx, CancelReasonCode code, @Nullable String cancelReason) throws Exception {
+				synchronized(this) {
+					Thread thread = m_thread;
+					if(null == thread) {
+						throw new IllegalStateException("Command not running while cancelling");
+					}
+					m_cancelled = true;
+					thread.interrupt();
+				}
 			}
-			return new JsonPacket();
-		});
+		};
+
+		client().registerJsonCommandAsync(StdoutCommandTestPacket.class, () -> handler);
 		var client = server().getClientList().get(0);
 
 		StdoutCommandTestPacket p = new StdoutCommandTestPacket();
-		p.setParameters("Real command");
+		p.setParameters("Sleepy command");
 
-		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(50), null, "Test command", null);
+		var cmd = client.sendJsonCommand(StringTool.generateGUID(), p, Duration.ofMillis(500), null, "Test command", null);
 		var cancellingCommand = server().observeServerEvents()
 			.filter(x->x.getType() == ServerEventType.cancelFinished)
 			.timeout(15, TimeUnit.SECONDS)
 			.blockingFirst();
 
-		assertEquals(RemoteCommandStatus.CANCELED, cmd.getStatus());
+		assertEquals(RemoteCommandStatus.FAILED, cmd.getStatus());
 	}
 }
