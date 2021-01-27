@@ -17,6 +17,7 @@ import to.etc.cocos.connectors.server.ServerEventType;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.HubState;
 import to.etc.cocos.tests.InventoryTestPacket;
+import to.etc.function.ConsumerEx;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -25,7 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 @NonNullByDefault
-public class TestAllBaseNew {
+public class TestAllBase {
 	public static final int HUBPORT = 9890;
 
 	public static final String CLUSTERNAME = "junit";
@@ -58,12 +59,19 @@ public class TestAllBaseNew {
 
 	private String m_allClientPassword = CLIENTPASSWORD;
 
+	@Nullable
+	private ConsumerEx<HubServer> m_beforeServerStart;
+
 	@Rule
 	public TestName m_testName = new TestName();
 
 	@NonNull
 	private Hub createHub() throws Exception {
 		return new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList(), false);
+	}
+
+	public void setBeforeServerStart(@Nullable ConsumerEx<HubServer> beforeServerStart) {
+		m_beforeServerStart = beforeServerStart;
 	}
 
 	@Before
@@ -116,7 +124,7 @@ public class TestAllBaseNew {
 	/**
 	 * this starts a hub, a server and a client. They race to connect to each other
 	 */
-	public TestAllBaseNew startAllAndWaitConnected() throws Exception {
+	public TestAllBase startAllAndWaitConnected() throws Exception {
 		var set = createAllConnectedSet();
 		startAll();
 		set.await(Duration.ofSeconds(10));
@@ -127,7 +135,7 @@ public class TestAllBaseNew {
 	/**
 	 * This starts a hub, then a server, then a client in order. One operation waits for the other.
 	 */
-	public TestAllBaseNew startAllAndAwaitSequential() throws Exception {
+	public TestAllBase startAllAndAwaitSequential() throws Exception {
 		startHubSync();
 		startServerSync();
 		startClientSync();
@@ -135,7 +143,7 @@ public class TestAllBaseNew {
 		return this;
 	}
 
-	public TestAllBaseNew startAll() throws Exception {
+	public TestAllBase startAll() throws Exception {
 		getHub().startServer();
 		getServer().start();
 		getClient().start();
@@ -306,6 +314,10 @@ public class TestAllBaseNew {
 	public HubServer startServerSync() throws Exception {
 		var set = createConditionSet();
 		expectServerState(set, ConnectorState.AUTHENTICATED, "Server started");
+		ConsumerEx<HubServer> beforeServerStart = m_beforeServerStart;
+		if(beforeServerStart != null) {
+			beforeServerStart.accept(getServer());
+		}
 		getServer().start();
 		set.await(Duration.ofSeconds(5));
 		return getServer();

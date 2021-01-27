@@ -10,7 +10,7 @@ import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
-import to.etc.cocos.tests.framework.TestAllBaseNew;
+import to.etc.cocos.tests.framework.TestAllBase;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.StringTool;
 
@@ -23,7 +23,7 @@ import java.util.List;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 22-07-19.
  */
-public class TestCommands extends TestAllBaseNew {
+public class TestCommands extends TestAllBase {
 
 	@Test
 	public void testSendUnknownClientCommand() throws Exception {

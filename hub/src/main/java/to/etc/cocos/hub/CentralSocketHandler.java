@@ -365,7 +365,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	private void txBuffer(ByteBuf buf) {
-		//System.out.println("> txbuffer " + buf);
 		ChannelFuture future = m_channel.writeAndFlush(buf);
 		future.addListener((ChannelFutureListener) f -> {
 			if(f.isSuccess()) {
@@ -416,7 +415,12 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			txBuffer(byteBuf);
 			return;
 		}
-		initiatePacketSending(getNextPacketToTransmit());
+		TxPacket nextPacketToTransmit = getNextPacketToTransmit();
+		if(null != nextPacketToTransmit) {
+			initiatePacketSending(nextPacketToTransmit);
+		//} else {
+		//	m_channel.flush();
+		}
 	}
 
 	/**

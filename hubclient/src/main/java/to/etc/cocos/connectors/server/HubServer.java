@@ -20,6 +20,7 @@ import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.IServerEvent;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
@@ -56,7 +57,10 @@ import java.util.stream.Collectors;
  */
 @NonNullByDefault
 final public class HubServer extends HubConnectorBase<RemoteClient> implements IRemoteClientHub {
+
 	private static final int MAX_QUEUED_COMMANDS = 1024;
+
+	public static final int CANCEL_RESPONSE_TIMEOUT = 60_000;
 
 	private final String m_serverVersion = "1.0";
 
@@ -73,11 +77,15 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 	@Nullable
 	private ScheduledFuture<?> m_timeoutTask;
 
-	private static int m_timeoutDelay = 2;
+	private volatile int m_timeoutDelay = 2;
 
-	private static int m_timeoutSchedule = 1;
 
-	private static TimeUnit m_timeoutUnit = TimeUnit.MINUTES;
+	private volatile int m_timeoutSchedule = 1;
+
+
+	private volatile long m_cancelResponseTimeout = CANCEL_RESPONSE_TIMEOUT;
+
+	private volatile TimeUnit m_timeoutUnit = TimeUnit.MINUTES;
 
 	private List<Consumer<IServerEvent>> m_serverEventListeners = new CopyOnWriteArrayList<>();
 
@@ -411,7 +419,6 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 			if(null != m_commandMap.put(command.getCommandId(), command))
 				throw new IllegalStateException("Non-unique command id used!!");
-			System.out.println(m_commandMap);
 		}
 
 		Builder message = AckableMessage.newBuilder()
@@ -470,35 +477,39 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	private void handleCommandError(CommandContext ctx) {
 		CommandError err = ctx.getSourceEnvelope().getAckable().getCommandError();
-		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command error: " + err.getCode() + " " + err.getMessage());
 
 		RemoteCommand command = getCommandFromID(ctx.getSourceEnvelope().getSourceId(), err.getId(), err.getName());
 		if(command != null) {
-			System.out.println("GOt error " + command.getCommandType());
+			ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command " + ctx.getId() + " (" + command.getCommandType() + ") error: " + err.getCode() + " " + err.getMessage());
 			failCommand(err, command);
 		} else {
-			ctx.log("Command failed but command with id " + err.getId() + " was not found");
+			ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command " + ctx.getId() + " not found, error is: " + err.getCode() + " " + err.getMessage());
 		}
 	}
 
 	private void failCommand(CommandError err, RemoteCommand command) {
 		callServerEventListeners(new EvCommandError(command, err));
 		synchronized(this) {
-			if(command.getStatus() == RemoteCommandStatus.CANCELED) {
-				return;
-			}
+			// jal 20210126 A cancelled command can still receive an answer..
+			//if(command.getStatus() == RemoteCommandStatus.CANCELED) {
+			//	return;
+			//}
 			if(command.getStatus() == RemoteCommandStatus.FAILED || command.getStatus() == RemoteCommandStatus.FINISHED)
 				throw new IllegalStateException("Trying to re-fail an already finished command: " + command.getCommandId() + " " + err);
+			boolean wasCancelled = command.getStatus() == RemoteCommandStatus.CANCELED;
+
 			command.setStatus(RemoteCommandStatus.FAILED);
 			command.setFinishedAt(System.currentTimeMillis());
 			EvCommandError ev = new EvCommandError(command, err);
 			command.callCommandListeners(l -> l.errorEvent(ev));
+			//ServerEventBase event = new ServerEventBase(ServerEventType.cancelFinished);
+			//callServerEventListeners(event);
 		}
 	}
 
 	private void handleCommandFinished(CommandContext ctx, List<byte[]> data) throws IOException {
 		CommandResponse cr = ctx.getSourceEnvelope().getAckable().getResponse();
-		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command result: " + cr.getName());
+		ctx.log("Client " + ctx.getSourceEnvelope().getSourceId() + " command " + ctx + " result: " + cr.getName());
 
 		//-- Decode any body
 		JsonPacket packet = null;
@@ -516,10 +527,10 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		}
 		if(command.getStatus() == RemoteCommandStatus.CANCELED) {
 			System.out.println(">>> HubServer: cancel finished");
-			ServerEventBase event = new ServerEventBase(ServerEventType.cancelFinished);
-			callServerEventListeners(event);
-			return;
+			//ServerEventBase event = new ServerEventBase(ServerEventType.cancelFinished);
+			//callServerEventListeners(event);
 		}
+
 		synchronized(this) {
 			if(command.getStatus() == RemoteCommandStatus.FAILED || command.getStatus() == RemoteCommandStatus.FINISHED)
 				throw new IllegalStateException("Trying to re-finish an already finished command: " + command.getCommandId());
@@ -550,7 +561,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 			ctx.log("Output received, but command with id " + output.getId() + " was not found");
 			return;
 		}
-		System.out.println("GOt output " + command.getCommandType());
+		//System.out.println("GOt output " + command.getCommandType());
 		command.appendOutput(data, output.getCode());
 	}
 
@@ -590,17 +601,37 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		m_timeoutTask = TimerUtil.scheduleAtFixedRate(m_timeoutDelay, m_timeoutSchedule, m_timeoutUnit, this::cancelTimedOutCommands);
 	}
 
-	public static void testOnly_setDelayPeriodAndInterval(int delay, int period, TimeUnit interval) {
+	public void testOnly_setDelayPeriodAndInterval(int delay, int period, TimeUnit interval) {
 		m_timeoutDelay = delay;
 		m_timeoutSchedule = period;
 		m_timeoutUnit = interval;
 	}
 
+	public void testOnly_setCancelResponseTimeout(long millis) {
+		m_cancelResponseTimeout = millis;
+	}
+
+	private void failCanceledCommand(RemoteCommand command) {
+		command.setStatus(RemoteCommandStatus.FAILED);
+		command.setFinishedAt(System.currentTimeMillis());
+		CommandError ce = CommandError.newBuilder().setCode(ErrorCode.cancelTimeout.name()).setMessage(ErrorCode.cancelTimeout.getText()).build();
+		EvCommandError ev = new EvCommandError(command, ce);
+		command.callCommandListeners(l -> l.errorEvent(ev));
+		//ServerEventBase event = new ServerEventBase(ServerEventType.cancelFinished);
+		//callServerEventListeners(event);
+	}
+
 	private void cancelTimedOutCommands() {
+		long cts = System.currentTimeMillis();
 		for(RemoteCommand val : new ArrayList<>(m_commandMap.values())) {
-			if(val.hasTimedOut() && val.getStatus().isCancellable()) {
+			if(val.getStatus() == RemoteCommandStatus.CANCELED) {
+				//-- If we canceled it more than a minute ago -> force a termination to be sent.
+				if(cts - val.getCancelTime() > m_cancelResponseTimeout) {
+					failCanceledCommand(val);
+				}
+			} else if(val.hasTimedOut() && val.getStatus().isCancellable()) {
 				try {
-					val.cancel("Timeout");
+					val.cancel(CancelReasonCode.TIMEOUT, "Timeout");
 				} catch(Exception e) {
 					System.out.println("Exception cancelling " + val);
 					e.printStackTrace();

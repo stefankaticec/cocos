@@ -58,7 +58,6 @@ public class TestCondition {
 			m_exception = e;
 			m_scenario.notify();
 		}
-		failed(e.getMessage());
 	}
 
 	public void failed(String why) {

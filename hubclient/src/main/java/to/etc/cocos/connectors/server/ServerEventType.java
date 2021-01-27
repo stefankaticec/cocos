@@ -13,7 +13,7 @@ public enum ServerEventType implements IServerEventType {
 	clientDisconnected,
 	clientInventoryReceived,
 	peerRestarted,
-	cancelFinished,
+	//cancelFinished,
 
 	//-- Commands
 	commandError,

@@ -11,6 +11,7 @@ import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.common.Peer;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
 import to.etc.cocos.connectors.packets.CancelPacket;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.AckableMessage.Builder;
@@ -182,18 +183,20 @@ final public class HubClient extends HubConnectorBase<Peer> {
 		}
 	}
 
-	public void cancelCommand(String commandId, String cancelReason) throws Exception {
+	public void cancelCommand(String commandId, @Nullable CancelReasonCode code, String cancelReason) throws Exception {
+		if(code == null)
+			code = CancelReasonCode.USER;
 		CommandContext commandContext = m_commandMap.get(commandId);
 		if(null == commandContext) {							// Not there: command is cancelled or has finished before.
 			error("Cancel command failed: id " + commandId + " not found");
 			return;
 		}
-		IClientCommandHandler handler = commandContext.prepareCancellation(cancelReason);
+		IClientCommandHandler handler = commandContext.prepareCancellation(code, cancelReason);
 		if(null == handler) {
 			error("Cancel command failed: no handler returned for id=" + commandId);
 			return;												// No handler: not running yet, but marked for cancellation as soon as it tries to run.
 		}
-		handler.cancel(commandContext, cancelReason);			// Ask the thing to cancel
+		handler.cancel(commandContext, code, cancelReason);			// Ask the thing to cancel
 	}
 
 	/**

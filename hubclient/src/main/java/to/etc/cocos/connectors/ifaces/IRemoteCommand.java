@@ -3,6 +3,7 @@ package to.etc.cocos.connectors.ifaces;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 
 ;
 
@@ -30,7 +31,7 @@ public interface IRemoteCommand {
 	@Nullable
 	<T> T getAttribute(Class<T> clz);
 
-	void cancel(@NonNull String cancelReason) throws Exception;
+	void cancel(@NonNull CancelReasonCode code, @NonNull String cancelReason) throws Exception;
 
 	RemoteCommandStatus getStatus();
 }

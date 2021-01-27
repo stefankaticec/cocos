@@ -5,7 +5,7 @@ import org.junit.Test;
 import to.etc.cocos.connectors.common.JsonPacket;
 import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.server.ServerEventType;
-import to.etc.cocos.tests.framework.TestAllBaseNew;
+import to.etc.cocos.tests.framework.TestAllBase;
 import to.etc.util.StringTool;
 
 import java.time.Duration;
@@ -13,7 +13,7 @@ import java.time.temporal.ChronoUnit;
 
 
 @NonNullByDefault
-public class TestPeerRestarted extends TestAllBaseNew {
+public class TestPeerRestarted extends TestAllBase {
 
 
 	@Test
@@ -44,9 +44,6 @@ public class TestPeerRestarted extends TestAllBaseNew {
 		var cancelledCommandFinished = expectCommandErrors.createCondition("Command cancelling finished");
 		getServer().addServerEventListener(event -> {
 			System.out.println("Got event: " + event.getType());
-			if(event.getType() == ServerEventType.cancelFinished) {
-				cancelledCommandFinished.failed("Canceled?");
-			}
 			if(event.getType() == ServerEventType.commandFinished) {
 				cancelledCommandFinished.failed("Command should not finish");
 			}

@@ -9,6 +9,7 @@ import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.ifaces.RemoteCommandStatus;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.function.ConsumerEx;
 
@@ -61,6 +62,8 @@ final public class RemoteCommand implements IRemoteCommand {
 	final private CharBuffer m_outBuffer = CharBuffer.allocate(8192*4);
 
 	final private ByteBuffer m_inBuffer = ByteBuffer.allocate(8192);
+
+	private long m_cancelTime;
 
 	enum RemoteCommandType {
 		Command, Cancel
@@ -170,12 +173,14 @@ final public class RemoteCommand implements IRemoteCommand {
 	}
 
 	@Override
-	public RemoteCommandStatus getStatus() {
+	public synchronized RemoteCommandStatus getStatus() {
 		return m_status;
 	}
 
-	public void setStatus(RemoteCommandStatus status) {
+	public synchronized void setStatus(RemoteCommandStatus status) {
 		m_status = status;
+		if(status == RemoteCommandStatus.CANCELED)
+			m_cancelTime = System.currentTimeMillis();
 	}
 
 	public void setError(CommandError commandError) {
@@ -245,14 +250,14 @@ final public class RemoteCommand implements IRemoteCommand {
 	 * Send a CANCEL request for this command.
 	 */
 	@Override
-	public void cancel(@NonNull String cancelReason) throws Exception {
+	public void cancel(@NonNull CancelReasonCode code, @NonNull String cancelReason) throws Exception {
 		if(!getStatus().isCancellable()) {
 			throw new IllegalStateException("Cant cancel a command with status "+ getStatus());
 		}
 		setStatus(RemoteCommandStatus.CANCELED);
 		if(getCommandType() == RemoteCommandType.Cancel)						// Do not cancel cancels.
 			return;
-		m_client.sendCancel(getCommandId(), cancelReason);
+		m_client.sendCancel(getCommandId(), code, cancelReason);
 	}
 
 	@Override
@@ -260,7 +265,11 @@ final public class RemoteCommand implements IRemoteCommand {
 		return m_commandId + ":" + m_description;
 	}
 
-	public boolean hasTimedOut() {
+	boolean hasTimedOut() {
 		return m_startedAt + getCommandTimeout().toMillis() < System.currentTimeMillis();
+	}
+
+	public synchronized long getCancelTime() {
+		return m_cancelTime;
 	}
 }

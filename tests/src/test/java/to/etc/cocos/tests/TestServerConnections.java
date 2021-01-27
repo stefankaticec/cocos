@@ -4,7 +4,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
-import to.etc.cocos.tests.framework.TestAllBaseNew;
+import to.etc.cocos.tests.framework.TestAllBase;
 import to.etc.hubserver.protocol.ErrorCode;
 
 import java.util.ArrayList;
@@ -14,7 +14,7 @@ import java.util.Arrays;
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
  * Created on 30-6-19.
  */
-public class TestServerConnections extends TestAllBaseNew {
+public class TestServerConnections extends TestAllBase {
 
 	/**
 	 * The server should reach AUTH state.

@@ -11,6 +11,7 @@ import to.etc.cocos.connectors.ifaces.IRemoteClient;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
 import to.etc.cocos.connectors.packets.CancelPacket;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 import to.etc.cocos.connectors.server.RemoteCommand.RemoteCommandType;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
@@ -113,11 +114,12 @@ final public class RemoteClient extends Peer implements IRemoteClient {
 	 * Send a command cancel packet to the client.
 	 */
 	@Override
-	public IRemoteCommand sendCancel(String commandId, String reason) throws Exception {
-		ConsoleUtil.consoleWarning("remoteCommand", "Cancelling command " + commandId + ": " + reason);
+	public IRemoteCommand sendCancel(String commandId, CancelReasonCode code, String reason) throws Exception {
+		ConsoleUtil.consoleWarning("remoteCommand", "Cancelling command " + commandId + ": " + reason + " (" + code + ")");
 		CancelPacket cp = new CancelPacket();
 		cp.setCancelReason(reason);
 		cp.setCommandId(commandId);
+		cp.setCode(code);
 		return sendJsonCommand(StringTool.generateGUID(), cp, Duration.of(30, ChronoUnit.SECONDS), null, "Cancelling " + this, null, RemoteCommandType.Cancel);
 	}
 

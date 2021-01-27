@@ -3,6 +3,7 @@ package to.etc.cocos.connectors.client;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.packets.CancelReasonCode;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -15,5 +16,5 @@ import java.util.function.Consumer;
 public interface IClientCommandHandler {
 	void execute(CommandContext ctx, List<byte[]> data, Consumer<Throwable> onComplete) throws Exception;
 
-	void cancel(CommandContext ctx, @Nullable String cancelReason) throws Exception;
+	void cancel(CommandContext ctx, CancelReasonCode code, @Nullable String cancelReason) throws Exception;
 }
