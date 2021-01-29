@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 @NonNullByDefault
 final public class TestConditionSet {
@@ -18,15 +19,23 @@ final public class TestConditionSet {
 		var endTime = System.currentTimeMillis() + timeout.toMillis();
 		synchronized(this) {
 			while(true) {
+				System.out.println("Start");
 				var unresolved = new ArrayList<TestCondition>();
 				for(TestCondition testCondition : m_testConditionList) {
+					System.out.println("test conditin "+ testCondition.getName());
 					Exception exception = testCondition.getException();
+					System.out.println("exception " + exception);
 					if(null != exception)
 						throw exception;
-					if(!testCondition.isResolved())
+					if(!testCondition.isResolved()) {
+						System.out.println("Unresolved");
 						unresolved.add(testCondition);
+					}else {
+						System.out.println("Resolved");
+					}
 				}
 				if(unresolved.isEmpty()) {
+					System.out.println(String.join(",", m_testConditionList.stream().map(x->x.getName()).collect(Collectors.toUnmodifiableList())));
 					return;
 				}
 				var currentTime = System.currentTimeMillis();
@@ -34,6 +43,7 @@ final public class TestConditionSet {
 				if(remaining <= 0) {
 					throw new TestConditionTimeoutException(timeout, unresolved);
 				}
+				System.out.println(remaining);
 				wait(remaining);
 			}
 		}

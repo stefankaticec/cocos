@@ -14,6 +14,7 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.util.concurrent.Future;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -101,6 +102,10 @@ final public class Hub {
 	private HubState m_state = HubState.STOPPED;
 
 	private List<ConsumerEx<HubState>> m_stateListeners = new CopyOnWriteArrayList<>();
+	@Nullable
+	private EventLoopGroup m_bossGroup;
+	@Nullable
+	private EventLoopGroup m_workerGroup;
 
 	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, boolean startTelnet) throws Exception {
 		m_port = port;
@@ -131,12 +136,12 @@ final public class Hub {
 		EventLoopGroup workerGroup;
 		Class<? extends ServerChannel> channelClass;
 		if(m_useNio) {
-			bossGroup = new NioEventLoopGroup(m_listenerThreads);
-			workerGroup = new NioEventLoopGroup();
+			m_bossGroup = bossGroup = new NioEventLoopGroup(m_listenerThreads);
+			m_workerGroup = workerGroup = new NioEventLoopGroup();
 			channelClass = NioServerSocketChannel.class;
 		} else {
-			bossGroup = new EpollEventLoopGroup(m_listenerThreads);
-			workerGroup = new EpollEventLoopGroup();
+			m_bossGroup =bossGroup = new EpollEventLoopGroup(m_listenerThreads);
+			m_workerGroup =workerGroup = new EpollEventLoopGroup();
 			channelClass = EpollServerSocketChannel.class;
 		}
 
@@ -164,8 +169,6 @@ final public class Hub {
 			notifyStateListeners(HubState.STARTED);
 			closeFuture.addListener(future -> {
 				ConsoleUtil.consoleLog("Hub", "Server closing down: releasing thread pools");
-				bossGroup.shutdownGracefully();
-				workerGroup.shutdownGracefully();
 				TimerUtil.shutdownNow();
 				synchronized(this) {
 					m_closeFuture = null;
@@ -182,8 +185,7 @@ final public class Hub {
 			throw e;
 		} finally {
 			if(failed) {
-				bossGroup.shutdownGracefully();
-				workerGroup.shutdownGracefully();
+				shutDownEventLoops();
 
 				synchronized(this) {
 					m_state = HubState.STOPPED;
@@ -252,7 +254,27 @@ final public class Hub {
 				return;
 			m_closeFuture = null;
 		}
+		shutDownEventLoops();
 		closeFuture.sync();
+	}
+
+	private void shutDownEventLoops() throws Exception {
+		var bossGroup = m_bossGroup;
+		Future<?> bossGroupFuture = null;
+		Future<?> workerGroupFuture = null;
+		if(bossGroup != null) {
+			bossGroupFuture = bossGroup.shutdownGracefully();
+		}
+		var workerGroup = m_workerGroup;
+		if(workerGroup != null) {
+			workerGroupFuture = workerGroup.shutdownGracefully();
+		}
+		if(bossGroupFuture != null) {
+			bossGroupFuture.sync();
+		}
+		if(workerGroupFuture != null) {
+			workerGroupFuture.sync();
+		}
 	}
 
 	private X509Certificate getServerCertificate() throws Exception {

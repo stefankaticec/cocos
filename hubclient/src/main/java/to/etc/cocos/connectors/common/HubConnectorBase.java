@@ -255,7 +255,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			m_nextReconnect = 0;
 			m_reconnectCount = 0;
 
-			Thread wt = m_writerThread = new Thread(this::writerMain, "cw#" + m_id);
+			Thread wt = m_writerThread = new Thread(this::writerMain, "cw-"+getClass().getSimpleName()+"#" + m_id);
 			wt.setDaemon(true);
 			internalStart();
 			wt.start();
@@ -296,13 +296,19 @@ public abstract class HubConnectorBase<T extends Peer> {
 		}
 		if(null != rt) {
 			rt.join(5_000);
-			if(rt.isAlive())
+			if(rt.isAlive()) {
 				error("Reader thread does not want to die");
+			} else {
+				log("Reader thread terminated.");
+			}
 		}
 		if(null != wt) {
 			wt.join(5_000);
-			if(wt.isAlive())
+			if(wt.isAlive()) {
 				error("Writer thread does not want to die");
+			} else {
+				log("Writer thread terminated.");
+			}
 		}
 	}
 
@@ -399,7 +405,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 		synchronized(this) {
 			ConnectorState state = getState();
-
+			System.out.println(state);
 			switch(state) {
 				default:
 					log("Illegal state in writer: " + state);
@@ -592,9 +598,17 @@ public abstract class HubConnectorBase<T extends Peer> {
 			sb.append("ID is ").append(new BigInteger(session.getId())).append("\n");
 			sb.append("Session created in ").append(session.getCreationTime()).append("\n");
 			sb.append("Session accessed in ").append(session.getLastAccessedTime()).append("\n");
+			if(getState() != ConnectorState.RECONNECT_WAIT && getState() != ConnectorState.CONNECTING){
+				try {
+					s.close();
+				}catch(Exception e) {
+
+				}
+				return;
+			}
 			log(sb.toString());
 
-			Thread th = m_readerThread = new Thread(this::readerMain, "cr#" + m_id);
+			Thread th = m_readerThread = new Thread(this::readerMain, "cr-"+getClass().getSimpleName()+"#" + m_id);
 			th.setDaemon(true);
 			th.start();
 			synchronized(this) {
@@ -631,8 +645,10 @@ public abstract class HubConnectorBase<T extends Peer> {
 				executePacket();
 			}
 		} catch(SocketEofException | SSLException eofx) {
+			System.out.println("Got exception, my state is: "+ getState());
 			if(isRunning()) {
 				ConsoleUtil.consoleLog("reader terminated because of eof: " + eofx.getMessage());
+				eofx.printStackTrace();
 				disconnectReason = "Server disconnect";
 			}
 		} catch(Exception x) {

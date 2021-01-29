@@ -7,7 +7,7 @@ import to.etc.cocos.tests.framework.TestAllBase;
 @NonNullByDefault
 public class ConnectDisconnectTests {
 
-	@Test(timeout = 60_000)
+	@Test(timeout = 120_000)
 	public void testConnectDisconnect() throws Exception{
 		for(var i = 0; i < 10; i++) {
 			var tb = new TestAllBase();

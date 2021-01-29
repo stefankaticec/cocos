@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.function.Consumer;
 
 @NonNullByDefault
 public class TestAllBase {
@@ -86,6 +87,7 @@ public class TestAllBase {
 	@After
 	public void tearDown() throws Exception {
 		var closeSet = createConditionSet();
+		System.out.println("-----------------------Start teardown-------------------------");
 
 		var hub = m_hub;
 		if(hub != null){
@@ -93,6 +95,7 @@ public class TestAllBase {
 			hub.terminateAndWait();
 			m_hub = null;
 		}
+		System.out.println("-----------------------HUB TERMINATED-------------------------");
 
 		var server = m_server;
 		if(server != null) {
@@ -100,6 +103,7 @@ public class TestAllBase {
 			server.terminateAndWait();
 			m_server = null;
 		}
+		System.out.println("-----------------------SERVER TERMINATED-------------------------");
 
 		var client = m_client;
 		if(client != null) {
@@ -107,6 +111,7 @@ public class TestAllBase {
 			client.terminateAndWait();
 			m_client = null;
 		}
+		System.out.println("-----------------------CLIENT TERMINATED-------------------------");
 
 		closeSet.await(Duration.ofSeconds(10));
 	}
@@ -164,6 +169,7 @@ public class TestAllBase {
 	public HubServer getServer() {
 		var server = m_server;
 		if(server == null) {
+			System.out.println("Creating server!");
 			server = m_server = createServer();
 		}
 		return server;
@@ -250,6 +256,7 @@ public class TestAllBase {
 	public TestConditionSet expectServerEvent(TestConditionSet set, ServerEventType type, String name){
 		var condition = set.createCondition(name);
 		getServer().addServerEventListener(event -> {
+			System.out.println("got server event: "+event);
 			if(condition.isResolved()) {
 				return;
 			}
@@ -272,6 +279,7 @@ public class TestAllBase {
 				return;
 			}
 			if(state == s) {
+				System.out.println("resolving server state"+ s);
 				condition.resolved();
 			}
 		});
@@ -285,6 +293,7 @@ public class TestAllBase {
 				return;
 			}
 			if(state == expectedState) {
+				System.out.println("resolving client state "+ state);
 				co.resolved();
 			}
 		});
@@ -293,11 +302,11 @@ public class TestAllBase {
 	public void expectHubState(TestConditionSet set, HubState expectedState, String name) throws Exception {
 		var condition = set.createCondition(name);
 		getHub().addStateListener(state->{
-			System.out.println("$$$$hub got state " + state);
 			if(condition.isResolved()) {
 				return;
 			}
 			if(state == expectedState) {
+				System.out.println("resolving huh state "+ state);
 				condition.resolved();
 			}
 		});
@@ -307,7 +316,7 @@ public class TestAllBase {
 		var set = createConditionSet();
 		expectHubState(set, HubState.STARTED, "Hub started");
 		getHub().startServer();
-		set.await(Duration.ofSeconds(5));
+		set.await(Duration.ofSeconds(10));
 		return getHub();
 	}
 
@@ -319,7 +328,9 @@ public class TestAllBase {
 			beforeServerStart.accept(getServer());
 		}
 		getServer().start();
-		set.await(Duration.ofSeconds(5));
+		System.out.println("await");
+		set.await(Duration.ofSeconds(10));
+		System.out.println("continue");
 		return getServer();
 	}
 
@@ -328,7 +339,7 @@ public class TestAllBase {
 		expectPeerRestarted(set);
 		expectClientState(set, ConnectorState.AUTHENTICATED, "Client started");
 		getClient().start();
-		set.await(Duration.ofSeconds(5));
+		set.await(Duration.ofSeconds(10));
 		return getClient();
 	}
 
