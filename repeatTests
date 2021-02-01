@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # always do an initial full build 1st
-mvn clean install
+mvn11 clean install
 if [ $? != 0 ]; then
   echo "Failed tests"
   exit 10
 fi
 
 while true; do
-  mvn clean install -rf :tests
+  mvn11 clean install -rf :tests
   if [ $? != 0 ]; then
     echo "Failed tests"
     exit 10

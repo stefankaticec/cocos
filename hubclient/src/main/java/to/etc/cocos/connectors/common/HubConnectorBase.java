@@ -405,7 +405,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 		synchronized(this) {
 			ConnectorState state = getState();
-			System.out.println(state);
 			switch(state) {
 				default:
 					log("Illegal state in writer: " + state);

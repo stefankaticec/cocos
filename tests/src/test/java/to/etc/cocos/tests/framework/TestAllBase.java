@@ -169,7 +169,6 @@ public class TestAllBase {
 	public HubServer getServer() {
 		var server = m_server;
 		if(server == null) {
-			System.out.println("Creating server!");
 			server = m_server = createServer();
 		}
 		return server;
