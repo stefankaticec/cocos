@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.connectors.common.CommandContext;
+import to.etc.cocos.connectors.common.ConnectorState;
 import to.etc.cocos.connectors.common.HubConnectorBase;
 import to.etc.cocos.connectors.common.JsonBodyTransmitter;
 import to.etc.cocos.connectors.common.JsonPacket;
@@ -50,6 +51,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -646,5 +649,14 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 
 	public void removeServerEventListener(ConsumerEx<IServerEvent> listener) {
 		m_serverEventListeners.remove(listener);
+	}
+
+	public void continueRunningCommands(List<RemoteCommand> commands) {
+		if(getState() != ConnectorState.STOPPED) {
+			throw new IllegalStateException("Cant continue commands if the state is not STOPPED. Current state:" + getState());
+		}
+		synchronized(this) {
+			m_commandMap.putAll(commands.stream().collect(toMap(RemoteCommand::getCommandId, x -> x)));
+		}
 	}
 }

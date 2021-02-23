@@ -65,7 +65,7 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	private long m_cancelTime;
 
-	enum RemoteCommandType {
+	public enum RemoteCommandType {
 		Command, Cancel
 	}
 
