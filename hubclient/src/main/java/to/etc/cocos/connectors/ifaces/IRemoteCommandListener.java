@@ -1,6 +1,7 @@
 package to.etc.cocos.connectors.ifaces;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import to.etc.cocos.connectors.server.RemoteCommand;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -13,4 +14,6 @@ public interface IRemoteCommandListener {
 	default void completedEvent(EvCommandFinished ev) throws Exception {}
 
 	default void stdoutEvent(EvCommandOutput ev) throws Exception {}
+
+	default void progressEvent(RemoteCommand command, int progressPercentage, String progressMessage) throws Exception {}
 }

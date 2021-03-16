@@ -3,8 +3,6 @@ package to.etc.cocos.connectors.server;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import to.etc.cocos.connectors.ifaces.EvCommandError;
-import to.etc.cocos.connectors.ifaces.EvCommandFinished;
 import to.etc.cocos.connectors.ifaces.EvCommandOutput;
 import to.etc.cocos.connectors.ifaces.IRemoteCommand;
 import to.etc.cocos.connectors.ifaces.IRemoteCommandListener;
@@ -22,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -71,6 +71,8 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	private final RemoteCommandType m_commandType;
 
+	static private final Pattern PROGRESS_PATTERN = Pattern.compile("\\[PROGRESS\\] (\\d[\\d]?)% (.*)\n");
+
 	public RemoteCommand(RemoteClient client, String commandId, Duration commandTimeout, @Nullable String commandKey, String description, RemoteCommandType type) {
 		m_commandId = commandId;
 		m_client = client;
@@ -79,24 +81,24 @@ final public class RemoteCommand implements IRemoteCommand {
 		m_description = description;
 		m_startedAt = System.currentTimeMillis();
 		m_commandType = type;
-		addListener(new IRemoteCommandListener() {
-			@Override
-			public void errorEvent(EvCommandError errorEvent) throws Exception {
-				//m_eventPublisher.onNext(errorEvent);
-				//m_eventPublisher.onComplete();
-			}
-
-			@Override
-			public void completedEvent(EvCommandFinished ev) throws Exception {
-				//m_eventPublisher.onNext(ev);
-				//m_eventPublisher.onComplete();
-			}
-
-			@Override
-			public void stdoutEvent(EvCommandOutput ev) throws Exception {
-				//m_eventPublisher.onNext(ev);
-			}
-		});
+		//addListener(new IRemoteCommandListener() {
+		//	@Override
+		//	public void errorEvent(EvCommandError errorEvent) throws Exception {
+		//		//m_eventPublisher.onNext(errorEvent);
+		//		//m_eventPublisher.onComplete();
+		//	}
+		//
+		//	@Override
+		//	public void completedEvent(EvCommandFinished ev) throws Exception {
+		//		//m_eventPublisher.onNext(ev);
+		//		//m_eventPublisher.onComplete();
+		//	}
+		//
+		//	@Override
+		//	public void stdoutEvent(EvCommandOutput ev) throws Exception {
+		//		//m_eventPublisher.onNext(ev);
+		//	}
+		//});
 	}
 
 	public RemoteCommandType getCommandType() {
@@ -199,11 +201,6 @@ final public class RemoteCommand implements IRemoteCommand {
 		return m_startedAt;
 	}
 
-	//@Override
-	//public PublishSubject<ServerCommandEventBase> observeEvents() {
-	//	return m_eventPublisher;
-	//}
-
 	public synchronized void appendOutput(List<byte[]> data, String code) {
 		CharsetDecoder decoder = m_decoder;
 		if(null == decoder) {
@@ -220,8 +217,26 @@ final public class RemoteCommand implements IRemoteCommand {
 		if(sb.length() > 0) {
 			EvCommandOutput eco = new EvCommandOutput(this, code, sb.toString());
 			callCommandListeners(l -> l.stdoutEvent(eco));
+			progressScanner(sb);
 		}
 	}
+
+	private void progressScanner(StringBuilder sb) {
+		Matcher m = PROGRESS_PATTERN.matcher(sb);
+		int lastProgress = -1;
+		String lastMessage = null;
+		while(m.find()) {
+			lastProgress = Integer.parseInt(m.group(1));
+			lastMessage = m.group(2);
+		}
+
+		if(lastProgress != -1) {
+			int javaSucksLastProgress = lastProgress;				// You must be a real idiot to think this is a good idea.
+			String javaSucksLastMessage = lastMessage == null ? "" : lastMessage;
+			callCommandListeners(l -> l.progressEvent(this, javaSucksLastProgress, javaSucksLastMessage));
+		}
+	}
+
 
 	private void pushData(StringBuilder sb, byte[] buffer, CharsetDecoder decoder) {
 		int off = 0;
@@ -271,5 +286,20 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	public synchronized long getCancelTime() {
 		return m_cancelTime;
+	}
+
+
+
+	static public void main(String[] args) throws Exception {
+		String s = "\nThe hills are alive\n"
+			+ "[PROGRESS] 15% This is a message\n"
+			+ "But that is all, folks\n"
+			+"[PROGRESS] 16% Perhaps not, though\n"
+			;
+
+		Matcher m = PROGRESS_PATTERN.matcher(s);
+		while(m.find()) {
+			System.out.println("found: progress=" + m.group(1) + ", message=" + m.group(2) );
+		}
 	}
 }
