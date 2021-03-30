@@ -18,6 +18,7 @@ import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.HubState;
 import to.etc.cocos.tests.InventoryTestPacket;
 import to.etc.function.ConsumerEx;
+import to.etc.testutil.TestConditionSet;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
