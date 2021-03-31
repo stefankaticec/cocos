@@ -26,4 +26,16 @@ public interface IRemoteClient {
 	boolean isConnected();
 
 	LocalDateTime getLastPresent();
+
+	default int getClientOrganisation() {
+		String id = getClientID();
+		int at = id.indexOf('@');
+		if(at > 0) {
+			try {
+				return Integer.parseInt(id.substring(at + 1).trim());
+			} catch(Exception x) {
+			}
+		}
+		return 0;
+	}
 }
