@@ -103,11 +103,11 @@ message AckableMessage {
     int32 sequence = 1;
 
     oneof payload {
-        Command cmd = 11;
-        CommandResponse response = 12;
-        CommandError commandError = 13;
-        CommandOutput output = 14;
-        PeerRestarted peerRestarted = 15;
+        Command cmd = 11;                           // server -> client
+        CommandResponse response = 12;              // client -> server
+        CommandError commandError = 13;             // client -> server
+        CommandOutput output = 14;                  // client -> server
+        PeerRestarted peerRestarted = 15;           // client -> server
     }
 }
 
@@ -119,18 +119,18 @@ message Envelope {
      oneof payload {
          AckableMessage ackable = 5;
 
-         Ack ack = 6;
-         Ping ping = 7;
-         Pong pong = 8;
+         Ack ack = 6;                               // Both sides
+         Ping ping = 7;                             // server -> client
+         Pong pong = 8;                             // client -> server
 
-         HelloChallenge challenge  = 9;
-         ServerHeloResponse heloServer = 10;
-         ClientHeloResponse heloClient = 11;
-         ClientAuthRequest clientAuth = 12;
-         HubErrorResponse hubError = 13;
-         AuthResponse auth = 14;
-         ClientInventory inventory = 15;
-         ClientConnected clientConnected = 16;
-         ClientDisconnected clientDisconnected = 17;
+         HelloChallenge challenge  = 9;             // server -> client
+         ServerHeloResponse heloServer = 10;        // client -> server
+         ClientHeloResponse heloClient = 11;        // client -> server
+         ClientAuthRequest clientAuth = 12;         // hub -> server
+         HubErrorResponse hubError = 13;            // hub -> server (fatal)
+         AuthResponse auth = 14;                    // Server -> hub
+         ClientInventory inventory = 15;            // client -> server
+         ClientConnected clientConnected = 16;      // client -> server
+         ClientDisconnected clientDisconnected = 17;    // client -> server
      }
 }

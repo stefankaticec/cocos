@@ -58,9 +58,9 @@ final public class Client extends AbstractConnection {
 		var servers = getCluster().getAllServers();
 		log("Connected server count: " + servers.size());
 		getCluster().scheduleBroadcastEvent(server -> {
-			String fullId = getFullId();
-			log("Sending inventory to server "+ fullId);
-			server.sendEventClientInventory(fullId, p);
+			String clientId = getFullId();
+			log("Sending inventory for " + clientId + " to server " + server.getFullId());
+			server.sendEventClientInventory(clientId, p);
 		});
 	}
 
