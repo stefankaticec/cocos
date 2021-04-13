@@ -71,7 +71,7 @@ final public class RemoteCommand implements IRemoteCommand {
 
 	private final RemoteCommandType m_commandType;
 
-	static private final Pattern PROGRESS_PATTERN = Pattern.compile("\\[PROGRESS\\] (\\d[\\d]?)% (.*)\n");
+	static private final Pattern PROGRESS_PATTERN = Pattern.compile("\\[PROGRESS\\] (\\d[\\d]*)% (.*)\n");
 
 	public RemoteCommand(RemoteClient client, String commandId, Duration commandTimeout, @Nullable String commandKey, String description, RemoteCommandType type) {
 		m_commandId = commandId;
