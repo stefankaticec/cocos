@@ -644,7 +644,7 @@ final public class HubServer extends HubConnectorBase<RemoteClient> implements I
 		m_serverEventListeners.add(listener);
 	}
 
-	public void removeServerEventListener(ConsumerEx<IServerEvent> listener) {
+	public void removeServerEventListener(Consumer<IServerEvent> listener) {
 		m_serverEventListeners.remove(listener);
 	}
 }
