@@ -6,12 +6,10 @@ import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.hub.parties.Cluster;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.ConnectionState;
+import to.etc.cocos.hub.problems.PartyNotConnectedException;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.util.ConsoleUtil;
-
-import java.util.LinkedList;
-import java.util.List;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -39,9 +37,6 @@ abstract public class AbstractConnection {
 	private long m_tsLastDuplicate;
 
 	private ConnectionState m_state = ConnectionState.DISCONNECTED;
-
-	/** Normal priority packets to send. */
-	private List<TxPacket> m_txPacketQueue = new LinkedList<>();
 
 	final public void log(String s) {
 		CentralSocketHandler handler = m_handler;
@@ -166,36 +161,13 @@ abstract public class AbstractConnection {
 	 * Schedule a packet to be sent with normal priority.
 	 */
 	public void sendPacket(TxPacket packet) {
-		sendPacket(m_txPacketQueue, packet);
-	}
-
-	private void sendPacket(List<TxPacket> queue, TxPacket packet) {
 		CentralSocketHandler handler;
 		synchronized(this) {
-			queue.add(packet);
 			handler = m_handler;
-			packet.setPacketRemoveFromQueue(() -> {
-				synchronized(this) {
-					queue.remove(packet);
-				}
-			}, TxPacketType.CON);
-		}
-		if(null != handler) {
-			// If the transmitter is empty start it
-			handler.initiatePacketSending(packet);
-		}
-	}
-
-	/**
-	 * Select the next packet to send, and make it the current packet.
-	 */
-	@Nullable
-	synchronized TxPacket getNextPacketToTransmit() {
-		if(m_txPacketQueue.size() > 0) {
-			TxPacket txPacket = m_txPacketQueue.get(0);
-			return txPacket;
-		} else {
-			return null;
+			if(null == handler) {
+				throw new PartyNotConnectedException(getFullId());
+			}
+			handler.immediateSendPacket(packet);
 		}
 	}
 

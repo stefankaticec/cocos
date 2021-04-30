@@ -323,22 +323,17 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	}
 
 	/**
-	 * First check local packets; if nothing there try connection packets.
+	 * Check whether there are packets left to send.
 	 */
 	@Nullable
 	private synchronized TxPacket getNextPacketToTransmit() {
-		AbstractConnection connection;
 		synchronized(this) {
 			if(m_txPacketQueue.size() > 0) {
 				TxPacket txPacket = m_txPacketQueue.get(0);
 				return txPacket;
-			} else {
-				connection = m_connection;
 			}
+			return null;
 		}
-		if(null != connection)
-			return connection.getNextPacketToTransmit();
-		return null;
 	}
 
 	/**
@@ -468,7 +463,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				synchronized(this) {
 					m_txPacketQueue.remove(packet);
 				}
-			}, TxPacketType.HUB);
+			});
 		}
 		initiatePacketSending(packet);
 	}

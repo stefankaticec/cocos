@@ -19,8 +19,6 @@ import java.util.concurrent.CompletableFuture;
 final public class TxPacket {
 	private final int m_id;
 
-	private TxPacketType m_type = TxPacketType.UNK;
-
 	private final Envelope m_envelope;
 
 	/** The party to tell when sending failed. */
@@ -84,13 +82,12 @@ final public class TxPacket {
 		return m_packetRemoveFromQueue;
 	}
 
-	public synchronized void setPacketRemoveFromQueue(@Nullable Runnable packetRemoveFromQueue, TxPacketType pt) {
+	public synchronized void setPacketRemoveFromQueue(@Nullable Runnable packetRemoveFromQueue) {
 		m_packetRemoveFromQueue = packetRemoveFromQueue;
-		m_type = pt;
 	}
 
 	@Override
 	public String toString() {
-		return m_type.name() + m_id + ": " + m_envelope.getSourceId() + " -> " + m_envelope.getTargetId() + " " + Hub.getPacketType(m_envelope);
+		return m_id + ": " + m_envelope.getSourceId() + " -> " + m_envelope.getTargetId() + " " + Hub.getPacketType(m_envelope);
 	}
 }
