@@ -43,9 +43,6 @@ abstract public class AbstractConnection {
 	/** Normal priority packets to send. */
 	private List<TxPacket> m_txPacketQueue = new LinkedList<>();
 
-	/** Priority packets to send */
-	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
-
 	final public void log(String s) {
 		CentralSocketHandler handler = m_handler;
 		String id = handler == null ? "(disconnected)" : handler.getId();
@@ -172,10 +169,6 @@ abstract public class AbstractConnection {
 		sendPacket(m_txPacketQueue, packet);
 	}
 
-	public void sendPacketPrio(TxPacket packet) {
-		sendPacket(m_txPacketQueuePrio, packet);
-	}
-
 	private void sendPacket(List<TxPacket> queue, TxPacket packet) {
 		CentralSocketHandler handler;
 		synchronized(this) {
@@ -198,10 +191,7 @@ abstract public class AbstractConnection {
 	 */
 	@Nullable
 	synchronized TxPacket getNextPacketToTransmit() {
-		if(m_txPacketQueuePrio.size() > 0) {
-			TxPacket txPacket = m_txPacketQueuePrio.get(0);
-			return txPacket;
-		} else if(m_txPacketQueue.size() > 0) {
+		if(m_txPacketQueue.size() > 0) {
 			TxPacket txPacket = m_txPacketQueue.get(0);
 			return txPacket;
 		} else {
