@@ -66,9 +66,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	/** Immediate-level  priority packets to send. */
 	private List<TxPacket> m_txPacketQueue = new LinkedList<>();
 
-	/** Priority packets to send */
-	private List<TxPacket> m_txPacketQueuePrio = new LinkedList<>();
-
 	/** Buffers to send for the current packet */
 	private List<ByteBuf> m_txBufferList = new LinkedList<>();
 
@@ -180,7 +177,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 			m_connection = null;
 			m_cluster = null;
 			m_txPacketQueue.clear();
-			m_txPacketQueuePrio.clear();
 			m_txCurrentPacket = null;
 			m_state = SocketState.DISCONNECTED;
 			for(ByteBuf byteBuf : m_txBufferList) {
@@ -333,10 +329,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	private synchronized TxPacket getNextPacketToTransmit() {
 		AbstractConnection connection;
 		synchronized(this) {
-			if(m_txPacketQueuePrio.size() > 0) {
-				TxPacket txPacket = m_txPacketQueuePrio.get(0);
-				return txPacket;
-			} else if(m_txPacketQueue.size() > 0) {
+			if(m_txPacketQueue.size() > 0) {
 				TxPacket txPacket = m_txPacketQueue.get(0);
 				return txPacket;
 			} else {
