@@ -29,9 +29,6 @@ final public class TxPacket {
 
 	private final CompletableFuture<TxPacket> m_sendFuture = new CompletableFuture<>();
 
-	@Nullable
-	private Runnable m_packetRemoveFromQueue;
-
 	private static int m_nextId;
 
 	public TxPacket(Envelope envelope, @Nullable AbstractConnection onBehalfOf, @Nullable IPacketBodySender bodySender, @Nullable IExecute onAfter) {
@@ -75,15 +72,6 @@ final public class TxPacket {
 
 	public CompletableFuture<TxPacket> getSendFuture() {
 		return m_sendFuture;
-	}
-
-	@Nullable
-	public synchronized Runnable getPacketRemoveFromQueue() {
-		return m_packetRemoveFromQueue;
-	}
-
-	public synchronized void setPacketRemoveFromQueue(@Nullable Runnable packetRemoveFromQueue) {
-		m_packetRemoveFromQueue = packetRemoveFromQueue;
 	}
 
 	@Override

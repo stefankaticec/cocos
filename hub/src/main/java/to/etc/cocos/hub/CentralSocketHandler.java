@@ -391,10 +391,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 
 		if(packetToFinish != null) {
 			synchronized(this) {
-				Runnable ftor = packetToFinish.getPacketRemoveFromQueue();
-				if(null == ftor)
-					throw new IllegalStateException("Packet in transmitter does not have a queue assigned to it");
-				ftor.run();
+				m_txPacketQueue.remove(packetToFinish);
 			}
 			packetToFinish.getSendFuture().complete(packetToFinish);
 		}
@@ -459,11 +456,6 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 	public void immediateSendPacket(TxPacket packet) {
 		synchronized(this) {
 			m_txPacketQueue.add(packet);                    // Will be picked up when current packet tx finishes.
-			packet.setPacketRemoveFromQueue(() -> {
-				synchronized(this) {
-					m_txPacketQueue.remove(packet);
-				}
-			});
 		}
 		initiatePacketSending(packet);
 	}
