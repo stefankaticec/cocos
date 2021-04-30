@@ -10,13 +10,9 @@ import to.etc.cocos.hub.CentralSocketHandler;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.PacketResponseBuilder;
 import to.etc.cocos.hub.TxPacket;
+import to.etc.cocos.hub.problems.PartyNotConnectedException;
 import to.etc.cocos.messages.Hubcore;
-import to.etc.cocos.messages.Hubcore.AckableMessage;
-import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.Envelope;
-import to.etc.hubserver.protocol.ErrorCode;
-import to.etc.hubserver.protocol.FatalHubException;
-import to.etc.hubserver.protocol.HubException;
 
 /**
  * @author <a href="mailto:jal@etc.to">Frits Jalvingh</a>
@@ -33,7 +29,7 @@ public class Server extends AbstractConnection {
 	 */
 	public void packetReceived(Envelope envelope, @Nullable ByteBuf payload, int length) {
 		if(!isUsable())
-			throw new FatalHubException(ErrorCode.serverDisconnected);
+			throw new PartyNotConnectedException(getFullId());
 		log("Packet received(S): " + Hub.getPacketType(envelope));
 
 		String targetId = envelope.getTargetId();
@@ -68,22 +64,23 @@ public class Server extends AbstractConnection {
 	}
 
 	private void handleClientMissingAckable(Envelope env) {
-		AckableMessage ackable = env.getAckable();
-		switch(ackable.getPayloadCase()){
-			default:
-				throw new HubException(ErrorCode.clientNotFound, env.getTargetId());
-
-			case CMD:
-				//-- Just reply with a command error
-				CommandError error = CommandError.newBuilder()
-					.setCode(ErrorCode.clientNotFound.name())
-					.setMessage("Client " + env.getTargetId() + " not found")
-					.build();
-				PacketResponseBuilder pb = packetBuilder(env.getTargetId());
-				pb.getEnvelope().setAckable(AckableMessage.newBuilder().setCommandError(error).build());
-				pb.send();
-				return;
-		}
+		throw new PartyNotConnectedException(env.getTargetId());
+		//AckableMessage ackable = env.getAckable();
+		//switch(ackable.getPayloadCase()){
+		//	default:
+		//		throw new PartyNotConnectedException(env.getTargetId());
+		//
+		//	case CMD:
+		//		//-- Just reply with a command error
+		//		CommandError error = CommandError.newBuilder()
+		//			.setCode(ErrorCode.clientNotFound.name())
+		//			.setMessage("Client " + env.getTargetId() + " not found")
+		//			.build();
+		//		PacketResponseBuilder pb = packetBuilder(env.getTargetId());
+		//		pb.getEnvelope().setAckable(AckableMessage.newBuilder().setCommandError(error).build());
+		//		pb.send();
+		//		return;
+		//}
 	}
 
 	private void handleHubCommand (Envelope envelope){

@@ -7,7 +7,6 @@ import to.etc.cocos.hub.parties.Cluster;
 import to.etc.cocos.hub.parties.ConnectionDirectory;
 import to.etc.cocos.hub.parties.ConnectionState;
 import to.etc.cocos.hub.problems.PartyNotConnectedException;
-import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.util.ConsoleUtil;
 
@@ -148,7 +147,7 @@ abstract public class AbstractConnection {
 	@NonNull public CentralSocketHandler getHandler() {
 		CentralSocketHandler handler = m_handler;
 		if(null == handler)
-			throw new ProtocolViolationException("The connection to " + getFullId() + " is not currently alive");
+			throw new PartyNotConnectedException(getFullId());
 		return handler;
 	}
 

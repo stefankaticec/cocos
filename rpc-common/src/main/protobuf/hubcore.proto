@@ -43,6 +43,7 @@ message HubErrorResponse {
     string details = 3;
     string extraMessage = 4;
     string extraBytes = 5;
+    int32 forPacket = 6;
 }
 
 //-- A command sent to the client

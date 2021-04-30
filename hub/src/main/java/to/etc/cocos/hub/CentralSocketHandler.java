@@ -18,13 +18,16 @@ import to.etc.cocos.hub.parties.Server;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.hubserver.protocol.HubException;
 import to.etc.util.ConsoleUtil;
 import to.etc.util.StringTool;
 
+import java.text.MessageFormat;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -83,7 +86,15 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		m_channel = socketChannel;
 		m_remoteAddress = socketChannel.remoteAddress().getAddress().getHostAddress();
 		m_packetStateMachine = new PacketMachine(hub, this);
-		m_packetAssembler = new PacketAssemblyMachine(m_packetStateMachine::handlePacket, socketChannel.alloc());
+		m_packetAssembler = new PacketAssemblyMachine(m_packetStateMachine::handlePacket, socketChannel.alloc(), this::packetTooLarge);
+	}
+
+	private void packetTooLarge(@Nullable Envelope envelope) {
+		if(null == envelope) {
+			log("Packet envelope too large, ignoring packet");
+			return;
+		}
+		sendHubError(false, envelope, ErrorCode.packetTooLarge);
 	}
 
 	@NonNullByDefault(false)
@@ -472,6 +483,7 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 				.setCode(x.getCode().name())
 				.setText(x.getMessage())
 				.setDetails(StringTool.strStacktrace(x))
+				.setForPacket(findPacketSequence(source))
 				.build()
 			);
 
@@ -479,6 +491,37 @@ final public class CentralSocketHandler extends SimpleChannelInboundHandler<Byte
 		if(isFatal) {
 			rb.after(() -> {
 				log("send failed, disconnecting channel " + m_channel.id());
+				m_channel.disconnect();
+			});
+		}
+		rb.send();
+	}
+
+	private int findPacketSequence(Envelope source) {
+		if(source.getPayloadCase() == PayloadCase.ACKABLE) {
+			return source.getAckable().getSequence();
+		}
+		return -1;
+	}
+
+	void sendHubError(boolean fatal, Envelope source, ErrorCode code, String... parameters) {
+		if(m_hub.getState() != HubState.STARTED || m_state != SocketState.CONNECTED)
+			return;
+		log("sending hub error code " + code);
+
+		PacketResponseBuilder rb = new PacketResponseBuilder(this)
+			.fromEnvelope(source);
+		rb.getEnvelope()
+			.setHubError(HubErrorResponse.newBuilder()
+				.setCode(code.name())
+				.setText(MessageFormat.format(code.getText(), parameters))
+				.setForPacket(findPacketSequence(source))
+				.build()
+			);
+
+		if(fatal) {
+			rb.after(() -> {
+				log("fatal hub error " + code + " , disconnecting channel " + m_channel.id());
 				m_channel.disconnect();
 			});
 		}

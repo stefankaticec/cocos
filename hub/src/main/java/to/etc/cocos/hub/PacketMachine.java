@@ -8,6 +8,7 @@ import to.etc.cocos.hub.CentralSocketHandler.IPacketHandler;
 import to.etc.cocos.hub.parties.BeforeClientData;
 import to.etc.cocos.hub.parties.Cluster;
 import to.etc.cocos.hub.parties.Server;
+import to.etc.cocos.hub.problems.PartyNotConnectedException;
 import to.etc.cocos.hub.problems.ProtocolViolationException;
 import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AuthResponse;
@@ -82,7 +83,9 @@ final class PacketMachine {
 		}
 		try {
 			packetState.handlePacket(envelope, payload, length);
-		} catch(HubException x) {			// cannot do that here: we might not have a full packet.
+		} catch(PartyNotConnectedException pnx) {
+			m_socketHandler.sendHubError(false, envelope, ErrorCode.partyNotFound, pnx.getMessage());
+		} catch(HubException x) {
 			m_socketHandler.immediateSendHubException(envelope, x);
 		} finally {
 			if(null != payload) {
@@ -167,13 +170,14 @@ final class PacketMachine {
 		String orgId;
 		switch(split.length) {
 			default:
-				throw new FatalHubException(ErrorCode.targetNotFound, targetId);
+				throw new PartyNotConnectedException(targetId);
 
 			case 1:
 				cluster = m_hub.getDirectory().getCluster(split[0]);
 				server = cluster.getRandomServer();
 				if(null == server)
-					throw new FatalHubException(ErrorCode.clusterNotFound, split[0]);
+					throw new PartyNotConnectedException(targetId);
+					//throw new FatalHubException(ErrorCode.clusterNotFound, split[0]);
 				orgId = null;
 				break;
 
@@ -182,7 +186,8 @@ final class PacketMachine {
 				orgId = split[0];
 				server = cluster.findServiceServer(orgId);
 				if(null == server)
-					throw new FatalHubException(ErrorCode.targetNotFound, split[0]);
+					throw new PartyNotConnectedException(targetId);
+					//throw new FatalHubException(ErrorCode.targetNotFound, split[0]);
 				break;
 		}
 

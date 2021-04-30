@@ -8,10 +8,9 @@ import to.etc.cocos.hub.AbstractConnection;
 import to.etc.cocos.hub.ByteBufPacketSender;
 import to.etc.cocos.hub.Hub;
 import to.etc.cocos.hub.TxPacket;
+import to.etc.cocos.hub.problems.PartyNotConnectedException;
 import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
-import to.etc.hubserver.protocol.ErrorCode;
-import to.etc.hubserver.protocol.FatalHubException;
 import to.etc.util.ByteBufferOutputStream;
 
 import java.io.IOException;
@@ -88,28 +87,28 @@ final public class Client extends AbstractConnection {
 		String orgId;
 		switch(split.length) {
 			default:
-				throw new FatalHubException(ErrorCode.targetNotFound, targetId);
+				throw new PartyNotConnectedException(targetId);
 
 			case 1:
 				//-- Can be server@clusterid
 				split = targetId.split("@");
 				switch(split.length) {
 					default:
-						throw new FatalHubException(ErrorCode.targetNotFound, targetId);
+						throw new PartyNotConnectedException(targetId);
 
 					case 1:
 						//-- Cluster ID only
 						cluster = getDirectory().getCluster(split[0]);
 						server = cluster.getRandomServer();
 						if(null == server)
-							throw new FatalHubException(ErrorCode.clusterHasNoServers, split[0]);
+							throw new PartyNotConnectedException(targetId);
 						return server;
 
 					case 2:
 						cluster = getDirectory().getCluster(split[1]);
 						server = cluster.findServer(split[0]);
 						if(null == server)
-							throw new FatalHubException(ErrorCode.targetNotFound, targetId);
+							throw new PartyNotConnectedException(targetId);
 						return server;
 				}
 
@@ -118,7 +117,7 @@ final public class Client extends AbstractConnection {
 				orgId = split[0];
 				server = cluster.findServiceServer(orgId);
 				if(null == server)
-					throw new FatalHubException(ErrorCode.targetNotFound, split[0]);
+					throw new PartyNotConnectedException(targetId);
 				return server;
 		}
 	}

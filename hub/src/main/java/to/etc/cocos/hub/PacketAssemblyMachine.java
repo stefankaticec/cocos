@@ -13,6 +13,7 @@ import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.hubserver.protocol.CommandNames;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * This state machine assembles packets, consisting of an envelope and an optional
@@ -36,6 +37,9 @@ final class PacketAssemblyMachine {
 	private ByteBuf m_intBuf;
 
 	@NonNull
+	private Consumer<Envelope> m_packetTooLarge;
+
+	@NonNull
 	final private byte[] m_lenBuf = new byte[4];
 
 	private int pshLength;
@@ -53,14 +57,22 @@ final class PacketAssemblyMachine {
 	@Nullable
 	private ByteBuf m_payloadBuffer;
 
+	/**
+	 * Set when the packet is too large. Reading the rest of the data is
+	 * skipped although the packet data itself is parsed. It will lead
+	 * to a special error code once the whole packet has been read.
+	 */
+	private boolean m_packetSizeOverflow;
+
 	@FunctionalInterface // Lambda's my ass.
 	interface IHandlePacket {
 		void handlePacket(@NonNull Envelope envelope, @Nullable ByteBuf payload, int payloadLength) throws Exception;
 	}
 
-	public PacketAssemblyMachine(@NonNull IHandlePacket packetReceived, ByteBufAllocator allocator) {
+	public PacketAssemblyMachine(@NonNull IHandlePacket packetReceived, ByteBufAllocator allocator, @NonNull Consumer<Envelope> packetTooLarge) {
 		m_packetReceived = packetReceived;
 		m_intBuf = allocator.buffer(4);
+		m_packetTooLarge = packetTooLarge;
 	}
 
 	public void handleRead(ChannelHandlerContext context, ByteBuf data) throws Exception {
@@ -71,6 +83,7 @@ final class PacketAssemblyMachine {
 	 * PacketReader: read the header and check it once read.
 	 */
 	private void prReadHeaderLong(ChannelHandlerContext context, ByteBuf source) {
+		m_packetSizeOverflow = false;
 		m_intBuf.writeBytes(source);
 		if(m_intBuf.readableBytes() >= 4) {
 			//-- Compare against header
@@ -93,11 +106,15 @@ final class PacketAssemblyMachine {
 		if(m_intBuf.readableBytes() >= 4) {
 			int length = m_intBuf.readInt();
 			if(length < 0 || length >= CommandNames.MAX_ENVELOPE_LENGTH) {
-				throw new ProtocolViolationException("Envelope length " + length + " is out of limits");
+				System.out.println("Envelope length " + length + " is too large");
+				m_packetSizeOverflow = true;
+				//throw new ProtocolViolationException("Envelope length " + length + " is out of limits");
+				m_envelopeBuffer = null;
+			} else {
+				m_envelopeBuffer = new byte[length];
+				m_envelopeOffset = 0;
 			}
 			pshLength = length;
-			m_envelopeBuffer = new byte[length];
-			m_envelopeOffset = 0;
 			m_prState = this::prReadEnvelope;
 		}
 	}
@@ -114,19 +131,25 @@ final class PacketAssemblyMachine {
 		if(todo > available) {
 			todo = available;
 		}
-
-		byteBuf.readBytes(m_envelopeBuffer, m_envelopeOffset, todo);
+		byte[] eb = m_envelopeBuffer;
+		if(null == eb) {							// Overflowed?
+			byteBuf.skipBytes(todo);				// Just skip the data
+		} else {
+			byteBuf.readBytes(m_envelopeBuffer, m_envelopeOffset, todo);
+		}
 		m_envelopeOffset += todo;
 
 		//-- All data read?
 		if(m_envelopeOffset < pshLength)
 			return;
 
-		//-- Create the Envelope
-		try {
-			m_envelope = Hubcore.Envelope.parseFrom(m_envelopeBuffer);
-		} finally {
-			m_envelopeBuffer = null;
+		//-- Create the Envelope IF there is one
+		if(eb != null) {
+			try {
+				m_envelope = Hubcore.Envelope.parseFrom(m_envelopeBuffer);
+			} finally {
+				m_envelopeBuffer = null;
+			}
 		}
 
 		m_prState = this::prReadPayloadLength;
@@ -139,15 +162,25 @@ final class PacketAssemblyMachine {
 		m_intBuf.writeBytes(source);
 		if(m_intBuf.readableBytes() >= 4) {
 			int length = m_intBuf.readInt();
-			if(length < 0 || length >= CommandNames.MAX_DATA_LENGTH) {
+			if(length < 0)
 				throw new ProtocolViolationException("Packet payload length " + length + " is out of limits");
-			}
+
 			pshLength = m_payloadLength = length;
-			if(length == 0) {
+			if(length > CommandNames.MAX_DATA_LENGTH) {
+				System.out.println("Packet payload length " + length + " is out of limits");
+				m_packetSizeOverflow = true;
+				m_payloadBuffer = null;
+				m_prState = this::prReadPayload;
+			} else if(length == 0) {
 				//-- Nothing to do: we're just set for another packet.
 				m_prState = this::prReadHeaderLong;
 				m_payloadBuffer = null;
-				m_packetReceived.handlePacket(Objects.requireNonNull(m_envelope), null, 0);
+
+				//-- If we overflowed then tell it to my owner
+				if(m_packetSizeOverflow)
+					m_packetTooLarge.accept(m_envelope);
+				else
+					m_packetReceived.handlePacket(Objects.requireNonNull(m_envelope), null, 0);
 			} else {
 				m_payloadBuffer = channelHandlerContext.alloc().buffer(length, CommandNames.MAX_DATA_LENGTH);
 				m_prState = this::prReadPayload;
@@ -167,14 +200,20 @@ final class PacketAssemblyMachine {
 			todo = available;
 		}
 		ByteBuf outb = m_payloadBuffer;
-		if(null == outb)
-			throw new IllegalStateException("No payload buffer in readPayload phase");
-		outb.writeBytes(source, todo);
+		if(outb == null) {
+			//-- Overflow: skip data
+			source.skipBytes(todo);
+		} else {
+			outb.writeBytes(source, todo);
+		}
 		pshLength -= todo;
 		if(pshLength == 0) {
 			m_prState = this::prReadHeaderLong;
 			m_payloadBuffer = null;
-			m_packetReceived.handlePacket(Objects.requireNonNull(m_envelope), outb, m_payloadLength);
+			if(m_packetSizeOverflow)
+				m_packetTooLarge.accept(m_envelope);
+			else
+				m_packetReceived.handlePacket(Objects.requireNonNull(m_envelope), outb, m_payloadLength);
 		}
 	}
 
