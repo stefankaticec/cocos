@@ -56,6 +56,9 @@ final public class Main {
 	@Option(name = "-mailTo", aliases = "-mt", usage = "The to address(es) for emails")
 	private List<String> m_mailTo = new ArrayList<>();
 
+	@Option(name = "-tp", aliases = {"-telnetport"}, usage = "The port for the local telnet command handler. Set to 0 to disable telnet.")
+	private int m_telnetPort = 7171;
+
 	@Option(name = "-notelnet", usage = "Skip starting telnet server")
 	private boolean m_noTelnet = false;
 
@@ -76,6 +79,8 @@ final public class Main {
 			p.printUsage(System.err);
 			System.exit(10);
 		}
+		if(m_noTelnet)
+			m_telnetPort = 0;
 
 		//-- Do we have an ident?
 		String ident = m_ident;
@@ -96,7 +101,7 @@ final public class Main {
 			m_mailTo.forEach(a -> to.add(new Address(a)));
 		}
 
-		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to, ! m_noTelnet);
+		Hub server = new Hub(m_port, ident, m_useNio, clusterName -> "prutbzlael", mailer, to, m_telnetPort);
 		server.startServer();
 
 		//-- Listen to signals to stop the thing

@@ -68,7 +68,7 @@ public class TestAllBase {
 
 	@NonNull
 	private Hub createHub() throws Exception {
-		return new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList(), false);
+		return new Hub(HUBPORT, "testHUB", false, a -> CLUSTERPASSWORD, null, Collections.emptyList(), 0);
 	}
 
 	public void setBeforeServerStart(@Nullable ConsumerEx<HubServer> beforeServerStart) {

@@ -67,8 +67,6 @@ final public class Hub {
 
 	final private int m_port;
 
-	private final boolean m_startTelnet;
-
 	private int m_pingInterval = 120;
 
 	private int m_listenerThreads = 1;
@@ -80,6 +78,8 @@ final public class Hub {
 	private final FunctionEx<String, String> m_clusterPasswordSource;
 
 	private List<Address> m_mailTo;
+
+	private final int m_telnetPort;
 
 	final private SecureRandom m_random;
 
@@ -96,21 +96,22 @@ final public class Hub {
 
 	private ExecutorService m_eventSendingExecutor = Executors.newSingleThreadExecutor();
 
-	@Nullable final private SendGridMailer m_mailer;
+	@Nullable
+	final private SendGridMailer m_mailer;
 
 	private HubState m_state = HubState.STOPPED;
 
 	private List<ConsumerEx<HubState>> m_stateListeners = new CopyOnWriteArrayList<>();
 
-	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, boolean startTelnet) throws Exception {
+	public Hub(int port, String ident, boolean useNio, FunctionEx<String, String> clusterPasswordSource, @Nullable SendGridMailer mailer, List<Address> mailTo, int telnetPort) throws Exception {
 		m_port = port;
 		m_ident = ident;
 		m_useNio = useNio;
 		m_clusterPasswordSource = clusterPasswordSource;
 		m_mailTo = mailTo;
+		m_telnetPort = telnetPort;
 		m_random = SecureRandom.getInstanceStrong();
 		m_mailer = mailer;
-		m_startTelnet = startTelnet;
 	}
 
 	public void setListenerThreads(int listenerThreads) {
@@ -191,9 +192,9 @@ final public class Hub {
 			}
 		}
 
-		if(m_startTelnet) {
-			ConsoleUtil.consoleLog("Hub", "Starting telnet on port 7171");
-			var ts = m_telnetServer = TelnetServer.createServer(7171);
+		if(m_telnetPort > 1024) {
+			ConsoleUtil.consoleLog("Hub", "Starting telnet on port " + m_telnetPort);
+			var ts = m_telnetServer = TelnetServer.createServer(m_telnetPort);
 			ts.addCommandHandler(new HelpTelnetCommandHandler());
 			ts.addCommandHandler(new ListClientsTelnetCommandHandler(this));
 			ts.addCommandHandler(new ListServerTelnetCommandHandler(this));
