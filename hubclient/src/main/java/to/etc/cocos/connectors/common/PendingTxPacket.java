@@ -3,8 +3,10 @@ package to.etc.cocos.connectors.common;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.function.ConsumerEx;
 import to.etc.function.IExecute;
 import to.etc.hubserver.protocol.CommandNames;
+import to.etc.hubserver.protocol.ErrorCode;
 
 /**
  * A packet that needs to be transmitted and acknowledged.
@@ -28,9 +30,9 @@ final class PendingTxPacket {
 
 	private long m_retryAt;
 
-	final private IExecute m_onSendFailure;
+	final private ConsumerEx<ErrorCode> m_onSendFailure;
 
-	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt, IExecute onSendFailure, @Nullable IExecute onAcknowledged) {
+	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, long submittedAt, long expiresAt, long retryAt, ConsumerEx<ErrorCode> onSendFailure, @Nullable IExecute onAcknowledged) {
 		m_onSendFailure = onSendFailure;
 		if(envelope.getSourceId().length() == 0)
 			throw new IllegalStateException("Missing source ID");
@@ -46,7 +48,7 @@ final class PendingTxPacket {
 		m_onAcknowledged = onAcknowledged;
 	}
 
-	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, IExecute onSendFailure, @Nullable IExecute onAcknowledged) {
+	public PendingTxPacket(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, ConsumerEx<ErrorCode> onSendFailure, @Nullable IExecute onAcknowledged) {
 		if(envelope.getSourceId().length() == 0)
 			throw new IllegalStateException("Missing source ID");
 		if(envelope.getSourceId().equals(envelope.getTargetId()))
@@ -87,8 +89,8 @@ final class PendingTxPacket {
 		m_retryAt = retryAt;
 	}
 
-	public void callExpired() throws Exception {
-		m_onSendFailure.execute();
+	public void callFailed(ErrorCode code) throws Exception {
+		m_onSendFailure.accept(code);
 	}
 
 	@Override

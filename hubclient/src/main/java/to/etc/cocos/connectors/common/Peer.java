@@ -7,6 +7,7 @@ import to.etc.cocos.messages.Hubcore;
 import to.etc.cocos.messages.Hubcore.AckableMessage;
 import to.etc.cocos.messages.Hubcore.CommandError;
 import to.etc.cocos.messages.Hubcore.Envelope;
+import to.etc.function.ConsumerEx;
 import to.etc.function.IExecute;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.DateUtil;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * One of the communication peers. A client has only one peer (the server it talks with), but a server
@@ -38,7 +40,7 @@ public class Peer {
 	 */
 	static private final long SEENSET_KEEPTIME = 60 * 1000;
 
-
+	/** After how many millis do we resend a packet if we do not see an ack. */
 	static private final long SEND_RETRY_TIME = 5 * 1000L;
 
 	static private final long SEQUENCE_OFFSET = DateUtil.dateFor(2020, 3, 1).getTime();
@@ -83,11 +85,11 @@ public class Peer {
 		m_txSequence = (int) seq;
 	}
 
-	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration, IExecute onSendFailure) {
+	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration, ConsumerEx<ErrorCode> onSendFailure) {
 		send(packetBuilder, bodyTransmitter, expiryDuration, onSendFailure, null);
 	}
 
-	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration, IExecute onSendFailure, @Nullable IExecute onAck) {
+	public void send(AckableMessage.Builder packetBuilder, @Nullable IBodyTransmitter bodyTransmitter, Duration expiryDuration, ConsumerEx<ErrorCode> onSendFailure, @Nullable IExecute onAck) {
 		long dur = expiryDuration.toMillis();
 		long cts = System.currentTimeMillis();
 		long peerDisconnectedDuration = m_connector.getPeerDisconnectedDuration();
@@ -131,34 +133,60 @@ public class Peer {
 			synchronized(this) {
 				p.setRetryAt(cts + SEND_RETRY_TIME);
 			}
-			m_connector.sendPacketPrimitive(p);
+			m_connector.queuePacketForSending(p);
 		}
+	}
+
+
+	/**
+	 * Called when the hub returned a packet too large error. The packet
+	 * is not allowed to be resent and must terminate with an error.
+	 */
+	public void packetTooLarge(Envelope env, int forPacket) {
+		forPacketCall(forPacket, p -> {
+			m_connector.log("PacketTooLarge received for " + p + ", packet discarded");
+
+			try {
+				p.callFailed(ErrorCode.packetTooLarge);
+			} catch(Exception x) {
+				m_connector.log("Packet " + p + " completed, success handler threw exception");
+				x.printStackTrace();
+			}
+		});
 	}
 
 	/**
 	 * Remove the packet with this sequence# from the packet send queue (it is acknowledged).
 	 */
 	void ackReceived(int sequenceNr) {
+		forPacketCall(sequenceNr, p -> {
+			m_connector.log("Ack received for " + p);
+			try {
+				p.callAcked();
+			} catch(Exception x) {
+				m_connector.log("Packet " + p + " completed, success handler threw exception");
+				x.printStackTrace();
+			}
+		});
+	}
+
+	private boolean forPacketCall(int sequenceNumber, Consumer<PendingTxPacket> what) {
 		synchronized(this) {
 			for(int i = m_txQueue.size() - 1; i >= 0; i--) {
 				PendingTxPacket p = m_txQueue.get(i);
-				if(p.getEnvelope().getAckable().getSequence() == sequenceNr) {
-					m_connector.log("Ack received for " + p);
+				if(p.getEnvelope().getAckable().getSequence() == sequenceNumber) {
+					//-- Gotcha
 					m_txQueue.remove(i);
-					try {
-						p.callAcked();
-					} catch(Exception x) {
-						m_connector.log("Packet " + p + " completed, success handler threw exception");
-						x.printStackTrace();
-					}
+					what.accept(p);
 					if(m_txQueue.size() == 0)							// Nothing else to do -> cancel timer
 						cancelTimer();
 					notify();											// More space free, guys'n girls.
-					return;
+					return true;
 				}
 			}
 		}
-		m_connector.log("Unhandled ack received, sequence# " + sequenceNr);
+		m_connector.log("Response for sequence number " + sequenceNumber + " discarded, packet not found");
+		return false;
 	}
 
 	/**
@@ -177,7 +205,7 @@ public class Peer {
 				} else if(cts >= p.getRetryAt()) {
 					p.setRetryAt(cts + SEND_RETRY_TIME);
 					if(connected) {
-						m_connector.sendPacketPrimitive(p);
+						m_connector.queuePacketForSending(p);
 					}
 				}
 			}
@@ -187,7 +215,7 @@ public class Peer {
 			m_connector.getEventExecutor().execute(() -> {
 				for(PendingTxPacket txPacket : expireList) {
 					try {
-						txPacket.callExpired();
+						txPacket.callFailed(ErrorCode.sendTimeout);
 					} catch(Exception x) {
 						m_connector.log("Packet " + txPacket + " expired, the handler threw " + x);
 						x.printStackTrace();
@@ -287,8 +315,8 @@ public class Peer {
 		var b = AckableMessage.newBuilder()
 			.setCommandError(cmdE)
 			;
-		send(b, null, getErrorDuration(), () -> {
-			m_connector.log("Command error packet send failed: " + src.getTargetId() + " " + code);
+		send(b, null, getErrorDuration(), (erc) -> {
+			m_connector.log("Command error packet send failed with "+ erc + " for error packet (" + src.getTargetId() + " code " + code + ")");
 		});
 	}
 
@@ -304,8 +332,8 @@ public class Peer {
 		var b = AckableMessage.newBuilder()
 			.setCommandError(cmdE)
 			;
-		send(b, null, getErrorDuration(), () -> {
-			m_connector.log("Command error packet send failed: " + src.getTargetId() + " error to send was: " + t);
+		send(b, null, getErrorDuration(), (erc) -> {
+			m_connector.log("Command error packet send failed with "+ erc + " for error packet (" + src.getTargetId() + " error " + t + ")");
 		});
 	}
 

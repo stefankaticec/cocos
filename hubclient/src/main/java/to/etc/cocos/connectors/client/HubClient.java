@@ -151,6 +151,11 @@ final public class HubClient extends HubConnectorBase<Peer> {
 	}
 
 	private void handleCommand(CommandContext ctx, List<byte[]> data) throws Exception {
+		if(m_commandMap.get(ctx.getId()) != null) {
+			error("Duplicate command " + ctx.getId() + " ignored");
+			return;
+		}
+
 		Command cmd = ctx.getSourceEnvelope().getAckable().getCmd();
 		IClientCommandHandler commandHandler = findCommandHandler(cmd.getName());
 		if(null == commandHandler) {
@@ -217,9 +222,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 			).build()
 			;
 
-		sendPacketPrimitive(reply, null, ()-> {
-			forceDisconnect("Challenge response packet send failed");
-		});
+		sendPacketPrimitive(reply, null);
 	}
 
 	/**
@@ -237,9 +240,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
 			)
 			.build();
-		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory), () -> {
-			forceDisconnect("AUTH response inventory packet send failed");
-		});
+		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory));
 		if(!m_restartPacketSent && !m_restartPacketInTransit) {
 			var peer = getOrCreatePeer(src.getSourceId());
 			peer.setConnected();
@@ -248,8 +249,8 @@ final public class HubClient extends HubConnectorBase<Peer> {
 			m_restartPacketInTransit = true;
 			peer.send(
 				packet, null, Duration.ofMinutes(5),
-				() ->  {
-					forceDisconnect("Couldn't send PeerRestarted packet.");
+				(erc) ->  {
+					forceDisconnect("Couldn't send PeerRestarted packet: error code " + erc);
 					m_restartPacketInTransit = false;
 				},
 				() ->  {
@@ -270,9 +271,7 @@ final public class HubClient extends HubConnectorBase<Peer> {
 				.setDataFormat(CommandNames.getJsonDataFormat(inventory))
 			)
 			.build();
-		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory), () -> {
-			forceDisconnect("Inventory update packet send failed");
-		});
+		sendPacketPrimitive(response, new JsonBodyTransmitter(inventory));
 	}
 
 	@Override protected void onErrorPacket(Envelope env) {

@@ -34,8 +34,8 @@ public enum ErrorCode {
 	commandSendError("The command could not be sent"),
 	peerRestarted("The peer daemon has restarted, the command has been cancelled because of that"),
 	cancelTimeout("The command was cancelled, but no response was received from the cancelled action"),
-	packetTooLarge("Packet body too large")
-	;
+	packetTooLarge("Packet body too large"),
+	sendTimeout("The packet could not be successfully sent within the timeout period");
 
 	private String m_text;
 
@@ -45,5 +45,13 @@ public enum ErrorCode {
 
 	public String getText() {
 		return m_text;
+	}
+
+	static public ErrorCode from(String code) {
+		try {
+			return valueOf(code);
+		} catch(Exception x) {
+			return null;
+		}
 	}
 }

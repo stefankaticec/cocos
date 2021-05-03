@@ -10,7 +10,6 @@ import to.etc.cocos.messages.Hubcore.Envelope;
 import to.etc.cocos.messages.Hubcore.Envelope.PayloadCase;
 import to.etc.cocos.messages.Hubcore.HubErrorResponse;
 import to.etc.cocos.messages.Hubcore.Pong;
-import to.etc.function.IExecute;
 import to.etc.hubserver.protocol.CommandNames;
 import to.etc.hubserver.protocol.ErrorCode;
 import to.etc.util.ByteBufferInputStream;
@@ -125,7 +124,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 	private List<PendingTxPacket> m_txQueue = new ArrayList<>();
 
 	public enum PacketPrio {
-		HUB, NORMAL, PRIO
+		HUB,
+		NORMAL
 	}
 
 	@Nullable
@@ -347,14 +347,19 @@ public abstract class HubConnectorBase<T extends Peer> {
 	/*	CODING:	Writer thread handler.										*/
 	/*----------------------------------------------------------------------*/
 
+	/**
+	 * The writer thread is alive as long as the connector is running. It either
+	 * handles the writing of packets or it handles things like (re)connecting. It
+	 * will start the reader thread as soon as a connection is acked.
+	 */
 	private void writerMain() {
 		ConnectorState oldState = getState();
 		try {
 			log("Writer started for id=" + m_myId + " targeting " + m_targetId + " on hub server " + m_server + ":" + m_port);
 
-			for(;;) {
+			for(; ; ) {
 				boolean doContinue = doWriteAction();
-				if(! doContinue)
+				if(!doContinue)
 					break;
 			}
 		} catch(Exception x) {
@@ -400,7 +405,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		synchronized(this) {
 			ConnectorState state = getState();
 
-			switch(state) {
+			switch(state){
 				default:
 					log("Illegal state in writer: " + state);
 					throw new IllegalStateException("Illegal state in writer: " + state);
@@ -411,7 +416,6 @@ public abstract class HubConnectorBase<T extends Peer> {
 				case AUTHENTICATED:
 				case CONNECTED:
 					//-- We need to transmit packets when available
-					IPacketTransmitter transmitter;
 					if(m_txQueue.size() > 0) {
 						PendingTxPacket pp = m_txQueue.remove(0);
 						action = () -> transmitPacket(pp);
@@ -436,7 +440,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 						break;
 					} else {
 						long delta = ets - cts;
-						log("wait_reconnect: " + delta +  " ms left");
+						log("wait_reconnect: " + delta + " ms left");
 						sleepWait(delta);
 					}
 					return true;
@@ -452,10 +456,9 @@ public abstract class HubConnectorBase<T extends Peer> {
 	 * not the connection is terminated with an error.
 	 *
 	 * @return true if there was a timeout and the connection was closed
-	 *
 	 */
 	private synchronized boolean checkPingTimeout() {
-		long fence = System.currentTimeMillis() - (m_pingInterval * 2 * 1000);		// Data must have been received after this
+		long fence = System.currentTimeMillis() - (m_pingInterval * 2 * 1000);        // Data must have been received after this
 		if(m_lastPacketReceived < fence) {
 			log("Ping timeout: no data received for " + (m_pingInterval * 2) + " seconds - disconnecting");
 			forceDisconnect("Ping timeout");
@@ -465,16 +468,14 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	/**
-	 * Transmit the packet. If sending fails we disconnect state. This gets
-	 * called on the writer thread. If the send fails with an IOException and
-	 * pushbackQueue is not null then the failing packet is requeued first
-	 * on that queue, so that it will be retransmitted as soon as the connection
-	 * is re-established. If the send has failed the channel will have been
-	 * disconnected.
+	 * Transmit the packet. If sending fails we disconnect state. This level otherwise ignores
+	 * errors, and it is up to the Peer level to handle retransmits, where needed.
+	 * This gets called on the writer thread.
+	 * If the send has failed the channel will have been disconnected.
 	 */
 	private void transmitPacket(PendingTxPacket pp) {
 		try {
-			log("Transmitting packet "  + pp);
+			log("Transmitting packet " + pp);
 			OutputStream os;
 			synchronized(this) {
 				os = m_os;
@@ -489,7 +490,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			String why;
 			synchronized(this) {
 				if(isConnectionCloseException(x)) {
-					why = "Remote disconnect (" + x.toString() + ")";
+					why = "Remote disconnect (" + x + ")";
 				} else {
 					ConnectorState state = getState();
 					switch(state){
@@ -526,16 +527,20 @@ public abstract class HubConnectorBase<T extends Peer> {
 	}
 
 	/**
-	 * Put a packet into the transmitter queue, to be sent as soon as the transmitter is free.
+	 * Put a packet into the transmitter queue, to be sent as soon as the
+	 * transmitter is free. Only used for direct communication with the hub.
+	 * When packet transmission fails these packets do NOT have an error
+	 * handler to call as at this level we do not handle reliable
+	 * transmission.
 	 */
-	protected void sendPacketPrimitive(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter, IExecute onSendFailure) {
-		sendPacketPrimitive(new PendingTxPacket(envelope, bodyTransmitter, onSendFailure, null));
+	protected void sendPacketPrimitive(Envelope envelope, @Nullable IBodyTransmitter bodyTransmitter) {
+		queuePacketForSending(new PendingTxPacket(envelope, bodyTransmitter, (erc) -> {}, null));
 	}
 
 	/**
 	 * Put a packet in the transmitter queue. Drop it if the queue gets too full.
 	 */
-	protected void sendPacketPrimitive(PendingTxPacket pp) {
+	protected void queuePacketForSending(PendingTxPacket pp) {
 		synchronized(this) {
 			if(getState() == ConnectorState.STOPPED || getState() == ConnectorState.TERMINATING) {
 				throw new IllegalStateException("Cannot send packets when connector is " + getState());
@@ -571,7 +576,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		try {
 			SSLSocketFactory ssf = getSocketFactory();
 			SSLSocket s = (SSLSocket) ssf.createSocket(m_server, m_port);
-			s.setSoTimeout(m_pingInterval * 2 * 1000);						// If we do not receive anything for PINGINTERVAL seconds timeout
+			s.setSoTimeout(m_pingInterval * 2 * 1000);                        // If we do not receive anything for PINGINTERVAL seconds timeout
 			log("Starting SSL handshake");
 			s.startHandshake();
 
@@ -609,6 +614,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 	/*----------------------------------------------------------------------*/
 	/*	CODING:	Reader part..												*/
 	/*----------------------------------------------------------------------*/
+
 	/**
 	 * This is the reader thread. It reads packet data from the server, and calls packetReceived for every
 	 * packet found. The reader thread terminates on every communications error and disconnects the socket
@@ -660,7 +666,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 		try {
 			ArrayList<byte[]> body = new ArrayList<>(m_packetReader.getReceiveBufferList());
-			switch(env.getPayloadCase()) {
+			switch(env.getPayloadCase()){
 				default:
 					throw new IllegalStateException("Unexpected packet type " + getPacketType(env));
 					//handleUnackablePackets(env, body);
@@ -668,18 +674,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 				case HUBERROR:
 					HubErrorResponse error = env.getHubError();
-
 					log("Received HUB ERROR packet: " + error.getCode() + " " + error.getText());
-					synchronized(this) {
-						m_lastError = error;
-					}
-
-					try {
-						onErrorPacket(env);
-					} catch(Exception x) {
-						log("Unexpected exception while handling error packet: " + x);
-						x.printStackTrace();;
-					}
+					handleHubError(env, error);
 					return;
 
 				case CHALLENGE:
@@ -721,7 +717,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		} catch(Exception px) {
 			Throwable t = px;
 			while(t instanceof InvocationTargetException) {
-				t = ((InvocationTargetException)t).getTargetException();
+				t = ((InvocationTargetException) t).getTargetException();
 			}
 			log("Fatal Packet Execute exception: " + t);
 			t.printStackTrace();
@@ -729,23 +725,71 @@ public abstract class HubConnectorBase<T extends Peer> {
 		}
 	}
 
+	private void handleHubError(Envelope env, HubErrorResponse error) {
+		synchronized(this) {
+			m_lastError = error;
+		}
+
+		ErrorCode code = ErrorCode.from(error.getCode());
+		if(null != code) {
+			switch(code) {
+				default:
+					break;
+
+				case packetTooLarge:
+					handlePacketTooLarge(env, error.getForPacket());
+					break;
+
+			}
+
+
+
+		}
+
+		//-- Generic handling
+		try {
+			onErrorPacket(env);
+		} catch(Exception x) {
+			log("Unexpected exception while handling error packet: " + x);
+			x.printStackTrace();
+		}
+
+
+	}
+
+	/**
+	 * When the server reports a packet too large we just tell the peer, it should
+	 * then remove the packet from the retransmit queue.
+	 */
+	private void handlePacketTooLarge(Envelope env, int forPacket) {
+		Peer peer = findPeer(env);
+		if(null == peer)
+			return;
+		peer.packetTooLarge(env, forPacket);
+	}
+
 	/**
 	 * Ack whatever was sent by the appropriate peer.
 	 */
 	private void handleAckPacket(Envelope env) {
-		Peer peer;
-		synchronized(this) {
-			peer = m_peerMap.get(env.getSourceId());
-		}
-		if(null == peer) {
-			log("Ack received for unknown peer=" + env.getSourceId());
+		Peer peer = findPeer(env);
+		if(null == peer)
 			return;
-		}
 		peer.ackReceived(env.getAck().getSequence());
 	}
 
+	@Nullable
+	private Peer findPeer(Envelope env) {
+		synchronized(this) {
+			Peer peer = m_peerMap.get(env.getSourceId());
+			if(peer == null)
+				log("Data received for unknown peer=" + env.getSourceId());
+			return peer;
+		}
+	}
+
 	private void handleAckablePacket(Envelope env, ArrayList<byte[]> body) {
-		respondWithAck(env);						// Always ack the packet as we've seen it
+		respondWithAck(env);                        // Always ack the packet as we've seen it
 
 		Peer peer = getOrCreatePeer(env.getSourceId());
 		if(peer.seen(env.getAckable().getSequence())) {
@@ -757,12 +801,12 @@ public abstract class HubConnectorBase<T extends Peer> {
 		CommandContext ctx = new CommandContext(this, env, peer);
 		try {
 			handleAckable(ctx, body);
-		//} catch(CommandFailedException cfx) {
-		//	sendHubErrorPacket(ctx, cfx);
+			//} catch(CommandFailedException cfx) {
+			//	sendHubErrorPacket(ctx, cfx);
 		} catch(Exception x) {
 			Throwable t = x;
 			while(t instanceof InvocationTargetException) {
-				t = ((InvocationTargetException)t).getTargetException();
+				t = ((InvocationTargetException) t).getTargetException();
 			}
 			log("Command exception: " + t);
 
@@ -794,7 +838,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 				.setDetails(StringTool.strStacktrace(cfx))
 				.build()
 			).build();
-		sendPacketPrimitive(response, null, () -> {});
+		sendPacketPrimitive(response, null);
 	}
 
 	/**
@@ -808,7 +852,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 				.setCode(code.name())
 				.build()
 			).build();
-		sendPacketPrimitive(response, null, () -> {});
+		sendPacketPrimitive(response, null);
 	}
 
 	/**
@@ -831,7 +875,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 			m_is = null;
 			m_os = null;
 
-			switch(getState()) {
+			switch(getState()){
 				default:
 					throw new IllegalStateException("Unexpected state: " + getState());
 
@@ -861,7 +905,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 					int count = m_reconnectCount++;
 					int delta = count < 3 ? 250 :
 						count < 6 ? 2000 :
-						10000;
+							10000;
 					m_nextReconnect = System.currentTimeMillis() + delta;
 					break;
 
@@ -961,7 +1005,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		synchronized(this) {
 			if(getState() == ConnectorState.CONNECTED) {
 				setState(ConnectorState.AUTHENTICATED);
-				notifyAll();								// Release the wr
+				notifyAll();                                // Release the wr
 			}
 		}
 	}
@@ -976,19 +1020,14 @@ public abstract class HubConnectorBase<T extends Peer> {
 		Envelope response = responseEnvelope(src, "")
 			.setPong(Pong.newBuilder())
 			.build();
-		sendPacketPrimitive(response, null, () -> {
-			log("Pong send failed!?");
-		});
+		sendPacketPrimitive(response, null);
 	}
 
 	private void respondWithAck(Envelope src) {
 		Envelope response = responseEnvelope(src, src.getSourceId())
 			.setAck(Ack.newBuilder().setSequence(src.getAckable().getSequence()))
 			.build();
-		sendPacketPrimitive(response, null, () -> {
-			log("Ack send failed -> disconnecting");
-			forceDisconnect("Ack send failed");
-		});
+		sendPacketPrimitive(response, null);
 	}
 
 	protected Envelope.Builder responseEnvelope(Envelope src, String targetId) {
@@ -1032,7 +1071,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 
 	@Nullable
 	public Object decodeBody(String bodyType, List<byte[]> data) throws IOException {
-		switch(bodyType) {
+		switch(bodyType){
 			case CommandNames.BODY_BYTES:
 				return data;
 
@@ -1046,7 +1085,7 @@ public abstract class HubConnectorBase<T extends Peer> {
 		String clzz = bodyType.substring(pos + 1);
 		String sub = bodyType.substring(0, pos);
 
-		switch(sub) {
+		switch(sub){
 			default:
 				throw new ProtocolViolationException("Unknown body type " + bodyType);
 
@@ -1060,7 +1099,8 @@ public abstract class HubConnectorBase<T extends Peer> {
 		return m_peerMap;
 	}
 
-	protected void internalStart() {}
+	protected void internalStart() {
+	}
 
 	public void addStateListener(Consumer<ConnectorState> listener) {
 		m_stateListeners.add(listener);

@@ -57,8 +57,8 @@ final public class AsynchronousJsonCommandHandler<T extends JsonPacket> implemen
 							.setId(cmd.getId())
 							.setDataFormat(CommandNames.getJsonDataFormat(result))
 						);
-					ctx.peer().send(ack, new JsonBodyTransmitter(result), Duration.ofHours(2), () -> {
-						System.err.println("ERROR Command response send failed");
+					ctx.peer().send(ack, new JsonBodyTransmitter(result), Duration.ofHours(2), (erc) -> {
+						ctx.log("ERROR Command response packet send failed with code=" + erc);
 					});
 				} catch(Exception x) {
 					asyError = x;

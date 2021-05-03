@@ -183,8 +183,8 @@ final public class CommandContext {
 
 			);
 
-		peer().send(ackable, new StringBodyTransmitter(s), Duration.ofHours(1), () -> {
-			m_connector.log("STDOUT packet send failed");
+		peer().send(ackable, new StringBodyTransmitter(s), Duration.ofHours(1), (erc) -> {
+			m_connector.log("STDOUT packet send failed with error code=" + erc);
 		});
 	}
 
