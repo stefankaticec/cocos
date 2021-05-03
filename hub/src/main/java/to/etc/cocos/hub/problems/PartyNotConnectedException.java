@@ -6,6 +6,6 @@ package to.etc.cocos.hub.problems;
  */
 final public class PartyNotConnectedException extends RuntimeException {
 	public PartyNotConnectedException(String party) {
-		super("Party " + party + " not (currently) connected");
+		super(party);
 	}
 }
