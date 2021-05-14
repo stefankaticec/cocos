@@ -145,6 +145,7 @@ final class PacketMachine {
 			;
 		rb.getEnvelope().getAuthBuilder()
 			.build();
+		m_hub.log("Starting inventory send");
 		rb.after(server::startInventorySend).send();
 	}
 

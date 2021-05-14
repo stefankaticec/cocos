@@ -66,6 +66,7 @@ final class InventorySender {
 
 			case 0:
 				//-- send client connected
+				m_server.log("Send 'connected' indicator to " + client.getFullId());
 				PacketResponseBuilder b = m_server.packetBuilder(client.getFullId());
 				b.getEnvelope()
 					.setClientConnected(Hubcore.ClientConnected.getDefaultInstance())
@@ -76,6 +77,7 @@ final class InventorySender {
 
 			case 1:
 				//-- send inventory packet list
+				m_server.log("Send 'inventory' indicator to " + client.getFullId());
 				List<ByteBufferPacket> inventoryPacketList = client.getInventoryPacketList();
 				while(inventoryPacketList.size() == 0) {
 					synchronized(this) {
@@ -88,6 +90,7 @@ final class InventorySender {
 					}
 				}
 				for(int i = inventoryPacketList.size() - 1; i >= 0; i--) {
+					m_server.log("Send 'inventory' packet to " + client.getFullId());
 					ByteBufferPacket packet = inventoryPacketList.get(i);
 					ByteBuf buffer = m_server.getHandler().alloc().buffer();
 					for(byte[] bb : packet.getBuffers()) {
